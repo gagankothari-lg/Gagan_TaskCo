@@ -1,179 +1,156 @@
 # LG Desk — Production Deployment Runbook
 
-> Stack: **Vercel** (Next.js web) · **Railway** (NestJS API) · **Neon** (PostgreSQL, already running).
-> Output: two live HTTPS URLs — the app and the API.
+> Stack: **Vercel** (Next.js web) · **Railway** (NestJS API, Docker) · **Neon** (PostgreSQL).
 
-## Repo layout (read this first)
-The **git repo root is `Gagan_TaskCo/`**; the pnpm monorepo lives in **`Gagan_TaskCo/lgdesk/`**:
+## ✅ LIVE (deployed 2026-06-28, via CLI)
+| | |
+|---|---|
+| **App (web)** | https://lgdesk-web.vercel.app — Vercel project `gagan09/lgdesk-web` |
+| **API** | https://lgdesk-api-production.up.railway.app — Railway project `lgdesk-api` |
+| **Health** | `GET /api/health` → `{"ok":true,...}` · helmet headers ✓ |
+| **Login** | `gagankothari.lg@gmail.com` / `Admin@1234` → **change immediately after first login** |
+| **Verified** | login ✓ · `/api/auth/me` ✓ · no `passwordHash` leak ✓ · CORS from web origin ✓ · login rate-limit 5/min returns 429 ✓ |
 
+> **Post-deploy follow-ups (do these):**
+> 1. **Rotate the Neon DB password** — it surfaced in the setup chat. Neon console → Roles → reset, then update `DATABASE_URL` on Railway + local `apps/api/.env`.
+> 2. **Delete the Railway + Vercel CLI tokens** created for this deploy.
+> 3. **Change the admin password** in-app (Profile → Change Password).
+> 4. Bump the Vercel project to **Node 24.x** before 2026-10-01 (20.x build deprecation).
+
+---
+
+## Repo layout
+The git root is `Gagan_TaskCo/`; the pnpm monorepo is `Gagan_TaskCo/lgdesk/`:
 ```
-Gagan_TaskCo/                 ← git root (this is what Railway/Vercel clone)
-└── lgdesk/                   ← pnpm workspace root (pnpm-workspace.yaml lives here)
-    ├── apps/api              ← NestJS  → Railway
-    ├── apps/web              ← Next.js → Vercel
+Gagan_TaskCo/
+└── lgdesk/                   ← pnpm workspace root
+    ├── apps/api              ← NestJS  → Railway (Docker: apps/api/Dockerfile)
+    ├── apps/web              ← Next.js → Vercel (STANDALONE — mirrors API types locally)
     └── packages/types
 ```
-
-So in **both** platforms set the **Root Directory to a path inside `lgdesk/`** (below). All commands assume you run them from `lgdesk/`.
 
 ---
 
 ## 0. Prerequisites
-- Accounts: GitHub (repo pushed), [Neon](https://neon.tech) (DB ready), [Railway](https://railway.app), [Vercel](https://vercel.com).
-- CLIs: `npm i -g @railway/cli vercel` (optional — the dashboards work too).
-- The repo is already on GitHub: `https://github.com/gagankothari-lg/Gagan_TaskCo` (branch `main`).
+- Accounts: GitHub, Neon (DB ready), Railway, Vercel.
+- CLIs: `npm i -g @railway/cli vercel`.
+- Repo on GitHub: `https://github.com/gagankothari-lg/Gagan_TaskCo` (branch `main`).
 
----
-
-## 1. Pre-deploy build check (already green)
+## 1. Pre-deploy build check (green)
 ```bash
-cd lgdesk
-pnpm install
+cd lgdesk && pnpm install
 pnpm --filter api exec prisma generate
-pnpm --filter api build        # nest build  → exit 0
-pnpm --filter web build        # next build  → exit 0
+pnpm --filter api build      # nest build → exit 0
+pnpm --filter web build      # next build → exit 0
 ```
-If either fails, fix before deploying.
 
----
+## 2. Database (Neon) — done
+Live, pushed + seeded. Production login is **`gagankothari.lg@gmail.com` / `Admin@1234`** on EMP-00001 (not the seed email). To re-point: set `DATABASE_URL` (incl. `?sslmode=require`), then `npx prisma db push && pnpm seed`.
 
-## 2. Database (Neon) — already done
-The Neon DB is live and **already pushed + seeded**. Verify if you like:
-```bash
-cd lgdesk/apps/api
-npx prisma studio       # users table → 1 Super Admin (EMP-00001)
-```
-> ⚠️ **Production login is `gagankothari.lg@gmail.com` / `Admin@1234`** (the seed email was changed on EMP-00001 — it is **not** `admin@leveragedgrowth.co`). Change this password right after first login.
-
-To re-point at a different Neon DB later: set `DATABASE_URL` (must include `?sslmode=require`), then `npx prisma db push` and `pnpm seed`.
-
----
-
-## 3. Generate a production JWT secret
+## 3. JWT secret
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
-Copy the 128-char hex. Paste it into Railway as `JWT_SECRET`. **Never commit it.**
+Set as Railway `JWT_SECRET`. Never commit it.
 
 ---
 
-## 4. Deploy the API to Railway
-
-### 4a. Create the service
-Railway dashboard → **New Project → Deploy from GitHub repo** → pick `Gagan_TaskCo`.
-- **Settings → Root Directory:** `lgdesk`  ← (the pnpm workspace root)
-- **Build:** choose ONE:
-  - **Dockerfile (recommended):** Settings → set **Dockerfile Path = `apps/api/Dockerfile`**. (The Dockerfile copies the workspace root, installs the api subtree, runs `prisma generate`, builds, and binds `$PORT`.)
-  - **NIXPACKS:** Railway auto-reads `apps/api/railway.json` (build command runs `prisma generate` + build; start = `node dist/main.js`; healthcheck `/api/health`).
-
-### 4b. Environment variables (Railway → Variables)
-| Var | Value |
-|---|---|
-| `DATABASE_URL` | your Neon string incl. `?sslmode=require` |
-| `JWT_SECRET` | the 64-byte hex from step 3 |
-| `JWT_EXPIRES_IN` | `7d` |
-| `NODE_ENV` | `production` |
-| `FRONTEND_URL` | your Vercel URL (set after step 5; redeploy) |
-| `GEMINI_API_KEY` | *(optional)* enables weekly-summary generation |
-| `RESEND_API_KEY` | *(optional)* enables password-reset OTP email |
-> `PORT` is injected by Railway automatically — `main.ts` reads it. Do **not** hardcode it.
-> `GEMINI_MODEL` / `FROM_EMAIL` are **not read by the code** (model + from-address are hardcoded); ignore unless you wire them.
-
-### 4c. Deploy & verify
-Railway deploys on push. Grab the public URL (e.g. `https://lgdesk-api-production.up.railway.app`), then:
+## 4. Deploy the API to Railway (Docker) — CLI method used
 ```bash
-API="https://<your-railway-url>"
-curl -I  $API/api/health        # → 200 + X-Frame-Options/X-Content-Type-Options (helmet)
-curl     $API/api/health        # → {"ok":true,"data":{"status":"ok",...}}
+cd lgdesk
+railway login                         # browser auth (token-based auth also works via RAILWAY_API_TOKEN)
+railway init --name lgdesk-api        # creates project + production env
+# create the service AND set all vars in one shot:
+railway add --service lgdesk-api \
+  --variables "NODE_ENV=production" \
+  --variables "JWT_EXPIRES_IN=7d" \
+  --variables "RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile" \
+  --variables "FRONTEND_URL=https://lgdesk-web.vercel.app" \
+  --variables "DATABASE_URL=<neon url ?sslmode=require>" \
+  --variables "JWT_SECRET=<hex from step 3>" \
+  --variables "GEMINI_API_KEY=<optional>"
+railway up --ci --service lgdesk-api  # builds apps/api/Dockerfile, context = lgdesk/
+railway domain                        # generate the public URL
 ```
-If it fails: `railway logs`.
+- `PORT` is injected by Railway — do **not** set it (`main.ts` reads it).
+- `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile` tells Railway to build the Dockerfile with the workspace root as context.
+- `RESEND_API_KEY` optional (password-reset email no-ops without it). `GEMINI_API_KEY` optional (weekly summaries).
+- **Dashboard equivalent:** New Project → from GitHub `Gagan_TaskCo` → Settings: Root Directory `lgdesk`, Dockerfile Path `apps/api/Dockerfile`, then add the vars.
+
+### Verify
+```bash
+API="https://lgdesk-api-production.up.railway.app"
+curl -I $API/api/health      # 200 + x-content-type-options/x-frame-options (helmet)
+curl    $API/api/health      # {"ok":true,"data":{"status":"ok",...}}
+```
 
 ---
 
-## 5. Deploy the web to Vercel
+## 5. Deploy the web to Vercel — STANDALONE
+`apps/web` is a **standalone Next.js app** (it mirrors the API types in `src/lib/types.ts`; no `@lgdesk/*` workspace deps), so it builds **without** the monorepo. `apps/web/vercel.json` is just:
+```json
+{ "$schema": "https://openapi.vercel.sh/vercel.json", "framework": "nextjs", "buildCommand": "next build", "outputDirectory": ".next" }
+```
+> ⚠️ The old `installCommand`/`buildCommand` with `cd ../.. && pnpm …` **break** a from-`apps/web` deploy ("No Next.js version detected") — the project's build/install commands must be the Next.js **defaults** (npm install + next build).
 
-Vercel dashboard → **Add New → Project** → import `Gagan_TaskCo`.
-- **Root Directory:** `lgdesk/apps/web`
-- Framework preset: **Next.js** (auto). `apps/web/vercel.json` sets the monorepo install/build (`cd ../.. && pnpm …`).
-- **Environment Variables:**
-  | Var | Value |
-  |---|---|
-  | `NEXT_PUBLIC_API_URL` | the Railway origin **without** `/api` (the client appends `/api`) |
+- **CLI (used):** from `lgdesk/apps/web`:
+  ```bash
+  vercel --prod --yes --scope gagan09 \
+    --build-env NEXT_PUBLIC_API_URL="https://lgdesk-api-production.up.railway.app" \
+    --env       NEXT_PUBLIC_API_URL="https://lgdesk-api-production.up.railway.app"
+  ```
+  If the project has stale `cd ../..` overrides, clear them:
+  ```bash
+  curl -X PATCH "https://api.vercel.com/v9/projects/lgdesk-web?teamId=<team>" \
+    -H "Authorization: Bearer <vercel-token>" -H "Content-Type: application/json" \
+    -d '{"framework":"nextjs","rootDirectory":null,"buildCommand":null,"installCommand":null,"outputDirectory":null}'
+  ```
+- **Dashboard equivalent:** Add New → Project → import `Gagan_TaskCo` → Root Directory `lgdesk/apps/web` → Next.js (auto) → env `NEXT_PUBLIC_API_URL` = the Railway origin **without** `/api` (the client appends `/api`).
 
-Deploy → grab the URL (e.g. `https://lgdesk.vercel.app`).
+`NEXT_PUBLIC_*` vars are inlined at **build** time — pass via `--build-env` (or set in project env) before building.
 
 ---
 
-## 6. Wire the frontend URL back into the API
-Set Railway `FRONTEND_URL` = your Vercel URL and **redeploy** the API (CORS allow-list reads it).
-
----
+## 6. Wire CORS
+Set Railway `FRONTEND_URL` = the Vercel origin and redeploy; `main.ts` allow-lists `[FRONTEND_URL, http://localhost:3000]`.
+```bash
+railway variables --service lgdesk-api --set "FRONTEND_URL=https://lgdesk-web.vercel.app"
+```
 
 ## 7. Post-deploy verification
 ```bash
-API="https://<railway>"; APP="https://<vercel>"
-
-# health + helmet
+API="https://lgdesk-api-production.up.railway.app"; APP="https://lgdesk-web.vercel.app"
 curl -I $API/api/health
-
-# login (production creds)
+# CORS preflight from the web origin → must echo access-control-allow-origin
+curl -i -X OPTIONS $API/api/auth/login -H "Origin: $APP" -H "Access-Control-Request-Method: POST" | grep -i access-control
+# login
 curl -X POST $API/api/auth/login -H 'Content-Type: application/json' \
-  -d '{"email":"gagankothari.lg@gmail.com","password":"Admin@1234"}'      # → token
-
-# passwordHash must NOT appear
-TOKEN="<paste token>"
-curl -s $API/api/auth/me -H "Authorization: Bearer $TOKEN" | grep -i passwordHash   # → nothing
-
-# rate limit: 8 rapid bad logins → 429 after 5
+  -d '{"email":"gagankothari.lg@gmail.com","password":"Admin@1234"}'   # → token, no passwordHash
+# rate limit (sequential): 6th+ login/min → 429
 for i in $(seq 1 8); do curl -s -o /dev/null -w "%{http_code} " -X POST $API/api/auth/login \
-  -H 'Content-Type: application/json' -d '{"email":"x@y.z","password":"w"}'; done    # → ...401 429 429
+  -H 'Content-Type: application/json' -d '{"email":"x@y.io","password":"ValidPass123"}'; done   # → 401 401 401 401 401 429 429 429
 ```
-Browser: open `$APP` → login → dashboard loads, Network tab shows calls to the Railway origin, no console errors.
+Browser: open `$APP`, log in, dashboard renders, Network tab shows calls to the Railway origin.
+
+## 8. Scheduled jobs — automatic
+In-process `@nestjs/schedule` crons (no Railway scheduler): hourly auto clock-out (`work-duration.service.ts`), daily token cleanup (`auth.service.ts`). Keep the API at **1 replica** (in-memory throttler + crons fire per replica).
 
 ---
 
-## 8. Scheduled jobs — automatic (no setup)
-Crons run **in-process** via `@nestjs/schedule` while the API is up — no Railway cron scheduler needed:
-- **Hourly auto clock-out** — `@Cron('0 * * * *')` in `work-duration.service.ts` (closes sessions past midnight UTC).
-- **Daily token cleanup** — `@Cron('0 3 * * *')` in `auth.service.ts`.
-
-> Not implemented: the Monday weekly-summary **bulk** generation. Summaries are **on-demand** (Work Log → Weekly Summary → Generate Now), which needs `GEMINI_API_KEY` set.
-> Note: if you scale the API to >1 replica, in-process crons fire on every replica — keep the API at 1 instance, or move crons to a single worker.
-
----
-
-## 9. First-run checklist
-- [ ] `$APP` loads the indigo login screen
-- [ ] Login with `gagankothari.lg@gmail.com` / `Admin@1234`
-- [ ] Dashboard renders (no 500s/blank)
-- [ ] `curl -I $API/api/health` shows helmet headers
-- [ ] 8 rapid bad logins → `429`
-- [ ] `auth/me` response has no `passwordHash`
-- [ ] **Change the admin password** (Profile → Change Password)
-- [ ] Railway `FRONTEND_URL` = the Vercel URL
-- [ ] Register team members via the login "Register →" link; managers approve
-
----
-
-## 10. Custom domains (optional)
-- **Vercel:** Settings → Domains → add `desk.leveragedgrowth.in` (CNAME → `cname.vercel-dns.com`).
-- **Railway:** Settings → Networking → add `api.leveragedgrowth.in` (CNAME → Railway's target).
-- Then update `FRONTEND_URL` (Railway) and `NEXT_PUBLIC_API_URL` (Vercel) to the custom domains and redeploy both.
-
----
-
-## 11. Troubleshooting
+## 9. Troubleshooting
 | Symptom | Fix |
 |---|---|
-| Railway health check fails / "no open ports" | App must bind `$PORT` — it does (`main.ts`); ensure you didn't override `PORT`. |
-| `prisma` "engine not found" / OpenSSL error | Use the Dockerfile (installs `openssl`) or ensure NIXPACKS provides it. |
-| `--frozen-lockfile` mismatch in Docker | The Dockerfile pins `pnpm@10.33.0`; if you bump pnpm, re-run `pnpm install` and commit the lockfile. |
-| CORS errors in browser | `FRONTEND_URL` on Railway must equal the exact Vercel origin; redeploy the API after setting it. |
-| `Cannot find module './vendor-chunks/...'` (web) | Stale `.next`: `rm -rf apps/web/.next && pnpm --filter web build`. |
-| Login `400 "property X should not exist"` | A frontend hook sent a stray body field (ValidationPipe `forbidNonWhitelisted`); strip it from that hook. |
+| Vercel: "No Next.js version detected" | Project has stale `cd ../..` build/install overrides — clear them to Next.js defaults (§5 PATCH). |
+| Login rate-limit (5/min) never trips (always 401, no 429) | API behind Railway's proxy needs `app.set('trust proxy', true)` in `main.ts` so the throttler keys on the real client IP. **(Already applied.)** |
+| `railway up` → `reqwest error / operation timed out` | Client-side log-stream timeout only — the build continues server-side; check `railway status` for the new deployment ID + `● Online`. |
+| Railway health fails / "no open ports" | App must bind `$PORT` — it does; don't override `PORT`. |
+| `prisma` engine / OpenSSL error | The Dockerfile installs `openssl` (Debian slim). |
+| CORS errors in browser | Railway `FRONTEND_URL` must equal the exact Vercel origin (no trailing slash); redeploy after changing. |
+| `Cannot find module './vendor-chunks/...'` (web local) | Stale `.next`: `rm -rf apps/web/.next && pnpm --filter web build`. |
+
 ```
-App URL:  https://<vercel>
-API URL:  https://<railway>
+App URL:  https://lgdesk-web.vercel.app
+API URL:  https://lgdesk-api-production.up.railway.app
 DB:       Neon PostgreSQL (production)
 Login:    gagankothari.lg@gmail.com / Admin@1234   (change immediately)
 ```

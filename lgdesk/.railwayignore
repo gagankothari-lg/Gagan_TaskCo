@@ -1,0 +1,15 @@
+# Keep the `railway up` upload lean (the Dockerfile rebuilds deps from the lockfile).
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+.turbo
+**/*.tsbuildinfo
+.git
+**/*.log
+.env
+**/.env
+**/.env.local
+**/.env.production

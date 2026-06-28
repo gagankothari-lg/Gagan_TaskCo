@@ -8,6 +8,12 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Behind Railway's multi-hop (Envoy) proxy: trust the forwarding chain so req.ip
+  // is the real, stable client IP (leftmost X-Forwarded-For, which Railway's edge
+  // sanitizes). Without this, @nestjs/throttler keys on a varying intermediate hop
+  // and login brute-force protection silently no-ops. I-03.
+  app.getHttpAdapter().getInstance().set('trust proxy', true);
+
   // Security headers (CSP, HSTS, X-Frame-Options, etc.). I-01.
   app.use(helmet());
 
