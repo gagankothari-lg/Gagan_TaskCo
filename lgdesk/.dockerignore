@@ -1,0 +1,13 @@
+# Build context = workspace root (lgdesk/). Keep the image lean + secret-free.
+**/node_modules
+**/dist
+**/.next
+**/*.tsbuildinfo
+**/.turbo
+# Never copy real env files into the image — env comes from the platform at runtime.
+**/.env
+**/.env.local
+**/.env.production
+.git
+.gitignore
+**/*.log
