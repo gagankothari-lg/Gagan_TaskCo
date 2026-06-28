@@ -1,0 +1,28 @@
+{
+  "name": "lgdesk",
+  "private": true,
+  "scripts": {
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
+    "build:api": "pnpm --filter api build",
+    "build:web": "pnpm --filter web build",
+    "db:push": "pnpm --filter api exec -- npx prisma db push",
+    "db:generate": "pnpm --filter api exec -- npx prisma generate",
+    "db:studio": "pnpm --filter api exec -- npx prisma studio",
+    "db:migrate": "pnpm --filter api exec -- npx prisma migrate dev",
+    "seed": "pnpm --filter api exec -- npx ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" prisma/seed.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "@swc/core"
+    ]
+  }
+}

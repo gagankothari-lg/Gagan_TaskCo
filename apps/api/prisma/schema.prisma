@@ -1,0 +1,492 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USER ──────────────────────────────────────────────────────
+model User {
+  id            String    @id @default(cuid())
+  empId         String    @unique
+  firstName     String
+  lastName      String
+  email         String    @unique
+  passwordHash  String
+  role          String
+  designation   String?
+  managerId     String?
+  team          String?
+  subDepartment String?
+  isActive      Boolean   @default(true)
+  dob           DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  manager           User?                  @relation("Reports", fields: [managerId], references: [empId])
+  reports           User[]                 @relation("Reports")
+  workLogs          WorkLog[]
+  internWorkLogs    InternWorkLog[]
+  workDurations     WorkDuration[]
+  leaves            Leave[]
+  todos             Todo[]
+  notes             Note[]
+  ideas             Idea[]
+  weeklySummaries   WeeklySummary[]
+  progressUpdates   ProgressUpdate[]
+  profileUpdateReqs ProfileUpdateRequest[]
+  registrationReq   RegistrationRequest?
+  misAccess         MisAccess?
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+model PasswordResetOtp {
+  id        String   @id @default(cuid())
+  email     String
+  otp       String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("password_reset_otps")
+}
+
+model RevokedToken {
+  id        String   @id @default(cuid())
+  jti       String   @unique
+  empId     String
+  expiresAt DateTime
+  revokedAt DateTime @default(now())
+
+  @@index([jti])
+  @@map("revoked_tokens")
+}
+
+// ─── TASK ──────────────────────────────────────────────────────
+model Task {
+  id                String    @id @default(cuid())
+  taskId            String    @unique
+  projId            String?
+  functionId        String?
+  subFnId           String?
+  title             String
+  description       String?
+  assigneeIds       String    @default("")
+  assignedTeams     String    @default("")
+  assignerId        String
+  status            String    @default("Not Started")
+  priority          String    @default("Medium")
+  recurring         Boolean   @default(false)
+  dueDate           DateTime?
+  estimatedHours    Float?
+  actualHours       Float     @default(0)
+  fileLink          String?
+  links             String?
+  calEventId        String?
+  assignmentHistory String    @default("[]")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project         Project?       @relation(fields: [projId], references: [projId])
+  function        WorkFunction?  @relation("FunctionTasks", fields: [functionId], references: [functionId])
+  progressUpdates ProgressUpdate[]
+  attachments     Attachment[]
+
+  @@map("tasks")
+}
+
+// ─── PROJECT ───────────────────────────────────────────────────
+model Project {
+  id                String    @id @default(cuid())
+  projId            String    @unique
+  parentProjId      String?
+  name              String
+  description       String?
+  ownerIds          String    @default("")
+  assignerId        String
+  assigneeIds       String    @default("")
+  assignedTeams     String    @default("")
+  status            String    @default("Not Started")
+  priority          String    @default("Medium")
+  startDate         DateTime?
+  deadline          DateTime?
+  chatLink          String?
+  calEventId        String?
+  assignmentHistory String    @default("[]")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  parent      Project?       @relation("SubProjects", fields: [parentProjId], references: [projId])
+  subProjects Project[]      @relation("SubProjects")
+  tasks       Task[]
+  functions   WorkFunction[]
+
+  @@map("projects")
+}
+
+// ─── FUNCTION ──────────────────────────────────────────────────
+model WorkFunction {
+  id                String    @id @default(cuid())
+  functionId        String    @unique
+  parentFnId        String?
+  projId            String?
+  name              String
+  description       String?
+  assignerId        String
+  assigneeIds       String    @default("")
+  assignedTeams     String    @default("")
+  status            String    @default("Not Started")
+  priority          String    @default("Medium")
+  startDate         DateTime?
+  deadline          DateTime?
+  calEventId        String?
+  assignmentHistory String    @default("[]")
+  links             String?
+  createdById       String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  parent   WorkFunction?  @relation("SubFunctions", fields: [parentFnId], references: [functionId])
+  children WorkFunction[] @relation("SubFunctions")
+  project  Project?       @relation(fields: [projId], references: [projId])
+  tasks    Task[]         @relation("FunctionTasks")
+
+  @@map("work_functions")
+}
+
+// ─── WORK LOG ──────────────────────────────────────────────────
+model WorkLog {
+  id             String   @id @default(cuid())
+  logId          String   @unique
+  empId          String
+  date           DateTime @db.Date
+  month          String?
+  dayName        String?
+  attendance     String   @default("Present")
+  purpose        String?
+  leaveRequested String?
+  work1stHalf    String?
+  work2ndHalf    String?
+  extraHours     Float    @default(0)
+  remark         String?
+  status         String?
+  comments       String?
+  workDuration   Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+
+  @@unique([empId, date])
+  @@map("work_logs")
+}
+
+model InternWorkLog {
+  id          String   @id @default(cuid())
+  logId       String   @unique
+  empId       String
+  date        DateTime @db.Date
+  month       String?
+  dayName     String?
+  attendance  String   @default("Present")
+  work1stHalf String?
+  work2ndHalf String?
+  extraHours  Float    @default(0)
+  remark      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+
+  @@unique([empId, date])
+  @@map("intern_work_logs")
+}
+
+// ─── WORK DURATION (Clock) ─────────────────────────────────────
+model WorkDuration {
+  id             String    @id @default(cuid())
+  sessionId      String    @unique
+  empId          String
+  date           DateTime  @db.Date
+  clockIn        DateTime?
+  clockOut       DateTime?
+  totalBreakMins Int       @default(0)
+  grossMinutes   Int       @default(0)
+  netMinutes     Int       @default(0)
+  status         String    @default("IDLE")
+  autoClocked    Boolean   @default(false)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user   User         @relation(fields: [empId], references: [empId])
+  breaks WorkBreak[]
+
+  @@unique([empId, date])
+  @@map("work_durations")
+}
+
+model WorkBreak {
+  id             String    @id @default(cuid())
+  sessionId      String
+  breakStart     DateTime
+  breakEnd       DateTime?
+  durationMins   Int       @default(0)
+
+  session WorkDuration @relation(fields: [sessionId], references: [sessionId])
+
+  @@map("work_breaks")
+}
+
+// ─── LEAVE ─────────────────────────────────────────────────────
+model Leave {
+  id          String    @id @default(cuid())
+  leaveId     String    @unique
+  empId       String
+  leaveType   String
+  startDate   DateTime  @db.Date
+  endDate     DateTime  @db.Date
+  days        Float
+  reason      String
+  status      String    @default("Pending")
+  reviewedBy  String?
+  reviewNotes String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+
+  @@map("leaves")
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  @@map("holidays")
+}
+
+// ─── MEETING ───────────────────────────────────────────────────
+model Meeting {
+  id              String    @id @default(cuid())
+  meetingId       String    @unique
+  title           String
+  description     String?
+  organizerId     String
+  attendeeIds     String    @default("")
+  attendeeTeams   String    @default("")
+  meetType        String    @default("personal")
+  startTime       DateTime
+  endTime         DateTime
+  meetLink        String?
+  calEventId      String?
+  status          String    @default("Scheduled")
+  cancelReason    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("meetings")
+}
+
+// ─── ANNOUNCEMENT ──────────────────────────────────────────────
+model Announcement {
+  id          String    @id @default(cuid())
+  title       String
+  content     String    @default("")
+  authorId    String
+  visibility  String    @default("Organisation")
+  startDate   DateTime?
+  expiresAt   DateTime?
+  isPinned    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("announcements")
+}
+
+// ─── NOTES (personal) ──────────────────────────────────────────
+model Todo {
+  id        String   @id @default(cuid())
+  empId     String
+  title     String
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+  @@map("todos")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  empId     String
+  title     String?
+  content   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+  @@map("notes")
+}
+
+model Idea {
+  id        String   @id @default(cuid())
+  empId     String
+  title     String?
+  content   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+  @@map("ideas")
+}
+
+// ─── ATTACHMENT ────────────────────────────────────────────────
+model Attachment {
+  id           String   @id @default(cuid())
+  attachmentId String   @unique
+  taskId       String?
+  projId       String?
+  driveFileId  String
+  fileName     String
+  mimeType     String?
+  webViewLink  String?
+  uploadedBy   String
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  task Task? @relation(fields: [taskId], references: [taskId])
+
+  @@map("attachments")
+}
+
+// ─── DUE DATE REQUEST ──────────────────────────────────────────
+model DueDateRequest {
+  id          String   @id @default(cuid())
+  ddrId       String   @unique
+  entityType  String
+  entityId    String
+  newDueDate  DateTime
+  reason      String
+  requestedBy String
+  status      String   @default("Pending")
+  reviewedBy  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("due_date_requests")
+}
+
+// ─── WEEKLY SUMMARY + MIS ──────────────────────────────────────
+model WeeklySummary {
+  id          String    @id @default(cuid())
+  empId       String
+  weekStart   DateTime
+  content     String?
+  isEdited    Boolean   @default(false)
+  editedAt    DateTime?
+  editedBy    String?
+  aiModel     String?   @default("gemini-2.5-flash")
+  generatedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+
+  @@unique([empId, weekStart])
+  @@map("weekly_summaries")
+}
+
+model MisAccess {
+  id        String   @id @default(cuid())
+  empId     String   @unique
+  email     String   @unique
+  grantedAt DateTime @default(now())
+
+  user User @relation(fields: [empId], references: [empId])
+  @@map("mis_access")
+}
+
+// ─── PROGRESS UPDATE ───────────────────────────────────────────
+model ProgressUpdate {
+  id          String   @id @default(cuid())
+  updateId    String   @unique
+  taskId      String
+  projId      String?
+  authorEmpId String
+  date        DateTime @default(now())
+  description String
+  hoursLogged Float?
+  blockers    String?
+  createdAt   DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [taskId], onDelete: Cascade)
+  user User @relation(fields: [authorEmpId], references: [empId])
+
+  @@map("progress_updates")
+}
+
+// ─── REGISTRATION REQUEST ──────────────────────────────────────
+model RegistrationRequest {
+  id            String   @id @default(cuid())
+  regId         String   @unique
+  firstName     String
+  lastName      String
+  email         String   @unique
+  passwordHash  String
+  designation   String?
+  team          String?
+  subDepartment String?
+  managerId     String?
+  role          String   @default("Team Member")
+  status        String   @default("Pending")
+  reviewedBy    String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User? @relation(fields: [email], references: [email])
+
+  @@map("registration_requests")
+}
+
+// ─── PROFILE UPDATE REQUEST ────────────────────────────────────
+model ProfileUpdateRequest {
+  id          String   @id @default(cuid())
+  reqId       String   @unique
+  empId       String
+  changes     String
+  status      String   @default("Pending")
+  reviewedBy  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [empId], references: [empId])
+
+  @@map("profile_update_requests")
+}
+
+// ─── AUDIT LOG ─────────────────────────────────────────────────
+model AuditLog {
+  id        String   @id @default(cuid())
+  empId     String
+  action    String
+  entity    String
+  entityId  String
+  before    String?
+  after     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [empId], references: [empId])
+
+  @@map("audit_logs")
+}
