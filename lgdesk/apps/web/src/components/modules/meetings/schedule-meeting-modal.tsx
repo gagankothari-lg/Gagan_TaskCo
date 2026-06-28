@@ -8,7 +8,15 @@ import { apiErrorMessage } from '../../../lib/api';
 import { Spinner } from '../../ui/spinner';
 import { EmployeeMultiSelect, fieldClass } from '../tasks/create-task-modal';
 
-export function ScheduleMeetingModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ScheduleMeetingModal({
+  open,
+  onClose,
+  initialMeetType = 'personal',
+}: {
+  open: boolean;
+  onClose: () => void;
+  initialMeetType?: string;
+}) {
   const { employees } = useAuth();
   const create = useCreateMeeting();
   const [title, setTitle] = useState('');
@@ -16,7 +24,7 @@ export function ScheduleMeetingModal({ open, onClose }: { open: boolean; onClose
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
   const [durationMins, setDurationMins] = useState(30);
-  const [meetType, setMeetType] = useState('personal');
+  const [meetType, setMeetType] = useState(initialMeetType);
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [teams, setTeams] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);

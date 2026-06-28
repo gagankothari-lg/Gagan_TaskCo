@@ -172,9 +172,20 @@ export function WorkRow({ date, entry, isIntern, isManager, locked, durationHms,
   return (
     <tr className={rowCls}>
       {/* Day */}
-      <td className="wl-day-cell">
-        <div className="wl-day-name" style={{ fontWeight: 600 }}>{date.toLocaleDateString(undefined, { weekday: 'short' })} {date.getDate()}</div>
-        {isToday && <div className="wl-status-badge wl-badge-tentative" style={{ marginTop: 2 }}>Today</div>}
+      <td
+        className="wl-day-cell"
+        style={{
+          width: 72,
+          verticalAlign: 'top',
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#424242',
+          background: isToday ? '#e8eaf6' : '#f8f9fa',
+          borderLeft: isToday ? '3px solid #1a237e' : undefined,
+        }}
+      >
+        <div className="wl-day-name">{date.toLocaleDateString(undefined, { weekday: 'short' })} {date.getDate()}</div>
+        {isToday && <div style={{ marginTop: 2, display: 'inline-block', background: '#1a237e', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 3 }}>Today</div>}
         {locked && <div style={{ fontSize: 10, color: 'var(--muted2)' }}>Upcoming</div>}
         {showsOt && <span className="wl-ot-badge" style={{ marginTop: 4, display: 'inline-block' }}>+OT</span>}
       </td>
@@ -331,10 +342,13 @@ function HalfCell({
         )}
         <div className="wl-upd-chips">
           {chips.map((c) => (
-            <span key={c.id} className={`wl-chip wl-chip-${c.type}`}>
+            <span
+              key={c.id}
+              style={{ background: '#fff3e0', border: '1px solid #ffe0b2', color: '#e65100', borderRadius: 4, padding: '3px 8px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, margin: '0 4px 3px 0' }}
+            >
               <Icon name={CHIP_ICON[c.type]} size={12} />
               <span>{c.text}</span>
-              {!disabled && <span className="wl-chip-del" onClick={() => onRemove(half, c.id)}>×</span>}
+              {!disabled && <span style={{ color: '#e65100', cursor: 'pointer' }} onClick={() => onRemove(half, c.id)}>×</span>}
             </span>
           ))}
         </div>

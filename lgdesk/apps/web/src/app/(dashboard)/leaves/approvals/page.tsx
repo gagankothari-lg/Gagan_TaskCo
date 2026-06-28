@@ -8,8 +8,12 @@ import { usePendingLeaves, useReviewLeave } from '../../../../hooks/use-leaves';
 import { HolidayModal } from '../../../../components/modules/leaves/holiday-modal';
 import { apiErrorMessage } from '../../../../lib/api';
 import { Spinner } from '../../../../components/ui/spinner';
+import { pillClass } from '../../../../lib/utils';
 
-const fmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const fmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+
+const approveBtn: React.CSSProperties = { background: '#00897b', color: '#fff', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer' };
+const rejectBtn: React.CSSProperties = { background: '#c62828', color: '#fff', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer' };
 
 export default function LeaveApprovalsPage() {
   const { currentUser, employees } = useAuth();
@@ -42,14 +46,21 @@ export default function LeaveApprovalsPage() {
     catch (e) { setError(apiErrorMessage(e, 'Unable to reject')); }
   }
 
+  const rows = leaves ?? [];
+
   return (
     <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-[var(--text)]">Leave Approvals</h1>
+      <div className="ph">
+        <div className="ph-left">
+          <div className="ph-title">Leave Approvals</div>
+          <div className="ph-sub">Pending leave requests from your team</div>
+        </div>
         {isAdmin(currentUser.role) && (
-          <button onClick={() => setHolidayOpen(true)} className="btn btn-ghost">
-            <Icon name="add" size={15} /> Add Holiday
-          </button>
+          <div className="ph-actions">
+            <button onClick={() => setHolidayOpen(true)} className="btn btn-ghost">
+              <Icon name="add" size={15} /> Add Holiday
+            </button>
+          </div>
         )}
       </div>
 
@@ -57,35 +68,43 @@ export default function LeaveApprovalsPage() {
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-[var(--muted)]"><Spinner size={16} /> Loading…</div>
-      ) : (leaves ?? []).length === 0 ? (
-        <div className="rounded-[8px] border border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">No pending leave requests.</div>
+      ) : rows.length === 0 ? (
+        <div className="empty-state">
+          <Icon name="event_available" className="ei" />
+          <p className="font-medium text-[var(--text)]">No pending leave requests</p>
+          <p className="text-[var(--muted)]">All caught up!</p>
+        </div>
       ) : (
         <div className="tbl-wrap">
-          <table className="w-full text-sm">
+          <table>
             <thead>
               <tr>
-                <th className="px-3 py-2.5">Employee</th>
-                <th className="px-3 py-2.5">Type</th>
-                <th className="px-3 py-2.5">Dates</th>
-                <th className="px-3 py-2.5">Days</th>
-                <th className="px-3 py-2.5">Reason</th>
-                <th className="px-3 py-2.5 text-right">Actions</th>
+                <th>Employee</th>
+                <th>Type</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Days</th>
+                <th>Reason</th>
+                <th>Requested</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {(leaves ?? []).map((l) => {
+              {rows.map((l) => {
                 const name = nameByEmpId.get(l.empId) ?? l.empId;
                 return (
                   <tr key={l.leaveId}>
-                    <td className="px-3 py-2.5 text-[var(--text)]">{name}</td>
-                    <td className="px-3 py-2.5 text-[var(--muted)]">{l.leaveType}</td>
-                    <td className="px-3 py-2.5 text-[var(--muted)]">{fmt(l.startDate)}{l.startDate !== l.endDate ? ` – ${fmt(l.endDate)}` : ''}</td>
-                    <td className="px-3 py-2.5 text-[var(--muted)]">{l.days}</td>
-                    <td className="px-3 py-2.5 text-[var(--muted)]">{l.reason || '—'}</td>
-                    <td className="px-3 py-2.5">
+                    <td style={{ fontWeight: 600 }}>{name}</td>
+                    <td><span className={pillClass(l.leaveType)}>{l.leaveType}</span></td>
+                    <td className="text-[var(--muted)]">{fmt(l.startDate)}</td>
+                    <td className="text-[var(--muted)]">{fmt(l.endDate)}</td>
+                    <td>{l.days}</td>
+                    <td className="text-[var(--muted)]">{l.reason || '—'}</td>
+                    <td className="text-[var(--muted)]">{fmt(l.createdAt)}</td>
+                    <td>
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => approve(l.leaveId)} disabled={review.isPending} className="btn btn-accent btn-sm"><Icon name="check" size={14} /> Approve</button>
-                        <button onClick={() => setRejecting({ leaveId: l.leaveId, name })} className="btn btn-danger btn-sm"><Icon name="close" size={14} /> Reject</button>
+                        <button onClick={() => approve(l.leaveId)} disabled={review.isPending} style={approveBtn}>Approve</button>
+                        <button onClick={() => setRejecting({ leaveId: l.leaveId, name })} disabled={review.isPending} style={rejectBtn}>Reject</button>
                       </div>
                     </td>
                   </tr>

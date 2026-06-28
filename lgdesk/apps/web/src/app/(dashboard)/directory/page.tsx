@@ -10,26 +10,27 @@ type Tab = 'team' | 'company';
 
 function DirCard({ u, isYou }: { u: DirectoryUser; isYou: boolean }) {
   const name = `${u.firstName} ${u.lastName}`;
+  const openChat = () => { if (u.chatSpaceLink) window.open(u.chatSpaceLink, '_blank'); };
   return (
     <div className="dir-card">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', background: avatarColor(u.empId), color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(name)}</div>
-          <span className="pres-dot pres-offline" style={{ position: 'absolute', bottom: 0, right: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: avatarColor(u.empId), color: '#fff', fontWeight: 700, fontSize: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(name)}</div>
+          <span className="pres-dot pres-online" style={{ position: 'absolute', bottom: 2, right: 2 }} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="dir-card-name">{name} {isYou && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>(You)</span>}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{name} {isYou && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>(You)</span>}</div>
           <span className={rolePillClass(u.role)}>{u.role}</span>
         </div>
       </div>
-      {u.designation && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{u.designation}</div>}
-      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{u.team}{u.subDepartment ? ` · ${u.subDepartment}` : ''}</div>
-      <div className="dir-card-email">{u.email}</div>
-      {u.managerName && <div className="dir-card-mgr">Reports to: {u.managerName}</div>}
+      {u.designation && <div style={{ fontSize: 12, color: '#424242' }}>{u.designation}</div>}
+      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{u.team}{u.subDepartment ? ` · ${u.subDepartment}` : ''}</div>
+      <div style={{ fontSize: 11, color: '#1565c0' }}>{u.email}</div>
+      {u.managerName && <div style={{ fontSize: 11, color: '#9e9e9e' }}>Reports to: {u.managerName}</div>}
       {!isYou && (
         <div className="dir-card-actions">
-          <a className="btn btn-ghost btn-sm" href={`mailto:${u.email}`}><Icon name="mail" size={15} /> Email</a>
-          <button className="btn btn-ghost btn-sm" onClick={() => u.chatSpaceLink ? window.open(u.chatSpaceLink, '_blank') : undefined}><Icon name="chat" size={15} /> Chat</button>
+          <a className="btn btn-sm" href={`mailto:${u.email}`} style={{ background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon name="mail" size={15} /> Email</a>
+          <button className="btn btn-sm" onClick={openChat} style={{ background: 'transparent', color: 'var(--p)', border: '1px solid var(--p)' }}><Icon name="chat" size={15} /> Chat</button>
         </div>
       )}
     </div>
@@ -53,7 +54,12 @@ export default function DirectoryPage() {
   const grouped = useMemo(() => {
     if (tab !== 'company') return null;
     const m = new Map<string, DirectoryUser[]>();
-    for (const u of list) { const k = u.team ?? 'Unassigned'; (m.get(k) ?? m.set(k, []).get(k)!).push(u); }
+    list.forEach((u) => {
+      const k = u.team ?? 'Unassigned';
+      const arr = m.get(k);
+      if (arr) arr.push(u);
+      else m.set(k, [u]);
+    });
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [list, tab]);
 
@@ -80,14 +86,18 @@ export default function DirectoryPage() {
       ) : grouped ? (
         grouped.map(([teamName, members]) => (
           <div key={teamName} className="dir-team-section" style={{ marginBottom: 24 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--p)', marginBottom: 10 }}>{teamName} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({members.length})</span></h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f5f5f5', padding: '10px 16px', borderRadius: 6, marginBottom: 16 }}>
+              <Icon name="groups" size={18} style={{ color: 'var(--p)' }} />
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text)' }}>{teamName}</span>
+              <span className="pill pill-Admin" style={{ marginLeft: 'auto' }}>{members.length} members</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
               {members.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} />)}
             </div>
           </div>
         ))
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
           {list.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} />)}
         </div>
       )}

@@ -61,17 +61,8 @@ export function statusDotColor(status: string, opts?: { overdue?: boolean }): st
 }
 
 // ─── Avatars ────────────────────────────────────────────────────
-const AVATAR_PALETTE = [
-  '#1a237e', '#00897b', '#6a1b9a', '#0277bd', '#00695c',
-  '#e65100', '#1565c0', '#880e4f', '#2e7d32', '#6a4c93', '#455a64',
-];
-
-/** Deterministic avatar colour from any seed string (empId / name). */
-export function avatarColor(seed: string): string {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
-}
+// Exact GAS palette + hash lives in avatar-colors.ts; re-export for callers.
+export { avatarColor } from './avatar-colors';
 
 /** Up to two uppercase initials from a display name. */
 export function initials(name: string): string {

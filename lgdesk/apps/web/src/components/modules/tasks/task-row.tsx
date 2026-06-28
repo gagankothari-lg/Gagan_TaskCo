@@ -6,7 +6,8 @@ import { useUpdateTask, useDeleteTask } from '../../../hooks/use-tasks';
 import { isManager } from '../../../lib/auth';
 import { Icon } from '../../ui/icon';
 import { toast } from '../../../lib/toast';
-import { avatarColor, initials, badgeClass, statusDotColor as dotColor, fmtDate } from '../../../lib/utils';
+import { avatarColor, initials, statusDotColor as dotColor, fmtDate } from '../../../lib/utils';
+import { statusDot, priorityDisplay } from '../../../lib/status-styles';
 import type { Task, User } from '../../../lib/types';
 
 const CLOSED = ['Done', 'Cancelled'];
@@ -123,13 +124,13 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen: (id: string) => 
           </select>
         ) : (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor(task.status, { overdue }) }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusDot(task.status, overdue) }} />
             <span style={{ fontSize: 12 }}>{task.status}</span>
           </span>
         )}
       </td>
 
-      <td><span className={badgeClass(task.priority)}>{task.priority}</span></td>
+      <td>{(() => { const pd = priorityDisplay(task.priority); return <span style={{ color: pd.color, fontWeight: 600, fontSize: 12 }}>{pd.label}</span>; })()}</td>
       <td style={{ whiteSpace: 'nowrap' }}>
         {task.dueDate ? (
           <span style={{ color: overdue ? 'var(--danger)' : 'var(--muted)', fontSize: 12, textDecoration: closed ? 'line-through' : 'none' }}>

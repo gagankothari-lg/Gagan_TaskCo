@@ -18,24 +18,48 @@ const TEAM_COLORS: Record<string, string> = {
 };
 const teamColor = (t?: string | null) => (t && TEAM_COLORS[t]) || '#455a64';
 
-interface TreeNode { user: DirectoryUser; children: TreeNode[] }
+// Role priority — higher number wins when picking a team head.
+const ROLE_PRIORITY: Record<string, number> = {
+  'Super Admin': 5,
+  Admin: 4,
+  'Team Captain': 3,
+  'Team Facilitator': 2,
+  'Team Member': 1,
+};
+const rolePriority = (role: string) => ROLE_PRIORITY[role] ?? 0;
 
-function buildTree(users: DirectoryUser[]): TreeNode[] {
-  const byId = new Map<string, TreeNode>();
-  users.forEach((u) => byId.set(u.empId, { user: u, children: [] }));
-  const roots: TreeNode[] = [];
-  byId.forEach((node) => {
-    const mgr = node.user.managerId ? byId.get(node.user.managerId) : undefined;
-    if (mgr && mgr !== node) mgr.children.push(node);
-    else roots.push(node);
+interface TeamGroup {
+  name: string;
+  color: string;
+  members: DirectoryUser[];
+  head: DirectoryUser;
+  departments: number;
+}
+
+function buildTeams(users: DirectoryUser[]): TeamGroup[] {
+  const byTeam = new Map<string, DirectoryUser[]>();
+  users.forEach((u) => {
+    const key = u.team || 'Unassigned';
+    const arr = byTeam.get(key);
+    if (arr) arr.push(u);
+    else byTeam.set(key, [u]);
   });
-  return roots;
+  const groups: TeamGroup[] = [];
+  byTeam.forEach((members, name) => {
+    let head = members[0];
+    members.forEach((m) => { if (rolePriority(m.role) > rolePriority(head.role)) head = m; });
+    const depts = new Set<string>();
+    members.forEach((m) => { if (m.subDepartment) depts.add(m.subDepartment); });
+    groups.push({ name, color: teamColor(name), members, head, departments: depts.size });
+  });
+  return groups.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export default function OrgChartPage() {
   const { currentUser } = useAuth();
   const { data: users, isLoading } = useOrgChart();
-  const roots = useMemo(() => buildTree(users ?? []), [users]);
+  const allUsers = useMemo(() => users ?? [], [users]);
+  const teamGroups = useMemo(() => buildTeams(allUsers), [allUsers]);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -43,11 +67,11 @@ export default function OrgChartPage() {
   const [highlight, setHighlight] = useState<string | null>(null);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
 
-  const teams = useMemo(() => Array.from(new Set((users ?? []).map((u) => u.team).filter(Boolean))) as string[], [users]);
+  const teams = useMemo(() => teamGroups.map((g) => g.name), [teamGroups]);
 
   const toggle = (id: string) => setCollapsed((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const expandAll = () => setCollapsed(new Set());
-  const collapseAll = () => setCollapsed(new Set((users ?? []).map((u) => u.empId)));
+  const collapseAll = () => setCollapsed(new Set(teamGroups.map((g) => g.name)));
   const stepZoom = (d: number) => setZoom((z) => Math.min(3, Math.max(0.2, +(z + d).toFixed(2))));
   const reset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
   const findMe = () => { if (currentUser) { setHighlight(currentUser.empId); setZoom(1); setPan({ x: 0, y: 0 }); setTimeout(() => setHighlight(null), 2500); } };
@@ -56,10 +80,8 @@ export default function OrgChartPage() {
   function onMove(e: React.MouseEvent) { if (!drag.current) return; setPan({ x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) }); }
   function onUp() { drag.current = null; }
 
-  const Node = ({ node }: { node: TreeNode }) => {
-    const { user } = node;
-    const color = teamColor(user.team);
-    const isCollapsed = collapsed.has(user.empId);
+  // A person card under a team (the team's members).
+  const PersonCard = ({ user, color }: { user: DirectoryUser; color: string }) => {
     const isMe = user.empId === currentUser?.empId;
     const isHi = highlight === user.empId;
     return (
@@ -68,17 +90,36 @@ export default function OrgChartPage() {
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: color, color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px' }}>{initials(`${user.firstName} ${user.lastName}`)}</div>
           <div style={{ fontSize: 13, fontWeight: 600 }}>{user.firstName} {user.lastName}</div>
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>{user.designation || user.role}</div>
-          {node.children.length > 0 && (
-            <button onClick={() => toggle(user.empId)} style={{ marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
-              <Icon name={isCollapsed ? 'unfold_more' : 'unfold_less'} size={16} /> {node.children.length}
-            </button>
-          )}
         </div>
-        {node.children.length > 0 && !isCollapsed && (
+      </div>
+    );
+  };
+
+  // A team card sitting between the root company and its people.
+  const TeamCard = ({ group }: { group: TeamGroup }) => {
+    const isCollapsed = collapsed.has(group.name);
+    const headName = `${group.head.firstName} ${group.head.lastName}`;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ width: 160, background: 'var(--surface)', borderRadius: 8, borderLeft: `4px solid ${group.color}`, padding: 12, boxShadow: 'var(--sh)' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p)', marginBottom: 8 }}>{group.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', background: group.color, color: '#fff', fontWeight: 700, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(headName)}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headName}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>{group.head.role}</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Employees: {group.members.length} employees</div>
+          <button onClick={() => toggle(group.name)} style={{ fontSize: 11, color: 'var(--p)', background: 'none', border: 'none', padding: 0, marginTop: 4, cursor: 'pointer' }}>
+            {group.departments} departments
+          </button>
+        </div>
+        {!isCollapsed && (
           <>
             <div style={{ width: 2, height: 20, background: 'var(--border)' }} />
             <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-              {node.children.map((c) => <Node key={c.user.empId} node={c} />)}
+              {group.members.map((m) => <PersonCard key={m.empId} user={m} color={group.color} />)}
             </div>
           </>
         )}
@@ -93,12 +134,6 @@ export default function OrgChartPage() {
         <div className="ph-actions">
           <button className="btn btn-ghost btn-sm" onClick={expandAll}><Icon name="unfold_more" size={15} /> Expand</button>
           <button className="btn btn-ghost btn-sm" onClick={collapseAll}><Icon name="unfold_less" size={15} /> Collapse</button>
-          <div className="tl-tabs">
-            <button className="tl-tab" onClick={() => stepZoom(-0.15)}><Icon name="remove" size={15} /></button>
-            <span style={{ alignSelf: 'center', fontSize: 12, color: 'var(--muted)', minWidth: 40, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-            <button className="tl-tab" onClick={() => stepZoom(0.15)}><Icon name="add" size={15} /></button>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={findMe}><Icon name="my_location" size={15} /> Find me</button>
           <button className="btn btn-ghost btn-sm" onClick={reset}><Icon name="fit_screen" size={15} /> Reset</button>
         </div>
       </div>
@@ -115,20 +150,37 @@ export default function OrgChartPage() {
       {isLoading ? (
         <div className="empty-state"><span className="ei material-symbols-outlined">hourglass_empty</span><p>Loading…</p></div>
       ) : (
-        <div
-          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-          style={{ overflow: 'hidden', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', height: 'calc(100vh - 240px)', cursor: drag.current ? 'grabbing' : 'grab', position: 'relative' }}
-        >
-          <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0', padding: 40, display: 'inline-flex', gap: 40, alignItems: 'flex-start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ background: 'var(--p)', color: '#fff', borderRadius: 8, padding: '10px 18px', fontWeight: 700 }}>Leveraged Growth</div>
-              <div style={{ width: 2, height: 20, background: 'var(--border)' }} />
-              <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-                {roots.map((r) => <Node key={r.user.empId} node={r} />)}
+        <>
+          <div
+            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+            style={{ overflow: 'hidden', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', height: 'calc(100vh - 240px)', cursor: drag.current ? 'grabbing' : 'grab', position: 'relative' }}
+          >
+            <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0', padding: 40, display: 'inline-flex', gap: 40, alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {/* ROOT company card */}
+                <div style={{ width: 200, background: 'var(--surface)', borderRadius: 8, border: '2px solid #1a237e', padding: 14, textAlign: 'center', boxShadow: 'var(--sh)' }}>
+                  <Icon name="corporate_fare" size={28} style={{ color: 'var(--p)' }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginTop: 4 }}>Leveraged Growth</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Employees: {allUsers.length} employees</div>
+                  <div style={{ fontSize: 12, color: 'var(--p)', marginTop: 2 }}>{teamGroups.length} teams</div>
+                </div>
+                <div style={{ width: 2, height: 20, background: 'var(--border)' }} />
+                <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+                  {teamGroups.map((g) => <TeamCard key={g.name} group={g} />)}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Floating zoom bar */}
+          <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#fff', borderRadius: 20, boxShadow: '0 4px 12px rgba(0,0,0,.15)', padding: '6px 16px', display: 'flex', gap: 12, alignItems: 'center', zIndex: 50 }}>
+            <button onClick={findMe} title="Find me" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="my_location" size={18} /></button>
+            <button onClick={() => stepZoom(-0.15)} title="Zoom out" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="remove" size={18} /></button>
+            <span style={{ fontSize: 12, color: 'var(--muted)', minWidth: 40, textAlign: 'center' }}>{Math.round(zoom * 100)} %</span>
+            <button onClick={() => stepZoom(0.15)} title="Zoom in" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="add" size={18} /></button>
+            <button onClick={reset} title="Fit screen" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="fit_screen" size={18} /></button>
+          </div>
+        </>
       )}
     </div>
   );

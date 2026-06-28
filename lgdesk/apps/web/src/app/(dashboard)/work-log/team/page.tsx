@@ -2,70 +2,345 @@
 
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../../hooks/use-auth';
-import { isManager } from '../../../../lib/auth';
-import { useTeamOverview } from '../../../../hooks/use-work-log';
+import { isAdmin, isManager } from '../../../../lib/auth';
+import { useTeamWorkLogs, useTeamOverview } from '../../../../hooks/use-work-log';
 import { MemberLogModal } from '../../../../components/modules/work-log/member-log-modal';
+import { DayMemberCard } from '../../../../components/modules/work-log/team/day-member-card';
+import { WeekMemberCard } from '../../../../components/modules/work-log/team/week-member-card';
+import { MonthMemberCard } from '../../../../components/modules/work-log/team/month-member-card';
+import { Icon } from '../../../../components/ui/icon';
 import { Spinner } from '../../../../components/ui/spinner';
-import type { TeamOverviewRow } from '../../../../lib/types';
+import type { WorkLogEntry } from '../../../../lib/types';
 
-const BREAKDOWN: { key: keyof TeamOverviewRow; label: string }[] = [
-  { key: 'P', label: 'P' }, { key: 'LF', label: 'LF' }, { key: 'LH', label: 'LH' },
-  { key: 'H', label: 'H' }, { key: 'W', label: 'W' }, { key: 'AW', label: 'AW' },
-  { key: 'EF', label: 'EF' }, { key: 'EH', label: 'EH' },
-];
+type Period = 'day' | 'week' | 'month' | 'custom';
+type ViewMode = 'member' | 'date';
+
+// ─── Date helpers (local-time safe ISO) ───────────────────────────
+function iso(d: Date): string {
+  const x = new Date(d);
+  x.setMinutes(x.getMinutes() - x.getTimezoneOffset());
+  return x.toISOString().slice(0, 10);
+}
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function mondayOf(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function endOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+const fmtDay = (d: Date) => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+const fmtShort = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const fmtMonth = (d: Date) => d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86_400_000);
+
+interface MemberInfo {
+  empId: string;
+  name: string;
+  team: string;
+}
 
 export default function TeamWorkLogPage() {
-  const { currentUser } = useAuth();
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [member, setMember] = useState<{ empId: string; name: string } | null>(null);
-  const { data: rows, isLoading } = useTeamOverview(month);
+  const { currentUser, employees } = useAuth();
+  const [period, setPeriod] = useState<Period>('day');
+  const [view, setView] = useState<ViewMode>('member');
+  const [anchor, setAnchor] = useState<Date>(() => new Date());
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [applied, setApplied] = useState<{ from: string; to: string } | null>(null);
+  const [member, setMember] = useState<MemberInfo | null>(null);
+  const [dateFilter, setDateFilter] = useState<string>('');
 
-  const sorted = useMemo(() => [...(rows ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [rows]);
+  // ── Resolve the active [start,end] range from period + anchor / custom ──
+  const range = useMemo<{ start: Date; end: Date; label: string }>(() => {
+    if (period === 'day') return { start: anchor, end: anchor, label: fmtDay(anchor) };
+    if (period === 'week') {
+      const s = mondayOf(anchor);
+      const e = addDays(s, 6);
+      return { start: s, end: e, label: `${fmtShort(s)} – ${fmtShort(e)}, ${e.getFullYear()}` };
+    }
+    if (period === 'month') {
+      const s = startOfMonth(anchor);
+      const e = endOfMonth(anchor);
+      return { start: s, end: e, label: fmtMonth(anchor) };
+    }
+    // custom
+    if (applied) {
+      const s = new Date(`${applied.from}T00:00:00`);
+      const e = new Date(`${applied.to}T00:00:00`);
+      return { start: s, end: e, label: `${fmtShort(s)} – ${fmtShort(e)}, ${e.getFullYear()}` };
+    }
+    return { start: anchor, end: anchor, label: 'Select a date range' };
+  }, [period, anchor, applied]);
+
+  const monthKey = useMemo(() => iso(range.start).slice(0, 7), [range.start]);
+  const useOverview = period === 'month';
+
+  const { data: teamData, isLoading: logsLoading, refetch: refetchLogs } = useTeamWorkLogs(
+    useOverview ? undefined : iso(range.start),
+    useOverview ? undefined : iso(range.end),
+  );
+  const { data: overview, isLoading: ovLoading, refetch: refetchOverview } = useTeamOverview(useOverview ? monthKey : '');
+
+  const logs = useMemo(() => teamData?.logs ?? [], [teamData]);
+
+  // ── Member roster (everyone we know about), with team + display name ──
+  const roster = useMemo<MemberInfo[]>(() => {
+    const map = new Map<string, MemberInfo>();
+    employees.forEach((e) => {
+      const name = e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.empId;
+      map.set(e.empId, { empId: e.empId, name, team: e.team || 'Unassigned' });
+    });
+    // Fold in any empId present in the data but missing from the roster.
+    logs.forEach((l) => {
+      if (!map.has(l.empId)) map.set(l.empId, { empId: l.empId, name: l.empId, team: 'Unassigned' });
+    });
+    (overview ?? []).forEach((r) => {
+      if (!map.has(r.empId)) map.set(r.empId, { empId: r.empId, name: r.name, team: 'Unassigned' });
+      else if (map.get(r.empId)!.name === r.empId) map.get(r.empId)!.name = r.name;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [employees, logs, overview]);
+
+  const teamName = useMemo(() => {
+    const m = new Map<string, string>();
+    roster.forEach((r) => m.set(r.empId, r.team));
+    return m;
+  }, [roster]);
+
+  // ── Active-member count for the subtitle ──
+  const activeCount = useMemo(() => {
+    if (useOverview) {
+      return (overview ?? []).filter((r) => r.P + r.LF + r.LH + r.H + r.W + r.AW + r.EF + r.EH > 0).length;
+    }
+    return new Set(logs.filter((l) => l.attendance).map((l) => l.empId)).size;
+  }, [useOverview, overview, logs]);
+
+  const isLoading = useOverview ? ovLoading : logsLoading;
+
+  // ── BY MEMBER: each member's logs keyed by date ──
+  const logsByMember = useMemo(() => {
+    const byMember = new Map<string, Map<string, WorkLogEntry>>();
+    logs.forEach((l) => {
+      const d = l.date.slice(0, 10);
+      let m = byMember.get(l.empId);
+      if (!m) {
+        m = new Map<string, WorkLogEntry>();
+        byMember.set(l.empId, m);
+      }
+      m.set(d, l);
+    });
+    return byMember;
+  }, [logs]);
+
+  // ── BY DATE: group entries by date (newest first), optional member filter ──
+  const byDateGroups = useMemo(() => {
+    const byDate = new Map<string, WorkLogEntry[]>();
+    logs
+      .filter((l) => !dateFilter || l.empId === dateFilter)
+      .forEach((l) => {
+        const d = l.date.slice(0, 10);
+        const list = byDate.get(d) ?? [];
+        list.push(l);
+        byDate.set(d, list);
+      });
+    return Array.from(byDate.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, entries]) => ({ date, entries: entries.sort((a, b) => a.empId.localeCompare(b.empId)) }));
+  }, [logs, dateFilter]);
 
   if (!currentUser) return null;
   if (!isManager(currentUser.role)) {
     return (
-      <div className="p-6">
-        <div className="rounded-[8px] border border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">You don&apos;t have access to this page.</div>
+      <div style={{ padding: 24 }}>
+        <div className="empty-state">
+          <Icon name="lock" className="ei" />
+          <p>You don&apos;t have access to this page.</p>
+        </div>
       </div>
     );
   }
 
+  const admin = isAdmin(currentUser.role);
+
+  // ── Custom-range validation ──
+  let customError = '';
+  if (period === 'custom' && customFrom && customTo) {
+    const f = new Date(`${customFrom}T00:00:00`);
+    const t = new Date(`${customTo}T00:00:00`);
+    if (f > t) customError = 'From date must be on or before To date.';
+    else if (daysBetween(f, t) > 90) customError = 'Range cannot exceed 90 days.';
+  }
+  const canApply = period === 'custom' && !!customFrom && !!customTo && !customError;
+
+  const applyCustom = () => {
+    if (canApply) setApplied({ from: customFrom, to: customTo });
+  };
+
+  const refresh = () => {
+    if (useOverview) void refetchOverview();
+    else void refetchLogs();
+  };
+
+  const navLabel =
+    period === 'day' ? 'Today' : period === 'week' ? 'This week' : period === 'month' ? 'This month' : '';
+  const stepAnchor = (dir: -1 | 1) => {
+    if (period === 'day') setAnchor((a) => addDays(a, dir));
+    else if (period === 'week') setAnchor((a) => addDays(a, dir * 7));
+    else if (period === 'month') setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + dir, 1));
+  };
+
+  const openMember = (m: MemberInfo) => setMember(m);
+
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--text)]">Team Work Logs</h1>
-          <p className="text-sm text-[var(--muted)]">Monthly attendance overview</p>
+    <div style={{ padding: 24 }}>
+      {/* Header */}
+      <div className="ph">
+        <div className="ph-left">
+          <div className="ph-title">Team Work Logs</div>
+          <div className="ph-sub">{range.label} — {activeCount}/{roster.length} members active</div>
         </div>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm text-[var(--text)] focus:border-[var(--p)] focus:outline-none" />
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-[var(--muted)]"><Spinner size={16} /> Loading…</div>
-      ) : sorted.length === 0 ? (
-        <div className="rounded-[8px] border border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">No team members.</div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sorted.map((r) => (
-            <button key={r.empId} onClick={() => setMember({ empId: r.empId, name: r.name })} className="flex flex-col gap-3 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--p)]">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-[var(--text)]">{r.name}</p>
-                  <p className="font-mono text-xs text-[var(--muted)]">{r.empId}</p>
-                </div>
-                {r.otHours > 0 && (
-                  <span className="shrink-0 rounded-[9999px] bg-[var(--warn)]/20 px-2 py-0.5 text-xs text-[var(--warn)]">+{r.otHours} OT</span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {BREAKDOWN.map(({ key, label }) => (
-                  <span key={label} className="inline-flex items-center gap-1 rounded-[8px] border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-xs text-[var(--muted)]">
-                    {label} <span className="text-[var(--text)]">{r[key]}</span>
-                  </span>
-                ))}
-              </div>
+      {/* Period tabs + nav */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div className="tl-tabs">
+          {(['day', 'week', 'month', 'custom'] as Period[]).map((p) => (
+            <button key={p} className={`tl-tab${period === p ? ' active' : ''}`} onClick={() => setPeriod(p)}>
+              {p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom'}
             </button>
+          ))}
+        </div>
+
+        {period !== 'custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button className="btn btn-ghost btn-sm" aria-label="Previous" onClick={() => stepAnchor(-1)}><Icon name="chevron_left" size={16} /></button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setAnchor(new Date())}>{navLabel}</button>
+            <button className="btn btn-ghost btn-sm" aria-label="Next" onClick={() => stepAnchor(1)}><Icon name="chevron_right" size={16} /></button>
+          </div>
+        )}
+
+        {/* View tabs + refresh (right-aligned) */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="tl-tabs">
+            <button className={`tl-tab${view === 'member' ? ' active' : ''}`} onClick={() => setView('member')}>
+              <Icon name="person" size={14} style={{ marginRight: 4 }} /> By Member
+            </button>
+            <button className={`tl-tab${view === 'date' ? ' active' : ''}`} onClick={() => setView('date')}>
+              <Icon name="calendar_month" size={14} style={{ marginRight: 4 }} /> By Date
+            </button>
+          </div>
+          <button className="btn btn-ghost btn-sm" aria-label="Refresh" onClick={refresh}><Icon name="refresh" size={16} /></button>
+        </div>
+      </div>
+
+      {/* Custom range bar */}
+      {period === 'custom' && (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
+            From
+            <input type="date" className="fc" style={{ width: 170 }} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
+            To
+            <input type="date" className="fc" style={{ width: 170 }} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+          </label>
+          <button className="btn btn-primary btn-sm" disabled={!canApply} onClick={applyCustom}>Apply</button>
+          {customError && <span style={{ fontSize: 12, color: 'var(--danger)', alignSelf: 'center' }}>{customError}</span>}
+        </div>
+      )}
+
+      {/* By Date member filter */}
+      {view === 'date' && (
+        <div style={{ marginBottom: 12 }}>
+          <select className="fc" style={{ width: 240 }} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}>
+            <option value="">All members</option>
+            {roster.map((m) => <option key={m.empId} value={m.empId}>{m.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Body */}
+      {period === 'custom' && !applied ? (
+        <div className="empty-state">
+          <Icon name="date_range" className="ei" />
+          <p>Pick a date range and press Apply.</p>
+        </div>
+      ) : isLoading ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--muted)' }}><Spinner size={16} /> Loading…</div>
+      ) : view === 'member' ? (
+        useOverview ? (
+          <MemberGrid
+            admin={admin}
+            members={(overview ?? []).map((r) => ({ empId: r.empId, name: r.name, team: teamName.get(r.empId) ?? 'Unassigned' }))}
+            renderCard={(m) => {
+              const row = (overview ?? []).find((r) => r.empId === m.empId);
+              if (!row) return null;
+              return <MonthMemberCard key={m.empId} row={row} team={m.team} onClick={() => openMember(m)} />;
+            }}
+          />
+        ) : period === 'week' ? (
+          <MemberGrid
+            admin={admin}
+            members={roster}
+            renderCard={(m) => (
+              <WeekMemberCard
+                key={m.empId}
+                empId={m.empId}
+                name={m.name}
+                team={m.team}
+                week={weekEntries(range.start, logsByMember.get(m.empId))}
+                onClick={() => openMember(m)}
+              />
+            )}
+          />
+        ) : (
+          <MemberGrid
+            admin={admin}
+            members={roster}
+            renderCard={(m) => (
+              <DayMemberCard
+                key={m.empId}
+                empId={m.empId}
+                name={m.name}
+                team={m.team}
+                entry={logsByMember.get(m.empId)?.get(iso(range.start))}
+                onClick={() => openMember(m)}
+              />
+            )}
+          />
+        )
+      ) : byDateGroups.length === 0 ? (
+        <div className="empty-state">
+          <Icon name="event_busy" className="ei" />
+          <p>No work logs in this period.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {byDateGroups.map(({ date, entries }) => (
+            <div key={date}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+                {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                <span style={{ color: 'var(--muted)', fontWeight: 600, marginLeft: 6 }}>· {entries.length}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                {entries.map((e) => {
+                  const info = roster.find((r) => r.empId === e.empId) ?? { empId: e.empId, name: e.empId, team: 'Unassigned' };
+                  return (
+                    <DayMemberCard key={`${date}:${e.empId}`} empId={info.empId} name={info.name} team={info.team} entry={e} onClick={() => openMember(info)} />
+                  );
+                })}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -73,4 +348,57 @@ export default function TeamWorkLogPage() {
       {member && <MemberLogModal empId={member.empId} empName={member.name} onClose={() => setMember(null)} />}
     </div>
   );
+}
+
+// ─── Card grid; groups under team headers for Super Admin / Admin ──────────
+function MemberGrid({
+  admin,
+  members,
+  renderCard,
+}: {
+  admin: boolean;
+  members: MemberInfo[];
+  renderCard: (m: MemberInfo) => React.ReactNode;
+}) {
+  const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 };
+
+  if (members.length === 0) {
+    return (
+      <div className="empty-state">
+        <Icon name="groups" className="ei" />
+        <p>No team members to show.</p>
+      </div>
+    );
+  }
+
+  if (!admin) {
+    return <div style={gridStyle}>{members.map((m) => renderCard(m))}</div>;
+  }
+
+  // SA/Admin: section per team.
+  const teams = new Map<string, MemberInfo[]>();
+  members.forEach((m) => {
+    const list = teams.get(m.team) ?? [];
+    list.push(m);
+    teams.set(m.team, list);
+  });
+  const sections = Array.from(teams.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {sections.map(([team, list]) => (
+        <div key={team}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--muted)', marginBottom: 8 }}>
+            {team} <span style={{ color: 'var(--muted2)' }}>· {list.length}</span>
+          </div>
+          <div style={gridStyle}>{list.map((m) => renderCard(m))}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 7 entries (Mon→Sun) for a member, given the week's Monday and their date-map.
+function weekEntries(weekStart: Date, byDate: Map<string, WorkLogEntry> | undefined): (WorkLogEntry | undefined)[] {
+  return Array.from({ length: 7 }, (_, i) => byDate?.get(iso(addDays(weekStart, i))));
 }

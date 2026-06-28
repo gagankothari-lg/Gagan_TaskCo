@@ -6,7 +6,7 @@ import { useTasks, type TaskScope } from '../../../hooks/use-tasks';
 import { isManager } from '../../../lib/auth';
 import { apiErrorMessage } from '../../../lib/api';
 import { Icon } from '../../ui/icon';
-import { avatarColor, pillClass, badgeClass, fmtDate } from '../../../lib/utils';
+import { pillClass, badgeClass, fmtDate } from '../../../lib/utils';
 import { TaskRow, isTaskOverdue } from './task-row';
 import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
 import { CreateTaskModal } from './create-task-modal';
@@ -220,8 +220,12 @@ function FunctionGroup({ name, list, onOpen }: { name: string; list: Task[]; onO
   return (
     <>
       <tr>
-        <td colSpan={10} style={{ background: 'var(--p3)', fontWeight: 700, color: 'var(--p)', borderLeft: `3px solid ${avatarColor(name)}` }}>
-          {name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({list.length})</span>
+        <td colSpan={10} style={{ background: '#f0f2f5', borderLeft: '4px solid #1a237e', padding: '10px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 9, color: '#9e9e9e', textTransform: 'uppercase', letterSpacing: 0.5 }}>Function</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{name}</span>
+            <span style={{ marginLeft: 'auto', background: '#e8eaf6', color: '#1a237e', fontSize: 11, padding: '2px 8px', borderRadius: 3 }}>{list.length}</span>
+          </div>
         </td>
       </tr>
       {list.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} />)}

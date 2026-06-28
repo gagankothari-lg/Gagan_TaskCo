@@ -33,7 +33,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const [mobNavOpen, setMobNavOpen] = useState(false);
   const [presOpen, setPresOpen] = useState(false);
-  const [pres, setPres] = useState<PresKey>('offline');
+  const [pres, setPres] = useState<PresKey>('online');
   const [refreshing, setRefreshing] = useState(false);
   const presWrap = useRef<HTMLDivElement>(null);
 
@@ -162,11 +162,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           disabled={refreshing}
           title="Refresh"
           style={{
-            display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.12)',
-            border: 'none', color: '#fff', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13,
+            display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 20, padding: '5px 10px', cursor: 'pointer', fontSize: 12,
           }}
         >
-          <Icon name="refresh" size={18} style={refreshing ? { animation: 'spin 0.8s linear infinite' } : undefined} />
+          <Icon name="refresh" size={16} style={refreshing ? { animation: 'spin 0.8s linear infinite' } : undefined} />
           <span className="mob-hide-text">Refresh</span>
         </button>
 
@@ -187,7 +187,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <div className={`pres-dot ${PRES[pres].cls}`} style={{ position: 'absolute', bottom: -1, right: -1 }} />
             </div>
             <span className="mob-hide-text" style={{ fontSize: 13 }}>{user.name}</span>
-            <span className="role-badge mob-hide-text" style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(255,255,255,0.2)' }}>{user.role}</span>
+            <span className="role-badge mob-hide-text" style={{ fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 10, background: '#283593' }}>{user.role}</span>
           </div>
 
           {presOpen && (

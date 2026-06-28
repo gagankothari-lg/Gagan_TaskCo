@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import type { Task, ProgressUpdate, CreateTaskInput, UpdateTaskInput } from '../lib/types';
+import type { Task, ProgressUpdate, CreateTaskInput, UpdateTaskInput, DueDateRequest } from '../lib/types';
 
 const data = <T>(res: { data: { data: T } }): T => res.data.data;
 export type TaskScope = 'mine' | 'team' | 'all';
@@ -94,5 +94,39 @@ export function useCreateDdr() {
     mutationFn: ({ entityType, entityId, newDueDate, reason }: { entityType: 'Task' | 'Project' | 'Function'; entityId: string; newDueDate: string; reason: string }) =>
       api.post('/ddr', { entityType, entityId, newDueDate, reason }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ddr'] }),
+  });
+}
+
+// ─── DDR review (managers/assigners) ────────────────
+// GET /ddr?status=… returns DueDateRequest[] scoped server-side to the caller
+// (admins see all; managers see DDRs for entities they assigned + their own).
+export function useDdrs(status?: string) {
+  return useQuery({
+    queryKey: ['ddr', status ?? 'all'],
+    queryFn: async () => data<DueDateRequest[]>(await api.get('/ddr', { params: status ? { status } : undefined })),
+    staleTime: 15_000,
+  });
+}
+
+function invalidateDdr(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['ddr'] });
+  invalidateTasks(qc);
+  qc.invalidateQueries({ queryKey: ['projects'] });
+}
+
+export function useApproveDdr() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ddrId: string) => api.patch(`/ddr/${ddrId}/approve`),
+    onSuccess: () => invalidateDdr(qc),
+  });
+}
+
+export function useRejectDdr() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ddrId, notes }: { ddrId: string; notes?: string }) =>
+      api.patch(`/ddr/${ddrId}/reject`, { notes }),
+    onSuccess: () => invalidateDdr(qc),
   });
 }
