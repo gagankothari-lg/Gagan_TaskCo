@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/use-auth';
 import { isManager } from '../../lib/auth';
 import { Icon } from '../../components/ui/icon';
 import { toast } from '../../lib/toast';
+import { ImportModal } from '../../components/modules/import/import-modal';
 
 type NavItem = { label: string; icon: string; href: string; badge?: number; misOnly?: boolean };
 
@@ -35,6 +36,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [presOpen, setPresOpen] = useState(false);
   const [pres, setPres] = useState<PresKey>('online');
   const [refreshing, setRefreshing] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const presWrap = useRef<HTMLDivElement>(null);
 
   // Protect: bounce unauthenticated users to /login once bootstrap settles.
@@ -254,6 +256,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             {groups.company.map(renderItem)}
           </>
         )}
+
+        {/* Import Tasks — visible to all logged-in users */}
+        <div className="nav-item" onClick={() => setImportOpen(true)} style={{ cursor: 'pointer' }}>
+          <span className="nav-icon"><Icon name="upload_file" size={20} /></span>
+          <span style={{ flex: 1 }}>Import Tasks</span>
+        </div>
+
+        {/* ── Chats ─────────────────────────────── */}
+        <div className="nav-sec">Chats</div>
+        <button
+          onClick={() => toast('Google Chat integration is not available yet', 'info')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--border)', borderRadius: 6, padding: '6px 12px', fontSize: 12, color: 'var(--p)', background: '#fff', cursor: 'pointer', margin: '4px 8px', width: 'calc(100% - 16px)' }}
+        >
+          <Icon name="add_link" size={16} /> Connect Google Chat
+        </button>
       </nav>
 
       {/* ── Main ──────────────────────────────────────────── */}
@@ -263,6 +280,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </div>
+
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   );
 }

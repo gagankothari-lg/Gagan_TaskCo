@@ -3,14 +3,18 @@
 import { useEffect, useState } from 'react';
 import { useTeamClockStatus, hmsFromMs, hmsFromMin } from '../../../hooks/use-work-duration';
 import { Spinner } from '../../ui/spinner';
+import { avatarColor } from '../../../lib/avatar-colors';
+import { initials as initialsOf } from '../../../lib/utils';
 
-const STATUS_STYLE: Record<string, string> = {
-  ACTIVE: 'bg-[#3FB950]/20 text-[#3FB950]',
-  ON_BREAK: 'bg-[#E3B341]/20 text-[#E3B341]',
-  COMPLETED: 'bg-[#8B949E]/20 text-[#8B949E]',
-  AUTO_CLOSED: 'bg-[#8B949E]/20 text-[#8B949E]',
-  IDLE: 'bg-[#30363D] text-[#8B949E]',
-};
+function statusBadge(status: string): { label: string; bg: string; color: string } | null {
+  switch (status) {
+    case 'ACTIVE': return { label: 'Clocked In', bg: '#e8f5e9', color: '#2e7d32' };
+    case 'ON_BREAK': return { label: 'On Break', bg: '#fff3e0', color: '#e65100' };
+    case 'COMPLETED':
+    case 'AUTO_CLOSED': return { label: 'Done', bg: '#f5f5f5', color: '#757575' };
+    default: return null;
+  }
+}
 
 export function TeamClockStatus() {
   const { data: rows, isLoading } = useTeamClockStatus();
@@ -21,25 +25,30 @@ export function TeamClockStatus() {
     return () => clearInterval(t);
   }, []);
 
-  if (isLoading) return <div className="flex items-center gap-2 text-[#8B949E]"><Spinner size={16} /> Loading…</div>;
-  if (!rows || rows.length === 0) return <p className="text-sm text-[#8B949E]">No team members.</p>;
+  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--muted)' }}><Spinner size={16} /> Loading…</div>;
+  if (!rows || rows.length === 0) return <p style={{ fontSize: 13, color: 'var(--muted)' }}>No team members.</p>;
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
       {rows.map((r) => {
-        const initials = r.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+        const badge = statusBadge(r.status);
         const live = r.status === 'ACTIVE' && r.clockInTs ? hmsFromMs(now - new Date(r.clockInTs).getTime()) : null;
+        const completed = (r.status === 'COMPLETED' || r.status === 'AUTO_CLOSED') && r.netWorkMins > 0 ? hmsFromMin(r.netWorkMins) : null;
+        const value = live ?? completed ?? '—';
+        const active = !!live;
         return (
-          <div key={r.empId} className="flex items-center gap-3 rounded-[6px] border border-[#30363D] bg-[#21262D] p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#58A6FF] text-xs font-semibold text-white">{initials}</div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm text-[#E6EDF3]">{r.name}</p>
-              <div className="mt-0.5 flex items-center gap-2">
-                <span className={`rounded-[9999px] px-1.5 py-0.5 text-[10px] font-medium ${STATUS_STYLE[r.status] ?? STATUS_STYLE.IDLE}`}>{r.status}</span>
-                {r.clockInTs && <span className="text-xs text-[#8B949E]">in {new Date(r.clockInTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+          <div key={r.empId} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: avatarColor(r.empId), color: '#fff', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initialsOf(r.name)}</div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
+                {badge && <span style={{ display: 'inline-block', marginTop: 2, fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: badge.bg, color: badge.color }}>{badge.label}</span>}
               </div>
             </div>
-            <span className="shrink-0 font-mono text-xs text-[#8B949E]">{live ?? hmsFromMin(r.netWorkMins)}</span>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 10, color: 'var(--muted2)' }}>Elapsed</div>
+              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Courier New', monospace", color: active ? 'var(--p)' : 'var(--muted2)' }}>{value}</div>
+            </div>
           </div>
         );
       })}

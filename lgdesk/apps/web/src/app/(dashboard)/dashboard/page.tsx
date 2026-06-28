@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '../../../components/ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
@@ -10,9 +10,11 @@ import { useWorkDurationStatus, useClockIn } from '../../../hooks/use-work-durat
 import { useMyWorkLogs } from '../../../hooks/use-work-log';
 import { TeamClockStatus } from '../../../components/modules/work-duration/team-clock-status';
 import { AnnouncementForm } from '../../../components/modules/dashboard/announcement-form';
+import { MyProjects } from '../../../components/modules/dashboard/my-projects';
 import { WL_ATTENDANCE_STYLES } from '../../../components/modules/work-log/work-row';
 import { avatarColor } from '../../../lib/avatar-colors';
 import { initials } from '../../../lib/utils';
+import { statusPillStyle } from '../../../lib/status-styles';
 import { toast } from '../../../lib/toast';
 import type { Task } from '../../../lib/types';
 
@@ -52,10 +54,11 @@ const TROPHY = ['#f9a825', '#9e9e9e', '#a0522d'];
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentUser, employees, tasks, projects } = useAuth();
+  const { currentUser, employees, tasks, projects, functions } = useAuth();
   const { data, isLoading } = useDashboard();
   const { data: clock } = useWorkDurationStatus();
   const clockIn = useClockIn();
+  const [showAllScores, setShowAllScores] = useState(false);
 
   const weekStart = useMemo(() => mondayOf(new Date()), []);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
@@ -64,6 +67,12 @@ export default function DashboardPage() {
   const manager = isManager(currentUser?.role ?? '');
   const admin = isAdmin(currentUser?.role ?? '');
   const teamOf = (empId: string) => employees.find((e) => e.empId === empId)?.team ?? '—';
+  const empName = (id: string) => { const e = employees.find((x) => x.empId === id); return e ? `${e.firstName} ${e.lastName}` : id; };
+  const fnName = (id?: string | null) => functions.find((f) => f.functionId === id)?.name;
+  const pctOf = (s: string) => (s === 'Done' ? 100 : s === 'WIP - 75%' ? 75 : s === 'WIP - 50%' ? 50 : s === 'WIP - 25%' ? 25 : 0);
+  const priBorder = (p: string) => (p === 'Critical' ? '#c62828' : p === 'High' ? '#e65100' : p === 'Medium' ? '#1a237e' : '#9e9e9e');
+  const priBadge = (p: string) => (p === 'Critical' ? { bg: '#fce8e8', c: '#c62828' } : p === 'High' ? { bg: '#fff3e0', c: '#e65100' } : p === 'Medium' ? { bg: '#e8eaf6', c: '#1a237e' } : { bg: '#f5f5f5', c: '#757575' });
+  const isOverdue = (t: Task) => !!t.dueDate && !['Done', 'Cancelled'].includes(t.status) && new Date(t.dueDate) < new Date(new Date().toDateString());
 
   const stats = useMemo(() => {
     const mine = (tasks ?? []).filter((t) => currentUser && t.assigneeIds.includes(currentUser.empId));
@@ -111,9 +120,12 @@ export default function DashboardPage() {
           <button className="btn btn-accent btn-sm" onClick={() => router.push('/work-log')}><Icon name="check" size={16} /> Log Today&apos;s Work</button>
           {/* Work-week mini widget */}
           <div style={{ background: 'var(--surface)', padding: '10px 14px', borderRadius: 8, boxShadow: 'var(--sh)', fontSize: 11 }}>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 2 }}>
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (<span key={i} style={{ width: 18, textAlign: 'center', fontSize: 10, color: 'var(--muted2)' }}>{d}</span>))}
+            </div>
             <div style={{ display: 'flex', gap: 4 }}>
               {week.dots.map((d, i) => (
-                <span key={i} title={d.abbr} style={{ width: 22, height: 22, borderRadius: '50%', background: d.bg, color: d.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>{d.abbr}</span>
+                <span key={i} title={d.abbr} style={{ width: 18, height: 18, borderRadius: '50%', background: d.bg, color: d.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700 }}>{d.abbr}</span>
               ))}
             </div>
             <div style={{ marginTop: 6, color: 'var(--muted)' }}>{week.hrs} hrs · {week.logged} days logged</div>
@@ -162,10 +174,16 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="empty-state"><span className="ei material-symbols-outlined">event_available</span><p>Everyone&apos;s in today</p></div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, color: 'var(--muted2)' }}>
+              <Icon name="groups" size={32} />
+              <div style={{ fontSize: 13, fontStyle: 'italic', marginTop: 6 }}>Everyone is in today!</div>
+            </div>
           )}
         </Panel>
       </div>
+
+      {/* My Projects */}
+      <Panel icon="folder_open" title="My Projects"><MyProjects /></Panel>
 
       {/* Upcoming tasks */}
       <Panel icon="task_alt" title="My Upcoming Tasks" action={<a onClick={() => router.push('/tasks')} style={{ color: 'var(--p)', fontSize: 12, cursor: 'pointer' }}>View all</a>}>
@@ -178,13 +196,25 @@ export default function DashboardPage() {
               {b.list.length === 0 ? (
                 <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '6px 12px' }}>{b.empty}</div>
               ) : (
-                <div style={{ padding: '4px 12px' }}>
-                  {b.list.slice(0, 5).map((t) => (
-                    <div key={t.taskId} onClick={() => router.push('/tasks')} style={{ fontSize: 13, padding: '3px 0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{t.title}</span>
-                      {t.dueDate && <span style={{ color: 'var(--muted2)' }}>{new Date(t.dueDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}</span>}
-                    </div>
-                  ))}
+                <div style={{ padding: '4px 0' }}>
+                  {b.list.slice(0, 5).map((t) => {
+                    const sp = statusPillStyle(t.status); const pb = priBadge(t.priority); const od = isOverdue(t);
+                    return (
+                      <div key={t.taskId} onClick={() => router.push('/tasks')} style={{ background: '#fff', borderRadius: 6, borderLeft: `3px solid ${priBorder(t.priority)}`, padding: '10px 14px', marginBottom: 6, cursor: 'pointer', boxShadow: 'var(--sh)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ background: pb.bg, color: pb.c, fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 3 }}>{t.priority}</span>
+                          <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{t.title}</span>
+                          <span className="pill" style={{ background: sp.bg, color: sp.color }}>{t.status}</span>
+                          {t.dueDate && <span style={{ fontSize: 12, color: od ? '#c62828' : 'var(--muted2)', whiteSpace: 'nowrap' }}>{new Date(t.dueDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{fnName(t.functionId) ?? '—'} · by {empName(t.assignerId)}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                          <div style={{ flex: 1, height: 4, background: '#e0e0e0', borderRadius: 2 }}><div style={{ width: `${pctOf(t.status)}%`, height: '100%', background: priBorder(t.priority), borderRadius: 2 }} /></div>
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{pctOf(t.status)}% · {t.status}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -205,19 +235,22 @@ export default function DashboardPage() {
             <table>
               <thead><tr><th>#</th><th>Employee</th><th>Team</th><th>Score</th><th>Done</th><th>Overdue</th><th>Logs (mo.)</th></tr></thead>
               <tbody>
-                {data.scoreboard.map((r) => (
+                {(showAllScores ? data.scoreboard : data.scoreboard.slice(0, 10)).map((r) => (
                   <tr key={r.empId}>
                     <td>{r.rank <= 3 ? <Icon name="trophy" size={18} style={{ color: TROPHY[r.rank - 1] }} /> : <span style={{ color: 'var(--muted)' }}>{r.rank}</span>}</td>
-                    <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(r.empId), color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(r.name)}</span><span style={{ fontWeight: 600 }}>{r.name}</span></div></td>
+                    <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(r.empId), color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(r.name)}</span><span style={{ fontWeight: 600 }}>{r.name}</span>{r.empId === currentUser?.empId && <span style={{ background: '#e8eaf6', color: '#1a237e', fontSize: 10, padding: '1px 6px', borderRadius: 3, marginLeft: 6, fontWeight: 600 }}>you</span>}</div></td>
                     <td style={{ color: 'var(--muted)' }}>{teamOf(r.empId)}</td>
                     <td style={{ fontSize: 18, fontWeight: 700, color: 'var(--p)' }}>{r.score}</td>
-                    <td style={{ color: '#2e7d32', fontWeight: 600 }}>{r.done}</td>
-                    <td style={{ color: r.overdue ? '#c62828' : 'var(--muted2)', fontWeight: 600 }}>{r.overdue}</td>
-                    <td style={{ color: 'var(--muted)' }}>—</td>
+                    <td style={{ fontSize: 14, color: '#2e7d32', fontWeight: 600 }}>{r.done}</td>
+                    <td style={{ fontSize: 14, color: r.overdue ? '#c62828' : '#9e9e9e', fontWeight: 600 }}>{r.overdue}</td>
+                    <td style={{ color: 'var(--muted)', fontSize: 14 }}>—</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {data.scoreboard.length > 10 && (
+              <div onClick={() => setShowAllScores((s) => !s)} style={{ color: 'var(--p)', fontSize: 12, textAlign: 'center', padding: '10px 0', borderTop: '1px solid #f0f0f0', cursor: 'pointer' }}>{showAllScores ? 'Show less' : `Show All ${data.scoreboard.length} Members`}</div>
+            )}
           </div>
         )}
       </Panel>
