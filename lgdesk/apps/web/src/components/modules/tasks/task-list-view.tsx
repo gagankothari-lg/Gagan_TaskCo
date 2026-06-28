@@ -8,7 +8,7 @@ import { apiErrorMessage } from '../../../lib/api';
 import { Icon } from '../../ui/icon';
 import { avatarColor, pillClass, badgeClass, fmtDate } from '../../../lib/utils';
 import { TaskRow, isTaskOverdue } from './task-row';
-import { TaskFilters, DEFAULT_TASK_FILTER, applyTaskFilters } from './task-filters';
+import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
 import { CreateTaskModal } from './create-task-modal';
 import { TaskDetailModal } from './task-detail-modal';
 import type { Task } from '../../../lib/types';
@@ -30,9 +30,9 @@ function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); re
 function mondayOf(d: Date) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 
 export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTeamSelector }: TaskListViewProps) {
-  const { currentUser, employees, functions } = useAuth();
+  const { currentUser, employees, functions, projects } = useAuth();
   const { data: tasks, isLoading, error } = useTasks(scope);
-  const [filter, setFilter] = useState(DEFAULT_TASK_FILTER);
+  const [filter, setFilter] = useState(DEFAULT_COL_FILTER);
   const [tab, setTab] = useState<OwnershipTab>('All');
   const [team, setTeam] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -63,7 +63,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
       else if (tab === 'By Me') list = list.filter((t) => t.assignerId === currentUser.empId);
     }
     if (showTeamSelector && team) list = list.filter((t) => t.assignedTeams.includes(team));
-    list = applyTaskFilters(list, filter, currentUser?.empId);
+    list = applyColFilters(list, filter);
     if (query) list = list.filter((t) => `${t.title} ${t.description ?? ''} ${t.taskId}`.toLowerCase().includes(query));
     return list;
   }, [tasks, showOwnershipTabs, tab, team, showTeamSelector, currentUser, filter, query]);
@@ -173,7 +173,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
         </div>
       )}
 
-      <div style={{ marginBottom: 16 }}><TaskFilters value={filter} onChange={setFilter} /></div>
+      <FilterBar value={filter} onChange={setFilter} employees={employees} projects={projects} functions={functions} />
 
       {isLoading ? (
         <div className="empty-state"><span className="ei material-symbols-outlined">hourglass_empty</span><p>Loading…</p></div>

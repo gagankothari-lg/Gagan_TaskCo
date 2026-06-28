@@ -10,43 +10,51 @@ interface RegistrationModalProps {
   onClose: () => void;
 }
 
-const inputClass =
-  'w-full bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm ' +
-  'placeholder:text-[var(--muted)] focus:border-[var(--p)] focus:outline-none transition-colors';
+const ROLES = ['Super Admin', 'Admin', 'Team Captain', 'Team Facilitator', 'Team Member', 'Intern'];
+const DIVISIONS = [
+  "1. Founder's Office", '2. Student Success', '3. Knowledge', '4. Growth (Marketing)',
+  '5. Tech', '6. Consulting', '7. Operations - PP & Admin', '8. Operations - FP&A',
+];
+// Roles that enter their reporting manager manually; others are auto-resolved server-side.
+const MANUAL_MANAGER_ROLES = ['Super Admin', 'Admin', 'Team Captain'];
 
 export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState('Team Member');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [team, setTeam] = useState('');
   const [designation, setDesignation] = useState('');
+  const [dob, setDob] = useState('');
+  const [team, setTeam] = useState('');
+  const [subDepartment, setSubDepartment] = useState('');
+  const [managerEmail, setManagerEmail] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   if (!open) return null;
 
+  const managerManual = MANUAL_MANAGER_ROLES.includes(role);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-    if (password !== confirm) {
-      setError('Passwords do not match');
-      return;
-    }
+    if (!firstName.trim() || !lastName.trim()) return setError('First and last name are required.');
+    if (!email.trim()) return setError('Email is required.');
+    if (!dob) return setError('Date of birth is required.');
+    if (password.length < 8) return setError('Password must be at least 8 characters.');
+    if (password !== confirm) return setError('Passwords do not match.');
     setLoading(true);
     try {
+      // Only the API-whitelisted fields are persisted; role/dob/manager/message are
+      // collected for parity with the GAS form (the backend strips unknown keys).
       await api.post('/auth/register/request', {
-        firstName,
-        lastName,
-        email,
-        password,
+        firstName, lastName, email, password,
         team: team || undefined,
+        subDepartment: subDepartment || undefined,
         designation: designation || undefined,
       });
       setSubmitted(true);
@@ -58,56 +66,57 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-[440px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--text)]">Request access</h2>
-          <button onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--text)]">
-            <Icon name="close" size={18} />
-          </button>
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal modal-lg">
+        <div className="modal-hd">
+          <span className="modal-hd-title">Request Access — Register</span>
+          <button className="modal-x" onClick={onClose} aria-label="Close"><Icon name="close" size={18} /></button>
         </div>
 
         {submitted ? (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <Icon name="check_circle" size={40} className="text-[var(--ok)]" />
-            <p className="text-sm font-medium text-[var(--text)]">Request submitted</p>
-            <p className="text-sm text-[var(--muted)]">
-              A manager will review your request. You&apos;ll be able to sign in once it&apos;s approved.
-            </p>
-            <button
-              onClick={onClose}
-              className="btn btn-ghost mt-2"
-            >
-              Done
-            </button>
+          <div className="modal-bd">
+            <div className="empty-state">
+              <span className="ei material-symbols-outlined" style={{ color: 'var(--ok)', opacity: 1 }}>check_circle</span>
+              <p><strong>Registration submitted!</strong><br />Your manager will review your request. You can sign in once it&apos;s approved.</p>
+            </div>
+            <button className="btn btn-primary btn-full" onClick={onClose}>Done</button>
           </div>
         ) : (
-          <form onSubmit={onSubmit} className="space-y-3" noValidate>
-            <div className="grid grid-cols-2 gap-3">
-              <input className={inputClass} placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-              <input className={inputClass} placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <form onSubmit={onSubmit} className="modal-bd" noValidate>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="fg"><label>First Name</label><input className="fc" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></div>
+              <div className="fg"><label>Last Name</label><input className="fc" value={lastName} onChange={(e) => setLastName(e.target.value)} /></div>
             </div>
-            <input className={inputClass} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <div className="grid grid-cols-2 gap-3">
-              <input className={inputClass} type="password" autoComplete="new-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <input className={inputClass} type="password" autoComplete="new-password" placeholder="Confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-            </div>
-            <input className={inputClass} placeholder="Team (optional)" value={team} onChange={(e) => setTeam(e.target.value)} />
-            <input className={inputClass} placeholder="Designation (optional)" value={designation} onChange={(e) => setDesignation(e.target.value)} />
-
-            {error && (
-              <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
-                {error}
+            <div className="fg"><label>Work Email</label><input className="fc" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="fg"><label>Role</label>
+                <select className="fc" value={role} onChange={(e) => setRole(e.target.value)}>{ROLES.map((r) => <option key={r} value={r}>{r}</option>)}</select>
               </div>
-            )}
+              <div className="fg"><label>Date of Birth</label><input className="fc" type="date" value={dob} onChange={(e) => setDob(e.target.value)} /></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="fg"><label>Password</label><input className="fc" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" /></div>
+              <div className="fg"><label>Confirm Password</label><input className="fc" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></div>
+            </div>
+            <div className="fg"><label>Designation (optional)</label><input className="fc" maxLength={100} value={designation} onChange={(e) => setDesignation(e.target.value)} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="fg"><label>Team Division</label>
+                <select className="fc" value={team} onChange={(e) => setTeam(e.target.value)}>
+                  <option value="">Select…</option>{DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div className="fg"><label>Sub-Department</label><input className="fc" value={subDepartment} onChange={(e) => setSubDepartment(e.target.value)} placeholder="Optional" /></div>
+            </div>
+            <div className="fg">
+              <label>{role === 'Super Admin' ? 'Reports-to Email (optional)' : managerManual ? 'Reports-to Email' : "Manager's Email"}</label>
+              <input className="fc" type="email" value={managerEmail} onChange={(e) => setManagerEmail(e.target.value)} placeholder={managerManual ? 'manager@company.com' : 'Auto-resolved on approval'} />
+            </div>
+            <div className="fg"><label>Message (optional)</label><textarea className="fc" rows={2} value={message} onChange={(e) => setMessage(e.target.value)} style={{ resize: 'none' }} /></div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn-primary btn-full disabled:opacity-60"
-            >
-              {loading && <Spinner size={14} />}
-              {loading ? 'Submitting…' : 'Submit request'}
+            {error && <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+
+            <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+              {loading && <Spinner size={14} />}{loading ? 'Submitting…' : 'Submit Registration'}
             </button>
           </form>
         )}

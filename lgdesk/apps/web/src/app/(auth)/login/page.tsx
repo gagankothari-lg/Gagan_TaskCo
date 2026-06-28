@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../hooks/use-auth';
 import { api, apiErrorMessage } from '../../../lib/api';
 import { Icon } from '../../../components/ui/icon';
-import { toast } from '../../../lib/toast';
+import { RegistrationModal } from '../../../components/modules/users/registration-modal';
 import { rolePillClass, initials, avatarColor } from '../../../lib/utils';
 
 type Mode = 'login' | 'verified' | 'forgot1' | 'forgot2';
@@ -46,6 +46,7 @@ export default function LoginPage() {
   const { login, user } = useAuth();
 
   const [mode, setMode] = useState<Mode>('login');
+  const [regOpen, setRegOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +161,7 @@ export default function LoginPage() {
             </div>
             <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--muted)' }}>
               New here?{' '}
-              <a onClick={() => toast('Registration is coming soon — ask an admin to add you.', 'info')} style={{ color: 'var(--p)', cursor: 'pointer', fontWeight: 600 }}>Register →</a>
+              <a onClick={() => setRegOpen(true)} style={{ color: 'var(--p)', cursor: 'pointer', fontWeight: 600 }}>Register →</a>
             </div>
           </form>
         )}
@@ -228,6 +229,8 @@ export default function LoginPage() {
           </div>
         )}
       </div>
+
+      <RegistrationModal open={regOpen} onClose={() => setRegOpen(false)} />
     </main>
   );
 }
