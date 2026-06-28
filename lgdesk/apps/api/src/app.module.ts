@@ -15,6 +15,7 @@ import { LeavesModule } from './leaves/leaves.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DirectoryModule } from './directory/directory.module';
+import { WeeklySummaryModule } from './weekly-summary/weekly-summary.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { DirectoryModule } from './directory/directory.module';
     MeetingsModule,
     DashboardModule,
     DirectoryModule,
+    WeeklySummaryModule,
   ],
   controllers: [AppController],
 })
