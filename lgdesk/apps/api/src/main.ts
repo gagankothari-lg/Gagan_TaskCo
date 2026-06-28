@@ -52,7 +52,9 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
-  await app.listen(3001);
-  console.log('✅ LG Desk API running on http://localhost:3001/api');
+  // Railway/most PaaS inject PORT; fall back to 3001 for local dev.
+  const port = process.env.PORT || 3001;
+  await app.listen(port);
+  console.log(`✅ LG Desk API running on port ${port} (prefix /api)`);
 }
 bootstrap();
