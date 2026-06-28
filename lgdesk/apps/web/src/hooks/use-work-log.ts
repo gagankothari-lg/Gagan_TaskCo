@@ -53,8 +53,10 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
 export function useSubmitWorkLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: WorkLogInput & { intern?: boolean }) =>
-      api.post(dto.intern ? '/work-logs/intern' : '/work-logs', dto),
+    // Strip the `intern` discriminator from the body — it only picks the endpoint.
+    // (The API runs ValidationPipe with forbidNonWhitelisted, which rejects unknown fields.)
+    mutationFn: ({ intern, ...body }: WorkLogInput & { intern?: boolean }) =>
+      api.post(intern ? '/work-logs/intern' : '/work-logs', body),
     onSuccess: () => invalidate(qc),
   });
 }

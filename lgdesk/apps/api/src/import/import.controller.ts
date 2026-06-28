@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Post,
@@ -28,13 +29,24 @@ export class ImportController {
     return this.importService.previewFromSheet(dto, user.empId);
   }
 
+  // V-06: cap upload size (5 MB) and accept only CSV-ish files.
   @Post('preview-csv')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        const f = file as { mimetype?: string; originalname?: string };
+        const ok = /csv|excel|text\/plain|octet-stream/.test(f.mimetype ?? '') || /\.csv$/i.test(f.originalname ?? '');
+        cb(ok ? null : new BadRequestException('Only CSV files are allowed'), ok);
+      },
+    }),
+  )
   previewCsv(
     @CurrentUser() user: AuthedUser,
-    @UploadedFile() file: { buffer: Buffer },
+    @UploadedFile() file: { buffer: Buffer } | undefined,
     @Body() body: { projectId?: string },
   ) {
+    if (!file) throw new BadRequestException('No CSV file uploaded');
     // projectId rides along on the multipart body; preview itself doesn't need it,
     // but we keep the signature symmetric with the sheet path.
     void body;
