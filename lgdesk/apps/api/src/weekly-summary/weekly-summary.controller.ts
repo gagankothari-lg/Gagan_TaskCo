@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { WeeklySummaryService } from './weekly-summary.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -27,5 +27,14 @@ export class WeeklySummaryController {
   @Post('generate')
   generate(@CurrentUser() user: AuthedUser, @Body() dto: GenerateWeeklySummaryDto) {
     return this.summaries.generateMyWeeklySummary(user.empId, dto.weekStart);
+  }
+
+  @Get('mis')
+  async getMis(@CurrentUser() user: AuthedUser, @Query('weekStart') weekStart: string) {
+    try {
+      return this.summaries.getMisSummaries(user.empId, weekStart);
+    } catch {
+      throw new ForbiddenException('MIS access required');
+    }
   }
 }

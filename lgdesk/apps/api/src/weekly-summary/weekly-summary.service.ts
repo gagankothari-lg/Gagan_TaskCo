@@ -45,6 +45,44 @@ export class WeeklySummaryService {
     return { ok: true, bullets: this.toBullets(row.content ?? '') };
   }
 
+  // ─── MIS REPORT ─────────────────────────────────────────
+  // Returns all active employees' summaries for a given week.
+  // Caller must have a row in MisAccess table.
+  async getMisSummaries(callerEmpId: string, weekStartStr: string) {
+    const hasAccess = await this.prisma.misAccess.findUnique({ where: { empId: callerEmpId } });
+    if (!hasAccess) throw new Error('FORBIDDEN');
+
+    const weekStart = this.mondayUtc(weekStartStr);
+    const weekEnd = new Date(weekStart.getTime());
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+
+    const [employees, summaries] = await Promise.all([
+      this.prisma.user.findMany({ where: { isActive: true }, select: { empId: true, firstName: true, lastName: true, team: true, role: true } }),
+      this.prisma.weeklySummary.findMany({ where: { weekStart } }),
+    ]);
+
+    const byEmpId = new Map(summaries.map((s) => [s.empId, s]));
+    return {
+      weekStart: this.iso(weekStart),
+      weekEnd: this.iso(weekEnd),
+      total: employees.length,
+      submitted: summaries.length,
+      rows: employees.map((emp) => {
+        const s = byEmpId.get(emp.empId);
+        return {
+          empId: emp.empId,
+          name: `${emp.firstName} ${emp.lastName}`,
+          team: emp.team,
+          role: emp.role,
+          found: !!s,
+          bullets: s ? this.toBullets(s.content ?? '') : [],
+          isEdited: s?.isEdited ?? false,
+          generatedAt: s?.generatedAt?.toISOString() ?? null,
+        };
+      }),
+    };
+  }
+
   // ─── GENERATE NOW (on-demand AI) ────────────────────────
   async generateMyWeeklySummary(empId: string, weekStartStr: string) {
     const weekStart = this.mondayUtc(weekStartStr);
