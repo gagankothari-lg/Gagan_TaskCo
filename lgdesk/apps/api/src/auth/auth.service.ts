@@ -8,7 +8,6 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { Resend } from 'resend';
 import {
   InitialPayload,
   LoginResponse,
@@ -22,6 +21,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { isAdmin, isManager } from '../common/constants';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { EmailService } from '../email/email.service';
 
 const BCRYPT_ROUNDS = 12;
 const OTP_TTL_MS = 15 * 60 * 1000;        // 15 minutes
@@ -46,6 +46,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
   ) {}
 
   // ─────────────────────────────────────────────── LOGIN
@@ -161,7 +162,7 @@ export class AuthService {
       await this.prisma.passwordResetOtp.create({
         data: { email: user.email, otp, expiresAt: new Date(Date.now() + OTP_TTL_MS) },
       });
-      await this.sendOtpEmail(user.email, otp);
+      await this.email.sendPasswordResetOTP({ email: user.email, firstName: user.firstName, otp, expiryMinutes: 15 });
     }
     // Always OK — never leak whether the email exists (TC-AUTH-015).
     return { ok: true };
@@ -239,22 +240,6 @@ export class AuthService {
         expiresAt: new Date(Date.now() + REVOKE_ALL_TTL_MS),
       },
     });
-  }
-
-  private async sendOtpEmail(email: string, otp: string) {
-    const key = this.config.get<string>('RESEND_API_KEY');
-    if (!key) return; // dev / no-key: skip silently
-    try {
-      const resend = new Resend(key);
-      await resend.emails.send({
-        from: 'LG Desk <noreply@leveragedgrowth.in>',
-        to: email,
-        subject: 'LG Desk password reset',
-        text: `Your LG Desk password reset code is ${otp}. It expires in 15 minutes. If you did not request this, ignore this email.`,
-      });
-    } catch {
-      // Never surface email-delivery failures (would leak account existence / break flow).
-    }
   }
 
   private parseIds(value?: string | null): string[] {

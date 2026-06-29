@@ -6,8 +6,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
+import { EmailService } from '../email/email.service';
 import { isAdmin } from '../common/constants';
 import { RegisterRequestDto } from '../auth/dto/register-request.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -65,6 +67,8 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   // ─────────────────────────────────────────────── reads
@@ -153,6 +157,20 @@ export class UsersService {
         status: 'Pending',
       },
     });
+
+    if (captain) {
+      const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk-web.vercel.app';
+      this.email.sendRegistrationSubmitted({
+        managerEmail: captain.email,
+        managerName: `${captain.firstName} ${captain.lastName}`,
+        applicantName: `${dto.firstName} ${dto.lastName}`,
+        applicantEmail: dto.email,
+        applicantRole: 'Team Member',
+        applicantTeam: dto.team ?? '',
+        reviewUrl: `${frontendUrl}/team-members`,
+      }).catch(() => undefined);
+    }
+
     return { reqId: regId };
   }
 
@@ -198,6 +216,17 @@ export class UsersService {
     });
     await this.audit(callerEmpId, 'APPROVE_REGISTRATION', 'RegistrationRequest', req.regId, null, empId);
     this.clearOrgCache();
+
+    const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk-web.vercel.app';
+    this.email.sendRegistrationApproved({
+      applicantEmail: req.email,
+      applicantFirstName: req.firstName,
+      empId,
+      role: req.role,
+      team: req.team ?? '',
+      loginUrl: frontendUrl,
+    }).catch(() => undefined);
+
     return { empId };
   }
 
@@ -209,6 +238,18 @@ export class UsersService {
       data: { status: 'Rejected', reviewedBy: callerEmpId, notes },
     });
     await this.audit(callerEmpId, 'REJECT_REGISTRATION', 'RegistrationRequest', req.regId);
+
+    const approver = await this.prisma.user.findUnique({
+      where: { empId: callerEmpId },
+      select: { email: true },
+    });
+    this.email.sendRegistrationRejected({
+      applicantEmail: req.email,
+      applicantFirstName: req.firstName,
+      reason: notes,
+      contactEmail: approver?.email ?? 'admin@leveragedgrowth.co',
+    }).catch(() => undefined);
+
     return { ok: true };
   }
 
