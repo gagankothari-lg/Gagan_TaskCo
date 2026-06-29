@@ -37,7 +37,6 @@ model User {
   weeklySummaries   WeeklySummary[]
   progressUpdates   ProgressUpdate[]
   profileUpdateReqs ProfileUpdateRequest[]
-  registrationReq   RegistrationRequest?
   misAccess         MisAccess?
   auditLogs         AuditLog[]
 
@@ -452,8 +451,6 @@ model RegistrationRequest {
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  user User? @relation(fields: [email], references: [email])
 
   @@map("registration_requests")
 }

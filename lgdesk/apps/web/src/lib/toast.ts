@@ -7,7 +7,7 @@ const TYPE_CLASS: Record<ToastType, string> = {
   success: 'success',
   error: 'error',
   warn: 'warn',
-  info: '', // dark default
+  info: 'info',
 };
 
 export function toast(message: string, type: ToastType = 'info'): void {

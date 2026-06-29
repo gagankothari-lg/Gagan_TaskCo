@@ -257,11 +257,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </>
         )}
 
-        {/* Import Tasks — visible to all logged-in users */}
-        <div className="nav-item" onClick={() => setImportOpen(true)} style={{ cursor: 'pointer' }}>
-          <span className="nav-icon"><Icon name="upload_file" size={20} /></span>
-          <span style={{ flex: 1 }}>Import Tasks</span>
-        </div>
+        {/* Import Tasks — managers/admins only (GAP-003 fix) */}
+        {manager && (
+          <div className="nav-item" onClick={() => setImportOpen(true)} style={{ cursor: 'pointer' }}>
+            <span className="nav-icon"><Icon name="upload_file" size={20} /></span>
+            <span style={{ flex: 1 }}>Import Tasks</span>
+          </div>
+        )}
 
         {/* ── Chats ─────────────────────────────── */}
         <div className="nav-sec">Chats</div>
@@ -281,7 +283,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
+      {manager && <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />}
     </div>
   );
 }
