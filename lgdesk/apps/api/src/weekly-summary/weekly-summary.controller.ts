@@ -32,7 +32,7 @@ export class WeeklySummaryController {
   @Get('mis')
   async getMis(@CurrentUser() user: AuthedUser, @Query('weekStart') weekStart: string) {
     try {
-      return this.summaries.getMisSummaries(user.empId, weekStart);
+      return await this.summaries.getMisSummaries(user.empId, weekStart);
     } catch {
       throw new ForbiddenException('MIS access required');
     }
