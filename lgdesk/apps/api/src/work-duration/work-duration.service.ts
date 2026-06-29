@@ -7,6 +7,7 @@ import {
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
+import { CalendarService } from '../calendar/calendar.service';
 import { isAdmin, isManager } from '../common/constants';
 import { ClockOutDto } from './dto/clock-out.dto';
 import { EditTimeDto } from './dto/edit-time.dto';
@@ -25,6 +26,7 @@ export class WorkDurationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
+    private readonly calendar: CalendarService,
   ) {}
 
   // ─────────────────────────────────────────────── clock actions
@@ -190,6 +192,12 @@ export class WorkDurationService {
     const sessions = await this.prisma.workDuration.findMany({ where: { netMinutes: { gt: 0 } } });
     for (const s of sessions) await this.syncWorkLog(s.empId, s.date, s.netMinutes);
     return { synced: sessions.length };
+  }
+
+  // ─────────────────────────────────────────────── cron (daily calendar sync — 06:00 IST / 00:30 UTC)
+  @Cron('30 0 * * *')
+  async dailyCalendarSync() {
+    await this.calendar.fullDailySync();
   }
 
   // ─────────────────────────────────────────────── cron (hourly daily-boundary check)

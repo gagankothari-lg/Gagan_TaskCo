@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
+import { CalendarService } from '../calendar/calendar.service';
 import { isAdmin, isManager } from '../common/constants';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { ReviewLeaveDto } from './dto/review-leave.dto';
@@ -19,6 +20,7 @@ export class LeavesService {
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
     private readonly config: ConfigService,
+    private readonly calendar: CalendarService,
   ) {}
 
   async submitLeave(dto: CreateLeaveDto, callerEmpId: string) {
@@ -103,6 +105,7 @@ export class LeavesService {
     if (!isAdmin(caller.role)) throw new ForbiddenException();
     const holiday = await this.prisma.holiday.findUnique({ where: { id } });
     if (!holiday) throw new NotFoundException('Holiday not found');
+    void this.calendar.deleteHolidayEvent(id);
     await this.prisma.holiday.delete({ where: { id } });
     await this.audit(callerEmpId, 'HOLIDAY_DELETE', id);
     return { ok: true };
@@ -153,12 +156,12 @@ export class LeavesService {
     }
   }
 
-  // Google Calendar sync stubs (fire-and-forget; integration wired with real creds later).
-  private async syncLeaveToCalendar(_leaveId: string) {
-    /* no-op until Google Calendar credentials are configured */
+  private async syncLeaveToCalendar(leaveId: string) {
+    await this.calendar.syncLeave(leaveId);
   }
-  private async syncHolidayToCalendar(_holidayId: string) {
-    /* no-op until Google Calendar credentials are configured */
+
+  private async syncHolidayToCalendar(holidayId: string) {
+    await this.calendar.syncHoliday(holidayId);
   }
 
   private async audit(empId: string, action: string, entityId: string, before: string | null = null, after: string | null = null) {

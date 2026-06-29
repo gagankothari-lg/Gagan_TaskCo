@@ -255,6 +255,7 @@ model Leave {
   status      String    @default("Pending")
   reviewedBy  String?
   reviewNotes String?
+  calEventId  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -264,10 +265,11 @@ model Leave {
 }
 
 model Holiday {
-  id        String   @id @default(cuid())
-  date      DateTime @db.Date @unique
-  name      String
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  date       DateTime @db.Date @unique
+  name       String
+  calEventId String?
+  createdAt  DateTime @default(now())
 
   @@map("holidays")
 }

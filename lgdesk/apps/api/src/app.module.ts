@@ -20,6 +20,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { DirectoryModule } from './directory/directory.module';
 import { WeeklySummaryModule } from './weekly-summary/weekly-summary.module';
 import { ImportModule } from './import/import.module';
+import { CalendarModule } from './calendar/calendar.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ImportModule } from './import/import.module';
     DirectoryModule,
     WeeklySummaryModule,
     ImportModule,
+    CalendarModule,
   ],
   controllers: [AppController, HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

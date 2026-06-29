@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
+import { CalendarService } from '../calendar/calendar.service';
 import { isAdmin, isManager, parseIds, joinIds } from '../common/constants';
 import { Project } from '../common/api-types';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -14,7 +15,7 @@ type Caller = { empId: string; role: string; team: string | null };
 type ProjectRow = {
   id: string; projId: string; parentProjId: string | null; name: string; description: string | null;
   ownerIds: string; assignerId: string; assigneeIds: string; assignedTeams: string; status: string;
-  priority: string; startDate: Date | null; deadline: Date | null; createdAt: Date; updatedAt: Date;
+  priority: string; startDate: Date | null; deadline: Date | null; calEventId: string | null; createdAt: Date; updatedAt: Date;
 };
 
 export type ProjectScope = 'mine' | 'team' | 'all';
@@ -24,6 +25,7 @@ export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
+    private readonly calendar: CalendarService,
   ) {}
 
   async getAuthorizedProjects(callerEmpId: string, scope?: ProjectScope): Promise<Project[]> {
@@ -98,6 +100,17 @@ export class ProjectsService {
       },
     });
     await this.audit(callerEmpId, 'CREATE', created.projId);
+    if (created.deadline) {
+      void this.calendar.createGCalEvent({
+        title: `[Project] ${created.name}`,
+        description: `Status: ${created.status} · Priority: ${created.priority}`,
+        startDate: created.deadline,
+        allDay: true,
+        colorId: '9',
+      }).then((eventId) => {
+        if (eventId) this.prisma.project.update({ where: { projId: created.projId }, data: { calEventId: eventId } }).catch(() => undefined);
+      }).catch(() => undefined);
+    }
     return this.mapProject(created);
   }
 
@@ -126,13 +139,24 @@ export class ProjectsService {
 
     const updated = await this.prisma.project.update({ where: { projId }, data });
     await this.audit(callerEmpId, 'UPDATE', projId);
+    if (updated.deadline) {
+      const calParams = { title: `[Project] ${updated.name}`, description: `Status: ${updated.status} · Priority: ${updated.priority}`, startDate: updated.deadline, allDay: true };
+      if (updated.calEventId) {
+        void this.calendar.updateGCalEvent(updated.calEventId, calParams).catch(() => undefined);
+      } else {
+        void this.calendar.createGCalEvent({ ...calParams, colorId: '9' }).then((eventId) => {
+          if (eventId) this.prisma.project.update({ where: { projId }, data: { calEventId: eventId } }).catch(() => undefined);
+        }).catch(() => undefined);
+      }
+    }
     return this.mapProject(updated);
   }
 
   async deleteProject(projId: string, callerEmpId: string): Promise<{ ok: true }> {
     const caller = await this.getCaller(callerEmpId);
     if (!isAdmin(caller.role)) throw new ForbiddenException();
-    await this.requireProject(projId);
+    const project = await this.requireProject(projId);
+    if (project.calEventId) void this.calendar.deleteGCalEvent(project.calEventId).catch(() => undefined);
     await this.prisma.project.delete({ where: { projId } });
     await this.audit(callerEmpId, 'DELETE', projId);
     return { ok: true };

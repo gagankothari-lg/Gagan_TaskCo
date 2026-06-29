@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { UsersService } from '../users/users.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { isAdmin, isManager, parseIds, joinIds } from '../common/constants';
 import { Task, AssignmentEntry } from '../common/api-types';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -19,7 +20,7 @@ type TaskRow = {
   assigneeIds: string; assignedTeams: string; assignerId: string; status: string;
   priority: string; recurring: boolean; dueDate: Date | null; estimatedHours: number | null;
   actualHours: number; fileLink: string | null; links: string | null;
-  assignmentHistory: string; createdAt: Date; updatedAt: Date;
+  calEventId: string | null; assignmentHistory: string; createdAt: Date; updatedAt: Date;
 };
 
 export type Scope = 'mine' | 'team' | 'all';
@@ -30,6 +31,7 @@ export class TasksService {
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
     private readonly users: UsersService,
+    private readonly calendar: CalendarService,
   ) {}
 
   // ─────────────────────────────────────────────── reads
@@ -120,6 +122,17 @@ export class TasksService {
       },
     });
     await this.audit(callerEmpId, 'CREATE', created.taskId);
+    if (created.dueDate) {
+      void this.calendar.createGCalEvent({
+        title: `[Task] ${created.title}`,
+        description: `Status: ${created.status} · Priority: ${created.priority}`,
+        startDate: created.dueDate,
+        allDay: true,
+        colorId: '6',
+      }).then((eventId) => {
+        if (eventId) this.prisma.task.update({ where: { taskId: created.taskId }, data: { calEventId: eventId } }).catch(() => undefined);
+      }).catch(() => undefined);
+    }
     return this.mapTask(created);
   }
 
@@ -167,13 +180,24 @@ export class TasksService {
     const before = { status: task.status, dueDate: task.dueDate, assigneeIds: task.assigneeIds };
     const updated = await this.prisma.task.update({ where: { taskId }, data });
     await this.audit(callerEmpId, 'UPDATE', taskId, JSON.stringify(before), JSON.stringify(dto));
+    if (updated.dueDate) {
+      const calParams = { title: `[Task] ${updated.title}`, description: `Status: ${updated.status} · Priority: ${updated.priority}`, startDate: updated.dueDate, allDay: true };
+      if (updated.calEventId) {
+        void this.calendar.updateGCalEvent(updated.calEventId, calParams).catch(() => undefined);
+      } else {
+        void this.calendar.createGCalEvent({ ...calParams, colorId: '6' }).then((eventId) => {
+          if (eventId) this.prisma.task.update({ where: { taskId }, data: { calEventId: eventId } }).catch(() => undefined);
+        }).catch(() => undefined);
+      }
+    }
     return this.mapTask(updated);
   }
 
   async deleteTask(taskId: string, callerEmpId: string): Promise<{ ok: true }> {
     const caller = await this.getCaller(callerEmpId);
     if (!isAdmin(caller.role)) throw new ForbiddenException(); // admin-only (route also guarded)
-    await this.requireTask(taskId);
+    const task = await this.requireTask(taskId);
+    if (task.calEventId) void this.calendar.deleteGCalEvent(task.calEventId).catch(() => undefined);
     await this.prisma.task.delete({ where: { taskId } }); // ProgressUpdates cascade via FK
     await this.audit(callerEmpId, 'DELETE', taskId);
     return { ok: true };
