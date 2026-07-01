@@ -3,10 +3,14 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { Icon } from '../../ui/icon';
+import { Badge } from '../../ui/badge';
 import { statusPillStyle } from '../../../lib/status-styles';
+import { fmtDate } from '../../../lib/utils';
 import type { Project, Task, WorkFunction } from '../../../lib/types';
 
-function priorityBadge(p: string) {
+const MAX_PROJECT_CARDS = 10;
+
+function priorityStyle(p: string) {
   const map: Record<string, { bg: string; color: string }> = {
     Critical: { bg: '#fce8e8', color: '#c62828' }, High: { bg: '#fce8e8', color: '#c62828' },
     Medium: { bg: '#e8eaf6', color: '#1a237e' }, Low: { bg: '#f5f5f5', color: '#757575' },
@@ -22,23 +26,25 @@ function TaskLine({ t }: { t: Task }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', marginLeft: 32 }}>
       <Icon name="task_alt" size={12} style={{ color: 'var(--muted)' }} />
       <span style={{ flex: 1, fontSize: 13 }}>{t.title}</span>
-      <span className="pill" style={{ background: sp.bg, color: sp.color }}>{t.status}</span>
-      {t.dueDate && <span style={{ fontSize: 11, color: od ? '#c62828' : 'var(--muted2)', whiteSpace: 'nowrap' }}>{new Date(t.dueDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+      <Badge variant="outline" style={{ background: sp.bg, color: sp.color, borderColor: 'transparent' }}>{t.status}</Badge>
+      {t.dueDate && <span style={{ fontSize: 11, color: od ? '#c62828' : 'var(--muted2)', whiteSpace: 'nowrap' }}>{fmtDate(t.dueDate)}</span>}
     </div>
   );
 }
 
 export function MyProjects() {
   const { projects, functions, tasks } = useAuth();
-  const [selId, setSelId] = useState<string | null>(projects[0]?.projId ?? null);
+  const shownProjects = useMemo(() => projects.slice(0, MAX_PROJECT_CARDS), [projects]);
+  const [selId, setSelId] = useState<string | null>(shownProjects[0]?.projId ?? null);
 
   const taskCount = (p: Project) => {
     const ts = tasks.filter((t) => t.projId === p.projId);
     const done = ts.filter((t) => t.status === 'Done').length;
-    return { total: ts.length, done };
+    return { total: ts.length, done, pct: ts.length ? Math.round((done / ts.length) * 100) : 0 };
   };
+  const parentName = (p: Project) => (p.parentProjId ? projects.find((x) => x.projId === p.parentProjId)?.name : undefined);
 
-  const selected = projects.find((p) => p.projId === selId) ?? null;
+  const selected = shownProjects.find((p) => p.projId === selId) ?? null;
   const tree = useMemo(() => {
     if (!selected) return null;
     const fns = functions.filter((f) => f.projId === selected.projId);
@@ -67,7 +73,7 @@ export function MyProjects() {
 
   if (projects.length === 0) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
         <div style={{ background: '#fafafa', borderRight: '1px solid var(--border)', padding: 12, fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>No projects assigned yet.</div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, color: 'var(--muted)' }}>
           <Icon name="account_tree" size={40} style={{ opacity: 0.3 }} />
@@ -79,20 +85,36 @@ export function MyProjects() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-      {/* Left: project list */}
-      <div style={{ background: '#fafafa', borderRight: '1px solid var(--border)', padding: 8, maxHeight: 360, overflowY: 'auto' }}>
-        {projects.map((p) => {
-          const c = taskCount(p); const active = p.projId === selId; const pb = priorityBadge(p.priority);
+    <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      {/* Left: project list (capped at 10) */}
+      <div style={{ background: '#fafafa', borderRight: '1px solid var(--border)', padding: 8, maxHeight: 380, overflowY: 'auto' }}>
+        {shownProjects.map((p) => {
+          const c = taskCount(p);
+          const active = p.projId === selId;
+          const pb = priorityStyle(p.priority);
+          const sp = statusPillStyle(p.status);
+          const parent = parentName(p);
           return (
             <div key={p.projId} onClick={() => setSelId(p.projId)} style={{ background: active ? '#e8eaf6' : '#fff', border: `1px solid ${active ? '#1a237e' : 'var(--border)'}`, borderRadius: 6, padding: '8px 10px', marginBottom: 6, cursor: 'pointer' }}>
+              {parent && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>
+                  <Icon name="subdirectory_arrow_right" size={12} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{parent}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{p.name}</span>
-                <Icon name="more_horiz" size={16} style={{ color: 'var(--muted2)' }} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <span style={{ background: pb.bg, color: pb.color, fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 600 }}>{p.priority}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>{c.total === 0 ? 'No tasks' : `${c.done}/${c.total} done`}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                <Badge variant="outline" style={{ background: pb.bg, color: pb.color, borderColor: 'transparent' }}>{p.priority}</Badge>
+                <Badge variant="outline" style={{ background: sp.bg, color: sp.color, borderColor: 'transparent' }}>{p.status}</Badge>
+                {p.deadline && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted2)' }}>{fmtDate(p.deadline)}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <div style={{ flex: 1, height: 4, background: '#e0e0e0', borderRadius: 2 }}>
+                  <div style={{ width: `${c.pct}%`, height: '100%', background: 'var(--p2)', borderRadius: 2 }} />
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{c.total === 0 ? 'No tasks' : `${c.done}/${c.total} done`}</span>
               </div>
             </div>
           );
@@ -100,7 +122,7 @@ export function MyProjects() {
       </div>
 
       {/* Right: tree */}
-      <div style={{ background: '#fff', padding: 12, maxHeight: 360, overflowY: 'auto' }}>
+      <div style={{ background: '#fff', padding: 12, maxHeight: 380, overflowY: 'auto' }}>
         {selected && tree ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>

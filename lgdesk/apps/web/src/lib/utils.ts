@@ -56,6 +56,15 @@ export function badgeClass(priority: string): string {
   return cx('badge', PRIORITY_BADGE[priority] ?? `badge-${priority.toLowerCase()}`);
 }
 
+// Canonical closed-status set for THIS port's task schema (apps/api/src/common/
+// constants.ts TASK_CLOSED_STATUSES) — Done/Cancelled only. The Master Reference's
+// legacy GAS taxonomy also treats Completed/Implemented as closed, but those statuses
+// don't exist in this rewrite's TASK_STATUSES, so they're intentionally omitted.
+export const CLOSED_TASK_STATUSES = ['Done', 'Cancelled'] as const;
+export function isClosedTaskStatus(status: string): boolean {
+  return (CLOSED_TASK_STATUSES as readonly string[]).includes(status);
+}
+
 /** Coloured left-border / status-dot colour for a task, honouring overdue. */
 export function statusDotColor(status: string, opts?: { overdue?: boolean }): string {
   if (opts?.overdue && status !== 'Done' && status !== 'Cancelled') return 'var(--danger)';

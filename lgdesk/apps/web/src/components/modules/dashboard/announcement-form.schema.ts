@@ -14,12 +14,20 @@ const optionalDate = z
   .optional()
   .refine((v) => !v || !Number.isNaN(Date.parse(v)), 'Enter a valid date.');
 
-export const announcementSchema = z.object({
-  title: z.string().trim().min(1, 'Title is required.'),
-  content: z.string().optional(),
-  startDate: optionalDate,
-  endDate: optionalDate,
-  visibility: z.enum(VISIBILITY).optional(),
-});
+export const announcementSchema = z
+  .object({
+    title: z.string().trim().min(1, 'Title is required.'),
+    content: z.string().optional(),
+    startDate: optionalDate,
+    endDate: optionalDate,
+    visibility: z.enum(VISIBILITY).optional(),
+  })
+  // Part 37 checklist: "Set To date earlier than From date -> click Post -> toast 'End
+  // date must be after start date.'"
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate && Date.parse(data.endDate) < Date.parse(data.startDate)) {
+      ctx.addIssue({ code: 'custom', path: ['endDate'], message: 'End date must be after start date.' });
+    }
+  });
 
 export type AnnouncementFormValues = z.infer<typeof announcementSchema>;

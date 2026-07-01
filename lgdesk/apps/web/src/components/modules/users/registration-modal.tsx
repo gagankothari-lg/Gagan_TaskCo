@@ -7,6 +7,10 @@ import { Icon } from '../../ui/icon';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { registerRequest } from '../../../lib/api/auth';
 import { Spinner } from '../../ui/spinner';
+import { Button } from '../../ui/button';
+import { Input } from '../../ui/input';
+import { Textarea } from '../../ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
 import {
   DIVISIONS,
@@ -51,8 +55,6 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
   const subDeptOptions = subDepartmentsFor(team);
   const hasSubDepts = subDepartmentRequired(team);
 
-  if (!open) return null;
-
   async function onSubmit(values: RegistrationFormValues) {
     setError(null);
     try {
@@ -80,25 +82,34 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
     form.setValue('subDepartment', '', { shouldValidate: form.formState.isSubmitted });
   }
 
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      // Reset the one-shot "submitted" success screen so a later re-open of this same
+      // modal instance starts fresh instead of showing the last request's confirmation.
+      setSubmitted(false);
+      setError(null);
+      onClose();
+    }
+  }
+
   return (
-    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal modal-lg">
-        <div className="modal-hd">
-          <span className="modal-hd-title">Request Access — Register</span>
-          <button className="modal-x" onClick={onClose} aria-label="Close"><Icon name="close" size={18} /></button>
-        </div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <DialogTitle>Request Access — Register</DialogTitle>
+        </DialogHeader>
 
         {submitted ? (
-          <div className="modal-bd">
+          <div className="p-5">
             <div className="empty-state">
               <Icon name="check_circle" size={40} className="ei" style={{ color: 'var(--ok)', opacity: 1 }} />
               <p><strong>Registration submitted!</strong><br />Your manager will review your request. You can sign in once it&apos;s approved.</p>
             </div>
-            <button className="btn btn-primary btn-full" onClick={onClose}>Done</button>
+            <Button className="w-full" onClick={() => handleOpenChange(false)}>Done</Button>
           </div>
         ) : (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="modal-bd" noValidate>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="p-5" noValidate>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <FormField
                   control={form.control}
@@ -106,7 +117,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                   render={({ field }) => (
                     <FormItem className="fg">
                       <FormLabel>First Name</FormLabel>
-                      <FormControl><input className="fc" {...field} /></FormControl>
+                      <FormControl><Input {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -117,7 +128,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                   render={({ field }) => (
                     <FormItem className="fg">
                       <FormLabel>Last Name</FormLabel>
-                      <FormControl><input className="fc" {...field} /></FormControl>
+                      <FormControl><Input {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -130,7 +141,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                 render={({ field }) => (
                   <FormItem className="fg">
                     <FormLabel>Work Email</FormLabel>
-                    <FormControl><input className="fc" type="email" placeholder="you@company.com" {...field} /></FormControl>
+                    <FormControl><Input type="email" placeholder="you@company.com" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -158,7 +169,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                   render={({ field }) => (
                     <FormItem className="fg">
                       <FormLabel>Date of Birth</FormLabel>
-                      <FormControl><input className="fc" type="date" {...field} /></FormControl>
+                      <FormControl><Input type="date" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -173,7 +184,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                     <FormItem className="fg">
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <input className="fc" type="password" autoComplete="new-password" placeholder="Min 6 characters" {...field} />
+                        <Input type="password" autoComplete="new-password" placeholder="Min 6 characters" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -186,7 +197,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                     <FormItem className="fg">
                       <FormLabel>Confirm Password</FormLabel>
                       <FormControl>
-                        <input className="fc" type="password" autoComplete="new-password" {...field} />
+                        <Input type="password" autoComplete="new-password" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -200,7 +211,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                 render={({ field }) => (
                   <FormItem className="fg">
                     <FormLabel>Designation (optional)</FormLabel>
-                    <FormControl><input className="fc" maxLength={100} {...field} /></FormControl>
+                    <FormControl><Input maxLength={100} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -255,7 +266,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                   <FormItem className="fg">
                     <FormLabel>{role === 'Super Admin' ? 'Reports-to Email (optional)' : managerManual ? 'Reports-to Email' : "Manager's Email"}</FormLabel>
                     <FormControl>
-                      <input className="fc" type="email" placeholder={managerManual ? 'manager@company.com' : 'Auto-resolved on approval'} {...field} />
+                      <Input type="email" placeholder={managerManual ? 'manager@company.com' : 'Auto-resolved on approval'} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -268,7 +279,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                 render={({ field }) => (
                   <FormItem className="fg">
                     <FormLabel>Message (optional)</FormLabel>
-                    <FormControl><textarea className="fc" rows={2} style={{ resize: 'none' }} {...field} /></FormControl>
+                    <FormControl><Textarea rows={2} className="resize-none" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -276,14 +287,14 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
 
               {error && <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
-              <button type="submit" className="btn btn-primary btn-full" disabled={form.formState.isSubmitting}>
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting && <Spinner size={14} />}{form.formState.isSubmitting ? 'Submitting…' : 'Submit Registration'}
-              </button>
+              </Button>
             </form>
           </Form>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
