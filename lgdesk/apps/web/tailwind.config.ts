@@ -5,26 +5,71 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        p:       '#1a237e',
-        p2:      '#3949ab',
-        p3:      '#e8eaf6',
-        accent:  '#00897b',
-        danger:  '#c62828',
-        warn:    '#e65100',
-        ok:      '#2e7d32',
-        bg:      '#f0f2f5',
-        surface: '#ffffff',
-        border:  '#e0e0e0',
-        muted:   '#757575',
-        muted2:  '#9e9e9e',
+        // ── Brand tokens — LGDesk_Master_Reference.md Part 8 + Part 37
+        //    checklist. Backed by CSS custom properties in globals.css so
+        //    there is exactly one source of truth per value.
+        p:       'var(--p)',
+        p2:      'var(--p2)',
+        p3:      'var(--p3)',
+        accent:  'var(--accent)',
+        danger:  'var(--danger)',
+        warn:    'var(--warn)',
+        ok:      'var(--ok)',
+        bg:      'var(--bg)',
+        surface: 'var(--surface)',
+        border:  'var(--border)',
+        text:    'var(--text)',
+        muted:   'var(--muted)',
+        muted2:  'var(--muted2)',
+        hover:   'var(--hover)',
+
+        // ── shadcn/ui semantic aliases — same CSS vars, shadcn's own
+        //    expected names, so `bg-primary`/`text-danger`-style utilities
+        //    and shadcn-generated components read from one token system.
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive)',
+          foreground: 'var(--destructive-foreground)',
+        },
+        card: {
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
+        input: 'var(--input)',
+        ring: 'var(--ring)',
       },
       fontFamily: {
-        sans: ['Montserrat', 'sans-serif'],
+        sans: ['var(--font-montserrat)', 'Montserrat', 'sans-serif'],
       },
-      borderRadius: { DEFAULT: '8px' },
-      boxShadow: { card: '0 2px 8px rgba(0,0,0,.1)' },
+      borderRadius: {
+        DEFAULT: 'var(--r)',
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      boxShadow: { card: 'var(--sh)' },
+      width: {
+        sidebar: 'var(--sidebar-width)',
+        'sidebar-collapsed': 'var(--sidebar-collapsed)',
+      },
+      spacing: {
+        hh: 'var(--hh)',
+      },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 };
 export default config;

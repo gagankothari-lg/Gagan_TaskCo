@@ -176,11 +176,11 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
       <FilterBar value={filter} onChange={setFilter} employees={employees} projects={projects} functions={functions} />
 
       {isLoading ? (
-        <div className="empty-state"><span className="ei material-symbols-outlined">hourglass_empty</span><p>Loading…</p></div>
+        <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
       ) : error ? (
         <div style={{ color: 'var(--danger)', fontSize: 13 }}>{apiErrorMessage(error, 'Failed to load tasks')}</div>
       ) : filtered.length === 0 ? (
-        <div className="empty-state"><span className="ei material-symbols-outlined">checklist</span><p>No tasks match these filters</p></div>
+        <div className="empty-state"><Icon name="checklist" size={40} className="ei" /><p>No tasks match these filters</p></div>
       ) : grp === 'function' ? (
         <div className="tbl-wrap">
           <table>

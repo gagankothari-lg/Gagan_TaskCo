@@ -2,6 +2,7 @@
 
 import { avatarColor, initials } from '../../../../lib/utils';
 import type { WorkLogEntry } from '../../../../lib/types';
+import { Icon } from '../../../ui/icon';
 
 // Base hours implied by the attendance type, plus any logged extra hours.
 function effHours(att: string | undefined, extra: number): number {
@@ -45,7 +46,9 @@ export function DayMemberCard({ empId, name, team, entry, onClick }: DayMemberCa
         {done ? (
           <span style={{ background: '#e8f5e9', color: '#2e7d32', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, flexShrink: 0 }}>Done</span>
         ) : (
-          <span style={{ background: '#fce8e8', color: '#c62828', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, flexShrink: 0 }}>✗ Missing</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#fce8e8', color: '#c62828', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, flexShrink: 0 }}>
+            <Icon name="close" size={11} /> Missing
+          </span>
         )}
       </div>
 

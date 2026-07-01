@@ -158,7 +158,7 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
 
       {members.length === 0 ? (
         <div className="empty-state">
-          <span className="ei material-symbols-outlined">groups</span>
+          <Icon name="groups" size={40} className="ei" />
           <p>No members to show</p>
         </div>
       ) : (

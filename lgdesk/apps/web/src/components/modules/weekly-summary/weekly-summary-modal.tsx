@@ -76,7 +76,7 @@ export function WeeklySummaryModal({ open, onClose, weekLabel, weekStart }: { op
             </div>
           ) : !hasBullets ? (
             <div className="empty-state">
-              <span className="ei material-symbols-outlined">description</span>
+              <Icon name="description" size={40} className="ei" />
               <p><strong>No summary for this week yet</strong><br />Summaries are auto-generated every Monday. Generate one now if your work logs are filled in.</p>
             </div>
           ) : (
@@ -114,7 +114,11 @@ export function WeeklySummaryModal({ open, onClose, weekLabel, weekStart }: { op
               <Icon name="auto_awesome" size={15} /> {summary?.found ? 'Regenerate' : 'Generate Now'}
             </button>
             {hasBullets && <button className="btn btn-ghost btn-sm" onClick={copyAll}><Icon name="content_copy" size={15} /> Copy</button>}
-            {savedHint && <span style={{ fontSize: 12, color: 'var(--ok)' }}>Saved ✓</span>}
+            {savedHint && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: 'var(--ok)' }}>
+                <Icon name="check" size={13} /> Saved
+              </span>
+            )}
             {summary?.generatedAt && <span style={{ fontSize: 11, color: 'var(--muted2)' }}>Generated {new Date(summary.generatedAt).toLocaleString()}{summary.isEdited ? ' · edited' : ''}</span>}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>

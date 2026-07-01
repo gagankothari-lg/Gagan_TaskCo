@@ -80,9 +80,9 @@ export default function DirectoryPage() {
       </div>
 
       {active.isLoading ? (
-        <div className="empty-state"><span className="ei material-symbols-outlined">hourglass_empty</span><p>Loading…</p></div>
+        <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
       ) : list.length === 0 ? (
-        <div className="empty-state"><span className="ei material-symbols-outlined">contacts</span><p>No people found</p></div>
+        <div className="empty-state"><Icon name="contacts" size={40} className="ei" /><p>No people found</p></div>
       ) : grouped ? (
         grouped.map(([teamName, members]) => (
           <div key={teamName} className="dir-team-section" style={{ marginBottom: 24 }}>

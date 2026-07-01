@@ -166,7 +166,7 @@ export default function MeetingsPage() {
         </div>
       ) : (upcoming?.length ?? 0) === 0 ? (
         <div className="empty-state">
-          <span className="ei material-symbols-outlined">calendar_month</span>
+          <Icon name="calendar_month" size={40} className="ei" />
           <p>No upcoming meetings.</p>
         </div>
       ) : (

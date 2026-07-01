@@ -91,7 +91,7 @@ export default function WorkLogPage() {
       <WeeklySummaryModal open={summaryOpen} onClose={() => setSummaryOpen(false)} weekLabel={label} weekStart={iso(mondayOf(anchor))} />
 
       {isLoading ? (
-        <div className="empty-state"><span className="ei material-symbols-outlined">hourglass_empty</span><p>Loading…</p></div>
+        <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
       ) : (
         <div className="tbl-wrap">
           <table className="wl-week-table">

@@ -1,5 +1,7 @@
-// Verified from LGDesk_Feature_Verification.md §1.1
-// Source: src/index.html :root block, lines 12-18
+// Verified against LGDesk_Master_Reference.md Part 8 (Brand & Design System)
+// + Part 37 (VERIFICATION CHECKLISTS → Application Shell Checklist). The
+// canonical CSS custom properties live in src/app/globals.css :root — this
+// object mirrors them for non-CSS (JS/TS) consumers.
 
 export const tokens = {
   colors: {
@@ -37,10 +39,12 @@ export const tokens = {
     loginGradient: 'linear-gradient(135deg,#1a237e 0%,#283593 50%,#1565c0 100%)',
   },
   layout: {
-    sidebar:   '230px',  // --sidebar: 230px (CSS var used as width AND left margin)
-    headerH:   '56px',   // --hh: 56px
-    radius:    '8px',    // --r: 8px
-    shadow:    '0 2px 8px rgba(0,0,0,.1)',  // --sh
+    sidebar:          '230px', // --sidebar-width: 230px
+    sidebarCollapsed: '54px',  // --sidebar-collapsed: 54px
+    headerH:          '68px',  // --hh: 68px (CONFIRMED 68px, NOT 56px — Change #47)
+    radius:           '8px',   // --r: 8px
+    shadow:           '0 2px 8px rgba(0,0,0,.1)', // --sh
+    hover:            'rgba(0,0,0,0.04)', // --hover
   },
   font: {
     family:   "'Montserrat', sans-serif",

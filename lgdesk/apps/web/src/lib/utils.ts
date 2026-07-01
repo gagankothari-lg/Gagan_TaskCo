@@ -1,5 +1,12 @@
 // Shared UI helpers — pill/badge class mapping, avatars, date formatting.
 // Class names target the GAS-verified rules in globals.css.
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+/** shadcn/ui-standard classname merge helper (clsx + tailwind-merge). */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 /** Join truthy class fragments. */
 export function cx(...parts: Array<string | false | null | undefined>): string {

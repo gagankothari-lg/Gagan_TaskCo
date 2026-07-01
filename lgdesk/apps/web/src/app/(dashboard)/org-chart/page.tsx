@@ -148,7 +148,7 @@ export default function OrgChartPage() {
       </div>
 
       {isLoading ? (
-        <div className="empty-state"><span className="ei material-symbols-outlined">hourglass_empty</span><p>Loading…</p></div>
+        <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
       ) : (
         <>
           <div

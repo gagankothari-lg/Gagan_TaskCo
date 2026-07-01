@@ -83,7 +83,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
         {submitted ? (
           <div className="modal-bd">
             <div className="empty-state">
-              <span className="ei material-symbols-outlined" style={{ color: 'var(--ok)', opacity: 1 }}>check_circle</span>
+              <Icon name="check_circle" size={40} className="ei" style={{ color: 'var(--ok)', opacity: 1 }} />
               <p><strong>Registration submitted!</strong><br />Your manager will review your request. You can sign in once it&apos;s approved.</p>
             </div>
             <button className="btn btn-primary btn-full" onClick={onClose}>Done</button>

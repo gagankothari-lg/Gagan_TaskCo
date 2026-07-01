@@ -157,7 +157,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="empty-state"><span className="ei material-symbols-outlined">notifications_none</span><p>No announcements right now</p></div>
+            <div className="empty-state"><Icon name="notifications_none" size={40} className="ei" /><p>No announcements right now</p></div>
           )}
         </Panel>
         <Panel icon="event_available" title="On Leave Today">
@@ -229,7 +229,7 @@ export default function DashboardPage() {
       {/* Scoreboard */}
       <Panel icon="leaderboard" title="Company Scoreboard">
         {isLoading || !data ? (
-          <div className="empty-state"><span className="ei material-symbols-outlined">hourglass_empty</span><p>Loading…</p></div>
+          <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
         ) : (
           <div className="tbl-wrap" style={{ boxShadow: 'none' }}>
             <table>
