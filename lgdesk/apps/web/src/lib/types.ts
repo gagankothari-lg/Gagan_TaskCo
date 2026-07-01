@@ -326,10 +326,11 @@ export interface ScoreboardRow {
 
 export interface DashboardData {
   notices: {
-    announcements: { id: string; title: string; content: string; startDate: string | null; expiresAt: string | null }[];
+    announcements: { id: string; title: string; content: string; visibility: string; startDate: string | null; expiresAt: string | null }[];
     birthdays: { empId: string; name: string }[];
     onLeave: { empId: string; name: string; leaveType: string }[];
     meetings: { meetingId: string; title: string; startTime: string }[];
+    holidays: { id: string; name: string; date: string }[];
     forms: unknown[];
   };
   onLeaveToday: { empId: string; name: string; leaveType: string }[];
@@ -353,6 +354,37 @@ export interface Announcement {
   expiresAt?: string | null;
   isPinned: boolean;
   createdAt: string;
+}
+
+// ─── Personal Productivity — Todos / Notes / Ideas (Part 28) ───
+export interface Todo {
+  id: string;
+  empId: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Note {
+  id: string;
+  empId: string;
+  title: string | null;
+  content: string | null;
+  pinned: boolean;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Idea {
+  id: string;
+  empId: string;
+  title: string | null;
+  content: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ─── Work Duration / Clock (P12/P13) ───────────────

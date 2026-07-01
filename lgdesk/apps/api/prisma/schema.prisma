@@ -306,6 +306,7 @@ model Announcement {
   startDate   DateTime?
   expiresAt   DateTime?
   isPinned    Boolean   @default(false)
+  isActive    Boolean   @default(true) // BR-4 soft delete — never hard-deleted
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -330,6 +331,8 @@ model Note {
   empId     String
   title     String?
   content   String?
+  pinned    Boolean  @default(false)
+  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -342,6 +345,7 @@ model Idea {
   empId     String
   title     String?
   content   String?
+  status    String   @default("Draft")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

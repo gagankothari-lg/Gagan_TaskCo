@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { Spinner } from '../../ui/spinner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { useAuth } from '../../../hooks/use-auth';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { avatarColor, initials } from '../../../lib/utils';
@@ -120,8 +121,6 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     total: 0,
   });
 
-  if (!open) return null;
-
   function reset() {
     setStage('form');
     setTab('sheet');
@@ -202,16 +201,15 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
   const previewing = previewSheet.isPending || previewCsv.isPending;
 
   return (
-    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div className="modal modal-lg">
-        <div className="modal-hd">
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent size="xl">
+        <DialogHeader>
           <Icon name="description" size={20} style={{ color: 'var(--p)' }} />
-          <span className="modal-hd-title">Import Functions, Sub-Functions &amp; Tasks</span>
-          <button className="modal-x" onClick={close} aria-label="Close"><Icon name="close" size={18} /></button>
-        </div>
+          <DialogTitle>Import Functions, Sub-Functions &amp; Tasks</DialogTitle>
+        </DialogHeader>
 
         {stage === 'form' ? (
-          <div className="modal-bd">
+          <div className="px-5 py-4">
             <div style={{ display: 'flex', gap: 18, borderBottom: '1px solid var(--border)', marginBottom: 18 }}>
               <button
                 onClick={() => setTab('sheet')}
@@ -393,7 +391,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
           </div>
         ) : (
           <>
-            <div className="modal-bd" style={{ paddingBottom: 0 }}>
+            <div className="px-5 py-4" style={{ paddingBottom: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 <span style={{ fontSize: 13, color: 'var(--muted)' }}>
                   {stats.total} rows: {stats.functions} functions, {stats.subFunctions} sub-functions, {stats.tasks} tasks
@@ -477,16 +475,16 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               </div>
             </div>
 
-            <div className="modal-ft">
+            <DialogFooter>
               <button className="btn btn-ghost" onClick={() => { setError(null); setStage('form'); }}>← Back</button>
               <button className="btn btn-primary" onClick={onExecute} disabled={execute.isPending}>
                 {execute.isPending && <Spinner size={14} />} Import Selected →
               </button>
-            </div>
+            </DialogFooter>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

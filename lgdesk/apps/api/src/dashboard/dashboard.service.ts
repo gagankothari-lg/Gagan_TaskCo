@@ -42,12 +42,13 @@ export class DashboardService {
       return e ? `${e.firstName} ${e.lastName}` : empId;
     };
 
-    // 1. Announcements within their window + visible to this role.
-    const allAnn = await this.prisma.announcement.findMany({ orderBy: { createdAt: 'desc' } });
+    // 1. Announcements within their window + visible to this role. Soft-deleted
+    // (isActive=false, BR-4) announcements are excluded everywhere — never hard-deleted.
+    const allAnn = await this.prisma.announcement.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
     const announcements = allAnn
       .filter((a) => (!a.startDate || a.startDate <= today) && (!a.expiresAt || a.expiresAt >= today))
       .filter((a) => this.visibleTo(a.visibility, caller.role))
-      .map((a) => ({ id: a.id, title: a.title, content: a.content, startDate: a.startDate?.toISOString() ?? null, expiresAt: a.expiresAt?.toISOString() ?? null }));
+      .map((a) => ({ id: a.id, title: a.title, content: a.content, visibility: a.visibility, startDate: a.startDate?.toISOString() ?? null, expiresAt: a.expiresAt?.toISOString() ?? null }));
 
     // 2. Birthdays today.
     const birthdays = employees
@@ -57,16 +58,25 @@ export class DashboardService {
     // 3. On leave today (approved).
     const onLeave = await this.getOnLeaveToday(employees);
 
-    // 4. Upcoming meetings in the next 7 days.
-    const weekAhead = new Date(today);
-    weekAhead.setUTCDate(weekAhead.getUTCDate() + 7);
+    // 4. Upcoming meetings, today through +30 days (Part 27 "Additional Notice Sources").
+    const monthAhead = new Date(today);
+    monthAhead.setUTCDate(monthAhead.getUTCDate() + 30);
     const upcoming = await this.meetings.getUpcomingMeetings(caller.empId);
     const meetings = upcoming
-      .filter((m) => new Date(m.startTime) <= weekAhead)
+      .filter((m) => new Date(m.startTime) <= monthAhead)
       .map((m) => ({ meetingId: m.meetingId, title: m.title, startTime: m.startTime }));
 
+    // 5. Holidays within the next 2 days (Part 27 "Additional Notice Sources").
+    const twoDaysAhead = new Date(today);
+    twoDaysAhead.setUTCDate(twoDaysAhead.getUTCDate() + 2);
+    const upcomingHolidays = await this.prisma.holiday.findMany({
+      where: { date: { gte: today, lte: twoDaysAhead } },
+      orderBy: { date: 'asc' },
+    });
+    const holidays = upcomingHolidays.map((h) => ({ id: h.id, name: h.name, date: h.date.toISOString() }));
+
     void nameOf;
-    return { announcements, birthdays, onLeave, meetings, forms: [] as unknown[] };
+    return { announcements, birthdays, onLeave, meetings, holidays, forms: [] as unknown[] };
   }
 
   async getOnLeaveToday(employees: Emp[]) {
@@ -154,17 +164,18 @@ export class DashboardService {
     return ann;
   }
 
+  // BR-4: soft delete only — Is_Active flips to false, row is never removed.
   async deleteAnnouncement(id: string, callerEmpId: string) {
     const caller = await this.getCaller(callerEmpId);
     if (!isAdmin(caller.role)) throw new ForbiddenException();
-    await this.prisma.announcement.delete({ where: { id } });
+    await this.prisma.announcement.update({ where: { id }, data: { isActive: false } });
     await this.audit(callerEmpId, 'ANNOUNCEMENT_DELETE', id);
     return { ok: true };
   }
 
   async getAnnouncements(callerEmpId: string) {
     const caller = await this.getCaller(callerEmpId);
-    const all = await this.prisma.announcement.findMany({ orderBy: { createdAt: 'desc' } });
+    const all = await this.prisma.announcement.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
     if (isAdmin(caller.role)) return all; // management view
     const today = this.todayUtc();
     return all

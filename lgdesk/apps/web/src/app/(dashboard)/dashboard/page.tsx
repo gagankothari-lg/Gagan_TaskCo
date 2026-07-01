@@ -77,13 +77,11 @@ interface UpcomingBucket {
   defaultCollapsed: boolean;
 }
 
-// NOTE: the /dashboard API's announcement projection has no `visibility` field (only
-// id/title/content/startDate/expiresAt), so a per-card visibility badge pill (Part 12)
-// can't be rendered without a backend change — out of scope for this pass.
 type NoticeItem =
-  | { kind: 'announcement'; key: string; id: string; title: string; content: string; expiresAt: string | null }
+  | { kind: 'announcement'; key: string; id: string; title: string; content: string; visibility: string; expiresAt: string | null }
   | { kind: 'birthday'; key: string; title: string }
-  | { kind: 'meeting'; key: string; title: string; startTime: string };
+  | { kind: 'meeting'; key: string; title: string; startTime: string }
+  | { kind: 'holiday'; key: string; title: string; date: string };
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -182,16 +180,17 @@ export default function DashboardPage() {
     setCollapsed((c) => ({ ...c, [key]: !c[key] }));
   }
 
-  // Notices: manual Announcements + Birthdays (today) + Calendar Meetings — the two
-  // other Part 12 sources (Holidays next-48h, shared Forms) have no data behind them in
-  // this port's /dashboard response (no holidays source; Forms module is out of scope
-  // per CLAUDE.md, so `forms` is always []). Not fixable from the frontend alone.
+  // Notices: merges all Part 27 sources the backend computes — Announcements,
+  // Birthdays (today), Calendar Meetings (today..+30d) and Holidays (next 2 days).
+  // Shared Forms is the one Part 27 source with no data behind it in this port —
+  // the Forms module is out of scope per CLAUDE.md, so `forms` is always [].
   const notices = useMemo<NoticeItem[]>(() => {
     if (!data) return [];
     const items: NoticeItem[] = [];
-    data.notices.announcements.forEach((a) => items.push({ kind: 'announcement', key: `a-${a.id}`, id: a.id, title: a.title, content: a.content, expiresAt: a.expiresAt }));
+    data.notices.announcements.forEach((a) => items.push({ kind: 'announcement', key: `a-${a.id}`, id: a.id, title: a.title, content: a.content, visibility: a.visibility, expiresAt: a.expiresAt }));
     data.notices.birthdays.forEach((b) => items.push({ kind: 'birthday', key: `b-${b.empId}`, title: `🎉 Happy Birthday, ${b.name}!` }));
     data.notices.meetings.forEach((m) => items.push({ kind: 'meeting', key: `m-${m.meetingId}`, title: m.title, startTime: m.startTime }));
+    data.notices.holidays.forEach((h) => items.push({ kind: 'holiday', key: `h-${h.id}`, title: h.name, date: h.date }));
     return items;
   }, [data]);
 
@@ -267,14 +266,30 @@ export default function DashboardPage() {
                       </button>
                     );
                   }
+                  if (n.kind === 'holiday') {
+                    return (
+                      <div key={n.key} className="flex items-center gap-2 rounded-[8px] border border-border p-2.5 text-sm">
+                        <Icon name="calendar_month" size={16} style={{ color: 'var(--ok)' }} />
+                        <span className="flex-1">{n.title}</span>
+                        <span className="text-xs text-muted">{fmtDate(n.date, { month: 'short', day: 'numeric' })}</span>
+                      </div>
+                    );
+                  }
                   return (
                     <div key={n.key} className="rounded-[8px] border border-border p-2.5">
                       <div className="flex items-start gap-2">
                         <Icon name="campaign" size={16} style={{ color: 'var(--p)', marginTop: 2 }} />
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-text">{n.title}</div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-sm font-semibold text-text">{n.title}</span>
+                            {/* Part 27: non-Organisation-visibility notices get a badge pill so
+                                restricted audiences are visually distinguishable from org-wide ones. */}
+                            {n.visibility && n.visibility !== 'Organisation' && (
+                              <Badge variant="secondary">{n.visibility}</Badge>
+                            )}
+                          </div>
                           {n.content && <div className="text-xs text-muted">{n.content}</div>}
-                          {admin && n.expiresAt && <div className="mt-1 text-[11px] text-muted2">Visible until {fmtDate(n.expiresAt)}</div>}
+                          {admin && n.expiresAt && <div className="mt-1 text-[11px] text-muted2">Expires {fmtDate(n.expiresAt)}</div>}
                         </div>
                         {admin && (
                           <button aria-label="Remove announcement" onClick={() => handleDeleteAnnouncement(n.id)} className="text-muted hover:text-danger">

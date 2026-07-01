@@ -120,6 +120,9 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Webcam,
+  Lightbulb,
+  Pin,
+  Palette,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -250,6 +253,9 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   video_camera_front: Webcam,
   videocam: Video,
   calendar_off: CalendarOff,
+  lightbulb: Lightbulb,
+  push_pin: Pin,
+  palette: Palette,
 };
 
 /** Fallback glyph for any name not (yet) present in ICON_MAP — never emoji, never MUI. */
