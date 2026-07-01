@@ -290,7 +290,7 @@ export interface Leave {
   updatedAt: string;
 }
 
-export const LEAVE_TYPES = ['Annual', 'Sick', 'Casual', 'Maternity', 'Paternity', 'Unpaid', 'Emergency', 'Half Day'];
+export const LEAVE_TYPES = ['Annual', 'Sick', 'Casual', 'Maternity', 'Paternity', 'Unpaid', 'Emergency', 'Half Day'] as const;
 
 // ─── Meetings (P16/P17) ────────────────────────────
 export interface Meeting {

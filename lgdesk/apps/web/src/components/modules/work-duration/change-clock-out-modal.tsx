@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useState } from 'react';
 import { Icon } from '../../ui/icon';
 import { useClockOut } from '../../../lib/api/workDuration';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
+import { changeClockOutSchema, type ChangeClockOutFormValues } from './change-clock-out-modal.schema';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const field = 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-2 py-1.5 text-sm focus:border-[var(--p)] focus:outline-none';
@@ -36,26 +40,33 @@ export function AnalogClock({ hour, minute, size = 120 }: { hour: number; minute
 
 export function ChangeClockOutModal({ open, onClose, clockInIso }: { open: boolean; onClose: () => void; clockInIso?: string | null }) {
   const clockOut = useClockOut();
-  const now = new Date();
-  const [hour, setHour] = useState(now.getHours());
-  const [minute, setMinute] = useState(now.getMinutes());
-  const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const form = useForm<ChangeClockOutFormValues>({
+    resolver: zodResolver(changeClockOutSchema),
+    defaultValues: {
+      hour: new Date().getHours(),
+      minute: new Date().getMinutes(),
+      reason: '',
+    },
+  });
+
+  const hour = form.watch('hour');
+  const minute = form.watch('minute');
 
   if (!open) return null;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function onSubmit(values: ChangeClockOutFormValues) {
     setError(null);
-    const customTime = `${pad(hour)}:${pad(minute)}`;
+    const customTime = `${pad(values.hour)}:${pad(values.minute)}`;
     if (clockInIso) {
       const ci = new Date(clockInIso);
-      if (hour * 60 + minute <= ci.getUTCHours() * 60 + ci.getUTCMinutes()) {
+      if (values.hour * 60 + values.minute <= ci.getUTCHours() * 60 + ci.getUTCMinutes()) {
         // best-effort guard; server validates authoritatively
       }
     }
     try {
-      await clockOut.mutateAsync({ customTime, reason: reason || undefined });
+      await clockOut.mutateAsync({ customTime, reason: values.reason || undefined });
       onClose();
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to clock out'));
@@ -69,19 +80,74 @@ export function ChangeClockOutModal({ open, onClose, clockInIso }: { open: boole
           <h3 className="text-sm font-semibold text-[var(--text)]">Clock out at a specific time</h3>
           <button onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--text)]"><Icon name="close" size={18} /></button>
         </div>
-        <form onSubmit={submit} className="space-y-3">
-          <div className="flex items-center justify-center"><AnalogClock hour={hour} minute={minute} /></div>
-          <div className="flex items-center justify-center gap-2">
-            <input type="number" min={0} max={23} className={`${field} w-16 text-center`} value={hour} onChange={(e) => setHour(Math.min(23, Math.max(0, Number(e.target.value))))} />
-            <span className="text-[var(--muted)]">:</span>
-            <input type="number" min={0} max={59} className={`${field} w-16 text-center`} value={minute} onChange={(e) => setMinute(Math.min(59, Math.max(0, Number(e.target.value))))} />
-          </div>
-          <textarea rows={2} className={`${field} w-full resize-none`} placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} />
-          {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
-          <button type="submit" disabled={clockOut.isPending} className="btn btn-primary btn-full disabled:opacity-60">
-            {clockOut.isPending && <Spinner size={14} />} Clock out
-          </button>
-        </form>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+            <div className="flex items-center justify-center"><AnalogClock hour={hour} minute={minute} /></div>
+            <div className="flex items-center justify-center gap-2">
+              <FormField
+                control={form.control}
+                name="hour"
+                render={({ field: hourField }) => (
+                  <FormItem>
+                    <FormControl>
+                      <input
+                        type="number"
+                        min={0}
+                        max={23}
+                        className={`${field} w-16 text-center`}
+                        name={hourField.name}
+                        ref={hourField.ref}
+                        onBlur={hourField.onBlur}
+                        value={hourField.value}
+                        onChange={(e) => hourField.onChange(Math.min(23, Math.max(0, Number(e.target.value))))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <span className="text-[var(--muted)]">:</span>
+              <FormField
+                control={form.control}
+                name="minute"
+                render={({ field: minuteField }) => (
+                  <FormItem>
+                    <FormControl>
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        className={`${field} w-16 text-center`}
+                        name={minuteField.name}
+                        ref={minuteField.ref}
+                        onBlur={minuteField.onBlur}
+                        value={minuteField.value}
+                        onChange={(e) => minuteField.onChange(Math.min(59, Math.max(0, Number(e.target.value))))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="reason"
+              render={({ field: reasonField }) => (
+                <FormItem>
+                  <FormControl>
+                    <textarea rows={2} className={`${field} w-full resize-none`} placeholder="Reason (optional)" {...reasonField} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
+            <button type="submit" disabled={clockOut.isPending} className="btn btn-primary btn-full disabled:opacity-60">
+              {clockOut.isPending && <Spinner size={14} />} Clock out
+            </button>
+          </form>
+        </Form>
       </div>
     </div>
   );

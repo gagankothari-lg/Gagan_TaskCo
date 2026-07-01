@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
 import { useSubmitProfileUpdate, useMe } from '../../../lib/api/teamMembers';
@@ -8,7 +10,14 @@ import { useChangePassword } from '../../../lib/api/auth';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { RoleBadge } from '../../ui/role-badge';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
 import type { ProfileUpdateInput } from '../../../lib/types';
+import {
+  profileUpdateSchema,
+  changePasswordSchema,
+  type ProfileUpdateFormValues,
+  type ChangePasswordFormValues,
+} from './profile-modal.schema';
 
 interface ProfileModalProps {
   open: boolean;
@@ -27,42 +36,43 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const me = useMe(open); // fetch own record (incl. pending profile request) only while open
   const hasPending = !!me.data?.pendingProfileRequest;
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [team, setTeam] = useState('');
-  const [designation, setDesignation] = useState('');
   const [profileMsg, setProfileMsg] = useState<{ kind: 'ok' | 'err' | 'pending'; text: string } | null>(null);
-
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [pwMsg, setPwMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
-  // Reset form to current values whenever the modal opens.
+  const profileForm = useForm<ProfileUpdateFormValues>({
+    resolver: zodResolver(profileUpdateSchema),
+    defaultValues: { firstName: '', lastName: '', team: '', designation: '' },
+  });
+
+  const passwordForm = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+  });
+
+  // Reset both forms to current values whenever the modal opens.
   useEffect(() => {
     if (open && currentUser) {
-      setFirstName(currentUser.firstName ?? '');
-      setLastName(currentUser.lastName ?? '');
-      setTeam(currentUser.team ?? '');
-      setDesignation(currentUser.designation ?? '');
+      profileForm.reset({
+        firstName: currentUser.firstName ?? '',
+        lastName: currentUser.lastName ?? '',
+        team: currentUser.team ?? '',
+        designation: currentUser.designation ?? '',
+      });
+      passwordForm.reset({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setProfileMsg(null);
       setPwMsg(null);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
     }
-  }, [open, currentUser]);
+  }, [open, currentUser, profileForm, passwordForm]);
 
   if (!currentUser) return null;
 
-  async function saveProfile(e: FormEvent) {
-    e.preventDefault();
+  async function saveProfile(values: ProfileUpdateFormValues) {
     setProfileMsg(null);
     const changes: ProfileUpdateInput = {};
-    if (firstName !== (currentUser!.firstName ?? '')) changes.firstName = firstName;
-    if (lastName !== (currentUser!.lastName ?? '')) changes.lastName = lastName;
-    if (team !== (currentUser!.team ?? '')) changes.team = team;
-    if (designation !== (currentUser!.designation ?? '')) changes.designation = designation;
+    if (values.firstName !== (currentUser!.firstName ?? '')) changes.firstName = values.firstName;
+    if (values.lastName !== (currentUser!.lastName ?? '')) changes.lastName = values.lastName;
+    if ((values.team ?? '') !== (currentUser!.team ?? '')) changes.team = values.team;
+    if ((values.designation ?? '') !== (currentUser!.designation ?? '')) changes.designation = values.designation;
 
     if (Object.keys(changes).length === 0) {
       setProfileMsg({ kind: 'ok', text: 'No changes to save.' });
@@ -81,19 +91,10 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     }
   }
 
-  async function updatePassword(e: FormEvent) {
-    e.preventDefault();
+  async function updatePassword(values: ChangePasswordFormValues) {
     setPwMsg(null);
-    if (newPassword.length < 8) {
-      setPwMsg({ kind: 'err', text: 'Password must be at least 8 characters' });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPwMsg({ kind: 'err', text: 'Passwords do not match' });
-      return;
-    }
     try {
-      await changePassword.mutateAsync({ currentPassword, newPassword });
+      await changePassword.mutateAsync({ currentPassword: values.currentPassword, newPassword: values.newPassword });
       setPwMsg({ kind: 'ok', text: 'Password updated. Signing you out…' });
       setTimeout(() => logout(), 1200);
     } catch (err) {
@@ -159,86 +160,148 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
           <div className="border-t border-[var(--border)]" />
 
           {/* Profile form */}
-          <form onSubmit={saveProfile} className="space-y-3">
-            <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Profile</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs text-[var(--muted)]">First name</label>
-                <input className={inputClass} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <Form {...profileForm}>
+            <form onSubmit={profileForm.handleSubmit(saveProfile)} className="space-y-3">
+              <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Profile</p>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={profileForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="mb-1 block text-xs text-[var(--muted)]">First name</FormLabel>
+                      <FormControl><input className={inputClass} {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={profileForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Last name</FormLabel>
+                      <FormControl><input className={inputClass} {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-[var(--muted)]">Last name</label>
-                <input className={inputClass} value={lastName} onChange={(e) => setLastName(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">
-                Designation <span className="text-[var(--ok)]">(applies immediately)</span>
-              </label>
-              <input className={inputClass} value={designation} onChange={(e) => setDesignation(e.target.value)} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">
-                Team <span className="text-[var(--warn)]">(needs approval)</span>
-              </label>
-              <input className={inputClass} value={team} onChange={(e) => setTeam(e.target.value)} />
-            </div>
-            {profileMsg && (
-              <div className={`rounded-[8px] border px-3 py-2 text-sm ${msgColor(profileMsg.kind)}`}>
-                {profileMsg.text}
-              </div>
-            )}
-            <button
-              type="submit"
-              disabled={submitProfile.isPending}
-              className="btn btn-primary disabled:opacity-60"
-            >
-              {submitProfile.isPending && <Spinner size={14} />}
-              Save changes
-            </button>
-          </form>
+              <FormField
+                control={profileForm.control}
+                name="designation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">
+                      Designation <span className="text-[var(--ok)]">(applies immediately)</span>
+                    </FormLabel>
+                    <FormControl><input className={inputClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={profileForm.control}
+                name="team"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">
+                      Team <span className="text-[var(--warn)]">(needs approval)</span>
+                    </FormLabel>
+                    <FormControl><input className={inputClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {profileMsg && (
+                <div className={`rounded-[8px] border px-3 py-2 text-sm ${msgColor(profileMsg.kind)}`}>
+                  {profileMsg.text}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={submitProfile.isPending}
+                className="btn btn-primary disabled:opacity-60"
+              >
+                {submitProfile.isPending && <Spinner size={14} />}
+                Save changes
+              </button>
+            </form>
+          </Form>
 
           <div className="border-t border-[var(--border)]" />
 
           {/* Change password */}
-          <form onSubmit={updatePassword} className="space-y-3">
-            <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Change password</p>
-            <input
-              type="password"
-              autoComplete="current-password"
-              placeholder="Current password"
-              className={inputClass}
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-            <input
-              type="password"
-              autoComplete="new-password"
-              placeholder="New password (min 8 chars)"
-              className={inputClass}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <input
-              type="password"
-              autoComplete="new-password"
-              placeholder="Confirm new password"
-              className={inputClass}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-            {pwMsg && (
-              <div className={`rounded-[8px] border px-3 py-2 text-sm ${msgColor(pwMsg.kind)}`}>{pwMsg.text}</div>
-            )}
-            <button
-              type="submit"
-              disabled={changePassword.isPending}
-              className="btn btn-ghost disabled:opacity-60"
-            >
-              {changePassword.isPending && <Spinner size={14} />}
-              Update password
-            </button>
-          </form>
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(updatePassword)} className="space-y-3">
+              <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Change password</p>
+              <FormField
+                control={passwordForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        placeholder="Current password"
+                        className={inputClass}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="New password (min 8 chars)"
+                        className={inputClass}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="Confirm new password"
+                        className={inputClass}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {pwMsg && (
+                <div className={`rounded-[8px] border px-3 py-2 text-sm ${msgColor(pwMsg.kind)}`}>{pwMsg.text}</div>
+              )}
+              <button
+                type="submit"
+                disabled={changePassword.isPending}
+                className="btn btn-ghost disabled:opacity-60"
+              >
+                {changePassword.isPending && <Spinner size={14} />}
+                Update password
+              </button>
+            </form>
+          </Form>
         </div>
       </aside>
     </>

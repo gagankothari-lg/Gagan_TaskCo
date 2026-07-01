@@ -1,13 +1,24 @@
 'use client';
 
-import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../../../hooks/use-auth';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { requestPasswordReset, confirmPasswordReset } from '../../../lib/api/auth';
 import { Icon } from '../../../components/ui/icon';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../components/ui/form';
 import { RegistrationModal } from '../../../components/modules/users/registration-modal';
 import { rolePillClass, initials, avatarColor } from '../../../lib/utils';
+import {
+  loginSchema,
+  forgotPasswordRequestSchema,
+  forgotPasswordResetSchema,
+  type LoginFormValues,
+  type ForgotPasswordRequestFormValues,
+  type ForgotPasswordResetFormValues,
+} from './login-page.schema';
 
 type Mode = 'login' | 'verified' | 'forgot1' | 'forgot2';
 
@@ -48,24 +59,34 @@ export default function LoginPage() {
 
   const [mode, setMode] = useState<Mode>('login');
   const [regOpen, setRegOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // forgot-password fields
-  const [otp, setOtp] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
+  // Carries the email across forgot1 -> forgot2 (forgot2 has no email field of its own —
+  // same single-source-of-truth role the shared `email` useState played pre-migration).
+  const [resetEmail, setResetEmail] = useState('');
 
-  async function onLogin(e?: FormEvent) {
-    e?.preventDefault();
+  const loginForm = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  const forgot1Form = useForm<ForgotPasswordRequestFormValues>({
+    resolver: zodResolver(forgotPasswordRequestSchema),
+    defaultValues: { email: '' },
+  });
+
+  const forgot2Form = useForm<ForgotPasswordResetFormValues>({
+    resolver: zodResolver(forgotPasswordResetSchema),
+    defaultValues: { otp: '', newPw: '', confirmPw: '' },
+  });
+
+  async function onLogin(values: LoginFormValues) {
     setError(null);
-    if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(values.email, values.password);
       setStatus('Account verified. Click below to continue.');
       setMode('verified');
     } catch (err) {
@@ -75,12 +96,12 @@ export default function LoginPage() {
     }
   }
 
-  async function sendResetCode() {
+  async function sendResetCode(emailValue: string) {
     setError(null);
-    if (!email.trim()) { setError('Enter your email.'); return; }
     setLoading(true);
     try {
-      await requestPasswordReset(email.trim());
+      await requestPasswordReset(emailValue);
+      setResetEmail(emailValue);
       setStatus('If that email exists, a 6-digit code was sent. Enter it below.');
       setMode('forgot2');
     } catch (err) {
@@ -90,16 +111,15 @@ export default function LoginPage() {
     }
   }
 
-  async function resetPassword() {
+  async function resetPassword(values: ForgotPasswordResetFormValues) {
     setError(null);
-    if (!otp.trim()) { setError('Enter the reset code.'); return; }
-    if (newPw.length < 6) { setError('Password must be at least 6 characters.'); return; }
-    if (newPw !== confirmPw) { setError('Passwords do not match.'); return; }
     setLoading(true);
     try {
-      await confirmPasswordReset({ email: email.trim(), otp: otp.trim(), newPassword: newPw });
+      await confirmPasswordReset({ email: resetEmail, otp: values.otp.trim(), newPassword: values.newPw });
       setMode('login');
-      setPassword(''); setOtp(''); setNewPw(''); setConfirmPw('');
+      loginForm.setValue('email', resetEmail);
+      loginForm.setValue('password', '');
+      forgot2Form.reset();
       setError(null);
       setStatus('Password reset! Please sign in.');
     } catch (err) {
@@ -134,37 +154,70 @@ export default function LoginPage() {
 
         {/* ── Step 1: Sign in ───────────────────────────── */}
         {mode === 'login' && (
-          <form onSubmit={onLogin}>
-            <div className="fg">
-              <label htmlFor="login-email">Email</label>
-              <input
-                id="login-email"
-                type="email"
-                className="fc"
-                value={email}
-                placeholder="you@company.com"
-                autoComplete="email"
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('login-password')?.focus(); } }}
+          <Form {...loginForm}>
+            <form onSubmit={loginForm.handleSubmit(onLogin)}>
+              <FormField
+                control={loginForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel htmlFor="login-email">Email</FormLabel>
+                    <FormControl>
+                      <input
+                        id="login-email"
+                        type="email"
+                        className="fc"
+                        placeholder="you@company.com"
+                        autoComplete="email"
+                        {...field}
+                        onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('login-password')?.focus(); } }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="fg">
-              <label htmlFor="login-password">Password</label>
-              <PwField id="login-password" value={password} onChange={setPassword} placeholder="••••••••" onEnter={onLogin} />
-            </div>
-            <button type="submit" className="btn btn-primary btn-full" disabled={loading} style={{ marginTop: 4 }}>
-              {loading && <span className="btn-spinner" />}
-              {loading ? 'Signing in…' : 'Sign In →'}
-            </button>
-            {errBox}
-            <div style={{ textAlign: 'right', marginTop: 10 }}>
-              <a onClick={() => { setError(null); setStatus('Enter your email to receive a reset code.'); setMode('forgot1'); }} style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}>Forgot password?</a>
-            </div>
-            <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--muted)' }}>
-              New here?{' '}
-              <a onClick={() => setRegOpen(true)} style={{ color: 'var(--p)', cursor: 'pointer', fontWeight: 600 }}>Register →</a>
-            </div>
-          </form>
+              <FormField
+                control={loginForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel htmlFor="login-password">Password</FormLabel>
+                    <FormControl>
+                      <PwField
+                        id="login-password"
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="••••••••"
+                        onEnter={() => loginForm.handleSubmit(onLogin)()}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <button type="submit" className="btn btn-primary btn-full" disabled={loading} style={{ marginTop: 4 }}>
+                {loading && <span className="btn-spinner" />}
+                {loading ? 'Signing in…' : 'Sign In →'}
+              </button>
+              {errBox}
+              <div style={{ textAlign: 'right', marginTop: 10 }}>
+                <a
+                  onClick={() => {
+                    setError(null);
+                    setStatus('Enter your email to receive a reset code.');
+                    forgot1Form.setValue('email', loginForm.getValues('email'));
+                    setMode('forgot1');
+                  }}
+                  style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}
+                >Forgot password?</a>
+              </div>
+              <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--muted)' }}>
+                New here?{' '}
+                <a onClick={() => setRegOpen(true)} style={{ color: 'var(--p)', cursor: 'pointer', fontWeight: 600 }}>Register →</a>
+              </div>
+            </form>
+          </Form>
         )}
 
         {/* ── Step 2: Verified account card ─────────────── */}
@@ -189,45 +242,91 @@ export default function LoginPage() {
 
         {/* ── Forgot step 1: email ──────────────────────── */}
         {mode === 'forgot1' && (
-          <div>
-            <div className="fg">
-              <label htmlFor="fp-email">Email</label>
-              <input id="fp-email" type="email" className="fc" value={email} placeholder="you@company.com" onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <button className="btn btn-primary btn-full" disabled={loading} onClick={sendResetCode}>
-              {loading && <span className="btn-spinner" />}{loading ? 'Sending…' : 'Send Reset Code'}
-            </button>
-            {errBox}
-            <div style={{ textAlign: 'center', marginTop: 14 }}>
-              <a onClick={() => { setError(null); setStatus(null); setMode('login'); }} style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}>← Back to Sign In</a>
-            </div>
-          </div>
+          <Form {...forgot1Form}>
+            <form onSubmit={forgot1Form.handleSubmit((values) => sendResetCode(values.email))}>
+              <FormField
+                control={forgot1Form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel htmlFor="fp-email">Email</FormLabel>
+                    <FormControl>
+                      <input id="fp-email" type="email" className="fc" placeholder="you@company.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                {loading && <span className="btn-spinner" />}{loading ? 'Sending…' : 'Send Reset Code'}
+              </button>
+              {errBox}
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <a onClick={() => { setError(null); setStatus(null); setMode('login'); }} style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}>← Back to Sign In</a>
+              </div>
+            </form>
+          </Form>
         )}
 
         {/* ── Forgot step 2: OTP + new password ─────────── */}
         {mode === 'forgot2' && (
-          <div>
-            <div className="fg">
-              <label htmlFor="fp-otp">Reset Code</label>
-              <input id="fp-otp" type="text" maxLength={6} className="fc" value={otp} placeholder="······" onChange={(e) => setOtp(e.target.value)} style={{ letterSpacing: 8, textAlign: 'center', fontSize: 18 }} />
-            </div>
-            <div className="fg">
-              <label htmlFor="fp-newpw">New Password</label>
-              <PwField id="fp-newpw" value={newPw} onChange={setNewPw} placeholder="At least 6 characters" />
-            </div>
-            <div className="fg">
-              <label htmlFor="fp-confirmpw">Confirm Password</label>
-              <PwField id="fp-confirmpw" value={confirmPw} onChange={setConfirmPw} placeholder="Re-enter password" onEnter={resetPassword} />
-            </div>
-            <button className="btn btn-primary btn-full" disabled={loading} onClick={resetPassword}>
-              {loading && <span className="btn-spinner" />}{loading ? 'Resetting…' : 'Reset Password'}
-            </button>
-            {errBox}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
-              <a onClick={sendResetCode} style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}>Resend code</a>
-              <a onClick={() => { setError(null); setStatus(null); setMode('login'); }} style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}>← Back to Sign In</a>
-            </div>
-          </div>
+          <Form {...forgot2Form}>
+            <form onSubmit={forgot2Form.handleSubmit(resetPassword)}>
+              <FormField
+                control={forgot2Form.control}
+                name="otp"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel htmlFor="fp-otp">Reset Code</FormLabel>
+                    <FormControl>
+                      <input id="fp-otp" type="text" maxLength={6} className="fc" placeholder="······" {...field} style={{ letterSpacing: 8, textAlign: 'center', fontSize: 18 }} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={forgot2Form.control}
+                name="newPw"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel htmlFor="fp-newpw">New Password</FormLabel>
+                    <FormControl>
+                      <PwField id="fp-newpw" value={field.value} onChange={field.onChange} placeholder="At least 6 characters" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={forgot2Form.control}
+                name="confirmPw"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel htmlFor="fp-confirmpw">Confirm Password</FormLabel>
+                    <FormControl>
+                      <PwField
+                        id="fp-confirmpw"
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Re-enter password"
+                        onEnter={() => forgot2Form.handleSubmit(resetPassword)()}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                {loading && <span className="btn-spinner" />}{loading ? 'Resetting…' : 'Reset Password'}
+              </button>
+              {errBox}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+                <a onClick={() => sendResetCode(resetEmail)} style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}>Resend code</a>
+                <a onClick={() => { setError(null); setStatus(null); setMode('login'); }} style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}>← Back to Sign In</a>
+              </div>
+            </form>
+          </Form>
         )}
       </div>
 

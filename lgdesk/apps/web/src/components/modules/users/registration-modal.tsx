@@ -1,76 +1,83 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { registerRequest } from '../../../lib/api/auth';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
+import {
+  DIVISIONS,
+  MANUAL_MANAGER_ROLES,
+  ROLES,
+  registrationSchema,
+  subDepartmentRequired,
+  subDepartmentsFor,
+  type RegistrationFormValues,
+} from './registration-modal.schema';
 
 interface RegistrationModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-const ROLES = ['Super Admin', 'Admin', 'Team Captain', 'Team Facilitator', 'Team Member', 'Intern'];
-const TEAM_HIERARCHY: Record<string, string[]> = {
-  "1. Founder's Office": [],
-  '2. Student Success': ['CFA L1', 'CFA L2', 'CFA L3', 'FRM', 'CA', 'CMA', 'CFA Scholarships', 'CUET'],
-  '3. Knowledge': [],
-  '4. Growth (Marketing)': ['Digital Marketing', 'Brand & Design', 'Social Media', 'Content', 'Events', 'Partnerships'],
-  '5. Tech': ['Product', 'Development', 'Maintenance'],
-  '6. Consulting': [],
-  '7. Operations - PP & Admin': ['HR', 'Finance', 'Admin', 'IT Infrastructure'],
-  '8. Operations - FP&A': ['FP&A', 'MIS', 'Procurement'],
-};
-const DIVISIONS = Object.keys(TEAM_HIERARCHY);
-// Roles that enter their reporting manager manually; others are auto-resolved server-side.
-const MANUAL_MANAGER_ROLES = ['Super Admin', 'Admin', 'Team Captain'];
-
 export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('Team Member');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [designation, setDesignation] = useState('');
-  const [dob, setDob] = useState('');
-  const [team, setTeam] = useState('');
-  const [subDepartment, setSubDepartment] = useState('');
-  const [managerEmail, setManagerEmail] = useState('');
-  const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  const form = useForm<RegistrationFormValues>({
+    resolver: zodResolver(registrationSchema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      role: 'Team Member',
+      dob: '',
+      team: '',
+      subDepartment: '',
+      designation: '',
+      managerEmail: '',
+      message: '',
+    },
+  });
+
+  const role = form.watch('role');
+  const team = form.watch('team');
+  const managerManual = MANUAL_MANAGER_ROLES.includes(role as (typeof MANUAL_MANAGER_ROLES)[number]);
+  const subDeptOptions = subDepartmentsFor(team);
+  const hasSubDepts = subDepartmentRequired(team);
 
   if (!open) return null;
 
-  const managerManual = MANUAL_MANAGER_ROLES.includes(role);
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function onSubmit(values: RegistrationFormValues) {
     setError(null);
-    if (!firstName.trim() || !lastName.trim()) return setError('First and last name are required.');
-    if (!email.trim()) return setError('Email is required.');
-    if (!dob) return setError('Date of birth is required.');
-    if (password.length < 8) return setError('Password must be at least 8 characters.');
-    if (password !== confirm) return setError('Passwords do not match.');
-    setLoading(true);
     try {
       // Only the API-whitelisted fields are persisted; role/dob/manager/message are
-      // collected for parity with the GAS form (the backend strips unknown keys).
+      // collected for parity with the GAS form (the backend DTO would 400 on unknown keys).
       await registerRequest({
-        firstName, lastName, email, password,
-        team: team || undefined,
-        subDepartment: subDepartment || undefined,
-        designation: designation || undefined,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        password: values.password,
+        team: values.team || undefined,
+        subDepartment: values.subDepartment || undefined,
+        designation: values.designation || undefined,
       });
       setSubmitted(true);
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to submit registration'));
-    } finally {
-      setLoading(false);
     }
+  }
+
+  function handleTeamChange(next: string) {
+    form.setValue('team', next);
+    // Controlled cascade: resetting sub-department whenever the division changes keeps a
+    // stale value from a previous division from lingering (and re-triggers validation).
+    form.setValue('subDepartment', '', { shouldValidate: form.formState.isSubmitted });
   }
 
   return (
@@ -90,54 +97,190 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
             <button className="btn btn-primary btn-full" onClick={onClose}>Done</button>
           </div>
         ) : (
-          <form onSubmit={onSubmit} className="modal-bd" noValidate>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="fg"><label>First Name</label><input className="fc" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></div>
-              <div className="fg"><label>Last Name</label><input className="fc" value={lastName} onChange={(e) => setLastName(e.target.value)} /></div>
-            </div>
-            <div className="fg"><label>Work Email</label><input className="fc" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="fg"><label>Role</label>
-                <select className="fc" value={role} onChange={(e) => setRole(e.target.value)}>{ROLES.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="modal-bd" noValidate>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormField
+                  control={form.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem className="fg">
+                      <FormLabel>First Name</FormLabel>
+                      <FormControl><input className="fc" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem className="fg">
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl><input className="fc" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div className="fg"><label>Date of Birth</label><input className="fc" type="date" value={dob} onChange={(e) => setDob(e.target.value)} /></div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="fg"><label>Password</label><input className="fc" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" /></div>
-              <div className="fg"><label>Confirm Password</label><input className="fc" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></div>
-            </div>
-            <div className="fg"><label>Designation (optional)</label><input className="fc" maxLength={100} value={designation} onChange={(e) => setDesignation(e.target.value)} /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="fg"><label>Team Division</label>
-                <select className="fc" value={team} onChange={(e) => { setTeam(e.target.value); setSubDepartment(''); }}>
-                  <option value="">— Select Division —</option>{DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel>Work Email</FormLabel>
+                    <FormControl><input className="fc" type="email" placeholder="you@company.com" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem className="fg">
+                      <FormLabel>Role</FormLabel>
+                      <FormControl>
+                        <select className="fc" {...field}>
+                          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dob"
+                  render={({ field }) => (
+                    <FormItem className="fg">
+                      <FormLabel>Date of Birth</FormLabel>
+                      <FormControl><input className="fc" type="date" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              {team && TEAM_HIERARCHY[team]?.length > 0 ? (
-                <div className="fg"><label>Sub-Department</label>
-                  <select className="fc" value={subDepartment} onChange={(e) => setSubDepartment(e.target.value)}>
-                    <option value="">— Select Sub-department —</option>
-                    {TEAM_HIERARCHY[team].map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              ) : (
-                <div className="fg" style={{ opacity: team ? 0.4 : 1 }}><label>Sub-Department</label>
-                  <select className="fc" disabled value=""><option value="">N/A for this division</option></select>
-                </div>
-              )}
-            </div>
-            <div className="fg">
-              <label>{role === 'Super Admin' ? 'Reports-to Email (optional)' : managerManual ? 'Reports-to Email' : "Manager's Email"}</label>
-              <input className="fc" type="email" value={managerEmail} onChange={(e) => setManagerEmail(e.target.value)} placeholder={managerManual ? 'manager@company.com' : 'Auto-resolved on approval'} />
-            </div>
-            <div className="fg"><label>Message (optional)</label><textarea className="fc" rows={2} value={message} onChange={(e) => setMessage(e.target.value)} style={{ resize: 'none' }} /></div>
 
-            {error && <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem className="fg">
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <input className="fc" type="password" autoComplete="new-password" placeholder="Min 6 characters" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem className="fg">
+                      <FormLabel>Confirm Password</FormLabel>
+                      <FormControl>
+                        <input className="fc" type="password" autoComplete="new-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-              {loading && <Spinner size={14} />}{loading ? 'Submitting…' : 'Submit Registration'}
-            </button>
-          </form>
+              <FormField
+                control={form.control}
+                name="designation"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel>Designation (optional)</FormLabel>
+                    <FormControl><input className="fc" maxLength={100} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormField
+                  control={form.control}
+                  name="team"
+                  render={({ field }) => (
+                    <FormItem className="fg">
+                      <FormLabel>Team Division</FormLabel>
+                      <FormControl>
+                        <select
+                          className="fc"
+                          name={field.name}
+                          ref={field.ref}
+                          value={field.value}
+                          onBlur={field.onBlur}
+                          onChange={(e) => handleTeamChange(e.target.value)}
+                        >
+                          <option value="">— Select Division —</option>
+                          {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="subDepartment"
+                  render={({ field }) => (
+                    <FormItem className="fg" style={{ opacity: team && !hasSubDepts ? 0.4 : 1 }}>
+                      <FormLabel>Sub-Department</FormLabel>
+                      <FormControl>
+                        <select className="fc" disabled={!hasSubDepts} {...field}>
+                          <option value="">{hasSubDepts ? '— Select Sub-department —' : 'N/A for this division'}</option>
+                          {subDeptOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="managerEmail"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel>{role === 'Super Admin' ? 'Reports-to Email (optional)' : managerManual ? 'Reports-to Email' : "Manager's Email"}</FormLabel>
+                    <FormControl>
+                      <input className="fc" type="email" placeholder={managerManual ? 'manager@company.com' : 'Auto-resolved on approval'} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="message"
+                render={({ field }) => (
+                  <FormItem className="fg">
+                    <FormLabel>Message (optional)</FormLabel>
+                    <FormControl><textarea className="fc" rows={2} style={{ resize: 'none' }} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {error && <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+
+              <button type="submit" className="btn btn-primary btn-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting && <Spinner size={14} />}{form.formState.isSubmitting ? 'Submitting…' : 'Submit Registration'}
+              </button>
+            </form>
+          </Form>
         )}
       </div>
     </div>

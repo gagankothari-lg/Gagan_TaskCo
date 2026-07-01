@@ -1,14 +1,17 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
 import { useCreateTask } from '../../../lib/api/tasks';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
+import { createTaskSchema, TASK_PRIORITIES, TASK_STATUSES, type CreateTaskFormValues } from './create-task-modal.schema';
 
-export const TASK_STATUSES = ['Backlog', 'Not Started', 'WIP - 25%', 'WIP - 50%', 'WIP - 75%', 'Under Review', 'Done', 'Cancelled'];
-export const TASK_PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
+export { TASK_STATUSES, TASK_PRIORITIES };
 
 export const fieldClass =
   'w-full bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm focus:border-[var(--p2)] focus:outline-none';
@@ -55,38 +58,42 @@ interface CreateTaskModalProps {
 export function CreateTaskModal({ open, onClose }: CreateTaskModalProps) {
   const { employees } = useAuth();
   const create = useCreateTask();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [projId, setProjId] = useState('');
-  const [functionId, setFunctionId] = useState('');
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
-  const [team, setTeam] = useState('');
-  const [status, setStatus] = useState('Not Started');
-  const [priority, setPriority] = useState('Medium');
-  const [dueDate, setDueDate] = useState('');
-  const [estimatedHours, setEstimatedHours] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const form = useForm<CreateTaskFormValues>({
+    resolver: zodResolver(createTaskSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      projId: '',
+      functionId: '',
+      assigneeIds: [],
+      team: '',
+      status: 'Not Started',
+      priority: 'Medium',
+      dueDate: '',
+      estimatedHours: '',
+    },
+  });
 
   const teams = useMemo(() => Array.from(new Set(employees.map((e) => e.team).filter(Boolean))) as string[], [employees]);
 
   if (!open) return null;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function onSubmit(values: CreateTaskFormValues) {
     setError(null);
-    if (!title.trim()) return setError('Title is required');
     try {
       await create.mutateAsync({
-        title,
-        description: description || undefined,
-        projId: projId || undefined,
-        functionId: functionId || undefined,
-        assigneeIds,
-        assignedTeams: team ? [team] : undefined,
-        status,
-        priority,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-        estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
+        title: values.title,
+        description: values.description || undefined,
+        projId: values.projId || undefined,
+        functionId: values.functionId || undefined,
+        assigneeIds: values.assigneeIds,
+        assignedTeams: values.team ? [values.team] : undefined,
+        status: values.status,
+        priority: values.priority,
+        dueDate: values.dueDate ? new Date(values.dueDate).toISOString() : undefined,
+        estimatedHours: values.estimatedHours ? Number(values.estimatedHours) : undefined,
       });
       onClose();
     } catch (err) {
@@ -101,38 +108,138 @@ export function CreateTaskModal({ open, onClose }: CreateTaskModalProps) {
           <h2 className="text-base font-semibold text-[var(--text)]">New Task</h2>
           <button onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--text)]"><Icon name="close" size={18} /></button>
         </div>
-        <form onSubmit={submit} className="space-y-3">
-          <input className={fieldClass} placeholder="Task title *" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <input className={fieldClass} placeholder="Project ID (PRJ-…)" value={projId} onChange={(e) => setProjId(e.target.value)} />
-            <input className={fieldClass} placeholder="Function ID (FN-…)" value={functionId} onChange={(e) => setFunctionId(e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-[var(--muted)]">Assignees</label>
-            <EmployeeMultiSelect selected={assigneeIds} onChange={setAssigneeIds} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <select className={fieldClass} value={team} onChange={(e) => setTeam(e.target.value)}>
-              <option value="">No team</option>
-              {teams.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <select className={fieldClass} value={priority} onChange={(e) => setPriority(e.target.value)}>
-              {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <select className={fieldClass} value={status} onChange={(e) => setStatus(e.target.value)}>
-              {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <input type="number" min={0} step="0.5" className={fieldClass} placeholder="Est. hours" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} />
-          </div>
-          <input type="date" className={fieldClass} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
-          <button type="submit" disabled={create.isPending} className="btn btn-primary w-full disabled:opacity-60">
-            {create.isPending && <Spinner size={14} />} Create task
-          </button>
-        </form>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl><input className={fieldClass} placeholder="Task title *" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl><textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Description" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="projId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input className={fieldClass} placeholder="Project ID (PRJ-…)" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="functionId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input className={fieldClass} placeholder="Function ID (FN-…)" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="assigneeIds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Assignees</FormLabel>
+                  <FormControl>
+                    <EmployeeMultiSelect selected={field.value} onChange={field.onChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="team"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <select className={fieldClass} {...field}>
+                        <option value="">No team</option>
+                        {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <select className={fieldClass} {...field}>
+                        {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <select className={fieldClass} {...field}>
+                        {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="estimatedHours"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <input type="number" min={0} step="0.5" className={fieldClass} placeholder="Est. hours" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="dueDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
+            <button type="submit" disabled={create.isPending} className="btn btn-primary w-full disabled:opacity-60">
+              {create.isPending && <Spinner size={14} />} Create task
+            </button>
+          </form>
+        </Form>
       </div>
     </div>
   );

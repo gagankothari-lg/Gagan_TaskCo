@@ -1,12 +1,16 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
 import { useCreateMeeting } from '../../../lib/api/meetings';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
 import { EmployeeMultiSelect, fieldClass } from '../tasks/create-task-modal';
+import { scheduleMeetingSchema, type ScheduleMeetingFormValues } from './schedule-meeting-modal.schema';
 
 export function ScheduleMeetingModal({
   open,
@@ -19,42 +23,44 @@ export function ScheduleMeetingModal({
 }) {
   const { employees } = useAuth();
   const create = useCreateMeeting();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('10:00');
-  const [durationMins, setDurationMins] = useState(30);
-  const [meetType, setMeetType] = useState(initialMeetType);
-  const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
-  const [teams, setTeams] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const form = useForm<ScheduleMeetingFormValues>({
+    resolver: zodResolver(scheduleMeetingSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      date: '',
+      time: '10:00',
+      durationMins: 30,
+      meetType: initialMeetType === 'custom' ? 'custom' : 'personal',
+      attendeeIds: [],
+      teams: [],
+    },
+  });
+
+  const meetType = form.watch('meetType');
   const allTeams = useMemo(() => Array.from(new Set(employees.map((e) => e.team).filter(Boolean))) as string[], [employees]);
 
   if (!open) return null;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function onSubmit(values: ScheduleMeetingFormValues) {
     setError(null);
-    if (!title.trim()) return setError('Title is required');
-    if (!date) return setError('Pick a date');
     try {
       await create.mutateAsync({
-        title,
-        description: description || undefined,
-        startTime: new Date(`${date}T${time}`).toISOString(),
-        durationMins,
-        meetType,
-        attendeeIds: meetType === 'custom' ? attendeeIds : undefined,
-        attendeeTeams: meetType === 'custom' ? teams : undefined,
+        title: values.title,
+        description: values.description || undefined,
+        startTime: new Date(`${values.date}T${values.time}`).toISOString(),
+        durationMins: values.durationMins,
+        meetType: values.meetType,
+        attendeeIds: values.meetType === 'custom' ? values.attendeeIds : undefined,
+        attendeeTeams: values.meetType === 'custom' ? values.teams : undefined,
       });
       onClose();
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to schedule meeting'));
     }
   }
-
-  const toggleTeam = (t: string) => setTeams((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8">
@@ -63,47 +69,142 @@ export function ScheduleMeetingModal({
           <h2 className="text-base font-semibold text-[var(--text)]">Schedule Meeting</h2>
           <button onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--text)]"><Icon name="close" size={18} /></button>
         </div>
-        <form onSubmit={submit} className="space-y-3">
-          <input className={fieldClass} placeholder="Title *" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <input type="date" className={fieldClass} value={date} onChange={(e) => setDate(e.target.value)} />
-            <input type="time" className={fieldClass} value={time} onChange={(e) => setTime(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">Duration (mins)</label>
-              <input type="number" min={1} className={fieldClass} value={durationMins} onChange={(e) => setDurationMins(Math.max(1, Number(e.target.value)))} />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl><input className={fieldClass} placeholder="Title *" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl><textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Description" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input type="time" className={fieldClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">Type</label>
-              <select className={fieldClass} value={meetType} onChange={(e) => setMeetType(e.target.value)}>
-                <option value="personal">Personal</option>
-                <option value="custom">Custom</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="durationMins"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Duration (mins)</FormLabel>
+                    <FormControl>
+                      <input
+                        type="number"
+                        min={1}
+                        className={fieldClass}
+                        name={field.name}
+                        ref={field.ref}
+                        value={field.value}
+                        onBlur={field.onBlur}
+                        onChange={(e) => field.onChange(Math.max(1, Number(e.target.value)))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="meetType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Type</FormLabel>
+                    <FormControl>
+                      <select className={fieldClass} {...field}>
+                        <option value="personal">Personal</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-          </div>
-          {meetType === 'custom' && (
-            <>
-              <div>
-                <label className="mb-1 block text-xs text-[var(--muted)]">Attendees</label>
-                <EmployeeMultiSelect selected={attendeeIds} onChange={setAttendeeIds} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-[var(--muted)]">Teams</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {allTeams.map((t) => (
-                    <button type="button" key={t} onClick={() => toggleTeam(t)} className={['rounded-[9999px] border px-2.5 py-1 text-xs', teams.includes(t) ? 'border-[var(--p)] bg-[var(--p3)] text-[var(--p)]' : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]'].join(' ')}>{t}</button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-          {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
-          <button type="submit" disabled={create.isPending} className="btn btn-primary btn-full">
-            {create.isPending && <Spinner size={14} />} Schedule
-          </button>
-        </form>
+            {meetType === 'custom' && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="attendeeIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Attendees</FormLabel>
+                      <FormControl>
+                        <EmployeeMultiSelect selected={field.value ?? []} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="teams"
+                  render={({ field }) => {
+                    const selectedTeams = field.value ?? [];
+                    const toggleTeam = (t: string) =>
+                      field.onChange(selectedTeams.includes(t) ? selectedTeams.filter((x) => x !== t) : [...selectedTeams, t]);
+                    return (
+                      <FormItem>
+                        <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Teams</FormLabel>
+                        <FormControl>
+                          <div className="flex flex-wrap gap-1.5">
+                            {allTeams.map((t) => (
+                              <button
+                                type="button"
+                                key={t}
+                                onClick={() => toggleTeam(t)}
+                                className={['rounded-[9999px] border px-2.5 py-1 text-xs', selectedTeams.includes(t) ? 'border-[var(--p)] bg-[var(--p3)] text-[var(--p)]' : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]'].join(' ')}
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+              </>
+            )}
+            {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
+            <button type="submit" disabled={create.isPending} className="btn btn-primary btn-full">
+              {create.isPending && <Spinner size={14} />} Schedule
+            </button>
+          </form>
+        </Form>
       </div>
     </div>
   );

@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { useCreateDdr } from '../../../lib/api/dueDateRequests';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
+import { ddrSchema, type DdrFormValues } from './ddr-modal.schema';
 
 interface DdrModalProps {
   open: boolean;
@@ -18,20 +22,28 @@ const inputClass =
 
 export function DdrModal({ open, onClose, entityType, entityId }: DdrModalProps) {
   const create = useCreateDdr();
-  const [newDueDate, setNewDueDate] = useState('');
-  const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  const form = useForm<DdrFormValues>({
+    resolver: zodResolver(ddrSchema),
+    defaultValues: {
+      newDueDate: '',
+      reason: '',
+    },
+  });
+
   if (!open) return null;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function onSubmit(values: DdrFormValues) {
     setError(null);
-    if (!newDueDate) return setError('Pick a new due date');
-    if (!reason.trim()) return setError('Reason is required');
     try {
-      await create.mutateAsync({ entityType, entityId, newDueDate: new Date(newDueDate).toISOString(), reason });
+      await create.mutateAsync({
+        entityType,
+        entityId,
+        newDueDate: new Date(values.newDueDate).toISOString(),
+        reason: values.reason,
+      });
       setDone(true);
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to submit request'));
@@ -52,20 +64,38 @@ export function DdrModal({ open, onClose, entityType, entityId }: DdrModalProps)
             <button onClick={onClose} className="btn btn-ghost mt-2">Done</button>
           </div>
         ) : (
-          <form onSubmit={submit} className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">New due date</label>
-              <input type="date" className={inputClass} value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">Reason</label>
-              <textarea rows={3} className={`${inputClass} resize-none`} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why does the date need to change?" />
-            </div>
-            {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
-            <button type="submit" disabled={create.isPending} className="btn btn-primary w-full disabled:opacity-60">
-              {create.isPending && <Spinner size={14} />} Submit request
-            </button>
-          </form>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+              <FormField
+                control={form.control}
+                name="newDueDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">New due date</FormLabel>
+                    <FormControl><input type="date" className={inputClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reason"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Reason</FormLabel>
+                    <FormControl>
+                      <textarea rows={3} className={`${inputClass} resize-none`} placeholder="Why does the date need to change?" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
+              <button type="submit" disabled={create.isPending} className="btn btn-primary w-full disabled:opacity-60">
+                {create.isPending && <Spinner size={14} />} Submit request
+              </button>
+            </form>
+          </Form>
         )}
       </div>
     </div>

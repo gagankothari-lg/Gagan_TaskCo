@@ -1,22 +1,35 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { useSubmitLeave } from '../../../lib/api/leaves';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
 import { LEAVE_TYPES } from '../../../lib/types';
+import { submitLeaveSchema, type SubmitLeaveFormValues } from './submit-leave-modal.schema';
 
-const field = 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm w-full focus:border-[var(--p)] focus:outline-none';
+const fieldClass = 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm w-full focus:border-[var(--p)] focus:outline-none';
 
 export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const submit = useSubmitLeave();
-  const [leaveType, setLeaveType] = useState('Annual');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const form = useForm<SubmitLeaveFormValues>({
+    resolver: zodResolver(submitLeaveSchema),
+    defaultValues: {
+      leaveType: 'Annual',
+      startDate: '',
+      endDate: '',
+      reason: '',
+    },
+  });
+
+  const leaveType = form.watch('leaveType');
+  const startDate = form.watch('startDate');
+  const endDate = form.watch('endDate');
   const isHalf = leaveType === 'Half Day';
   const days = isHalf
     ? 0.5
@@ -27,20 +40,23 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
   if (!open) return null;
 
   function onStart(v: string) {
-    setStartDate(v);
-    if (isHalf) setEndDate(v);
+    form.setValue('startDate', v);
+    if (isHalf) form.setValue('endDate', v);
   }
   function onType(v: string) {
-    setLeaveType(v);
-    if (v === 'Half Day') setEndDate(startDate);
+    form.setValue('leaveType', v as SubmitLeaveFormValues['leaveType']);
+    if (v === 'Half Day') form.setValue('endDate', startDate);
   }
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function onSubmit(values: SubmitLeaveFormValues) {
     setError(null);
-    if (!startDate || !endDate) return setError('Pick start and end dates');
     try {
-      await submit.mutateAsync({ leaveType, startDate: new Date(startDate).toISOString(), endDate: new Date(endDate).toISOString(), reason: reason || undefined });
+      await submit.mutateAsync({
+        leaveType: values.leaveType,
+        startDate: new Date(values.startDate).toISOString(),
+        endDate: new Date(values.endDate).toISOString(),
+        reason: values.reason || undefined,
+      });
       onClose();
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to submit leave'));
@@ -54,27 +70,84 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
           <h2 className="text-base font-semibold text-[var(--text)]">Request Leave</h2>
           <button onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--text)]"><Icon name="close" size={18} /></button>
         </div>
-        <form onSubmit={onSubmit} className="space-y-3">
-          <select className={field} value={leaveType} onChange={(e) => onType(e.target.value)}>
-            {LEAVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">Start date</label>
-              <input type="date" className={field} value={startDate} onChange={(e) => onStart(e.target.value)} />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+            <FormField
+              control={form.control}
+              name="leaveType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <select
+                      className={fieldClass}
+                      name={field.name}
+                      ref={field.ref}
+                      value={field.value}
+                      onBlur={field.onBlur}
+                      onChange={(e) => onType(e.target.value)}
+                    >
+                      {LEAVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Start date</FormLabel>
+                    <FormControl>
+                      <input
+                        type="date"
+                        className={fieldClass}
+                        name={field.name}
+                        ref={field.ref}
+                        value={field.value}
+                        onBlur={field.onBlur}
+                        onChange={(e) => onStart(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">End date</FormLabel>
+                    <FormControl>
+                      <input type="date" className={fieldClass} disabled={isHalf} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-            <div>
-              <label className="mb-1 block text-xs text-[var(--muted)]">End date</label>
-              <input type="date" className={field} value={endDate} disabled={isHalf} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
-          </div>
-          <p className="text-sm text-[var(--muted)]">Days: <span className="font-medium text-[var(--text)]">{days}</span></p>
-          <textarea rows={2} className={`${field} resize-none`} placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} />
-          {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
-          <button type="submit" disabled={submit.isPending} className="btn btn-primary btn-full">
-            {submit.isPending && <Spinner size={14} />} Submit request
-          </button>
-        </form>
+            <p className="text-sm text-[var(--muted)]">Days: <span className="font-medium text-[var(--text)]">{days}</span></p>
+            <FormField
+              control={form.control}
+              name="reason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Reason (optional)" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
+            <button type="submit" disabled={submit.isPending} className="btn btn-primary btn-full">
+              {submit.isPending && <Spinner size={14} />} Submit request
+            </button>
+          </form>
+        </Form>
       </div>
     </div>
   );

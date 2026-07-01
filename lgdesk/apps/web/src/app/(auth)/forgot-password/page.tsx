@@ -1,34 +1,52 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { requestPasswordReset, confirmPasswordReset } from '../../../lib/api/auth';
 import { Spinner } from '../../../components/ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../components/ui/form';
+import {
+  requestOtpSchema,
+  confirmResetSchema,
+  type RequestOtpFormValues,
+  type ConfirmResetFormValues,
+} from './forgot-password-page.schema';
 
 const inputClass =
   'w-full bg-[#0D1117] border border-[#30363D] text-[#E6EDF3] rounded-[6px] px-3 py-2 text-sm ' +
   'placeholder:text-[#8B949E] focus:border-[#58A6FF] focus:outline-none transition-colors';
+
+const labelClass = 'block text-sm text-[#E6EDF3] mb-1.5';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function requestOtp(e: FormEvent) {
-    e.preventDefault();
+  const requestOtpForm = useForm<RequestOtpFormValues>({
+    resolver: zodResolver(requestOtpSchema),
+    defaultValues: { email: '' },
+  });
+
+  const confirmResetForm = useForm<ConfirmResetFormValues>({
+    resolver: zodResolver(confirmResetSchema),
+    defaultValues: { otp: '', newPassword: '', confirmPassword: '' },
+  });
+
+  async function requestOtp(values: RequestOtpFormValues) {
     setError(null);
     setLoading(true);
     try {
-      await requestPasswordReset(email);
+      await requestPasswordReset(values.email);
       // Always succeeds (no email-existence leak) → advance to step 2.
+      setEmail(values.email);
       setStep(2);
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to send reset code'));
@@ -37,20 +55,11 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  async function confirmReset(e: FormEvent) {
-    e.preventDefault();
+  async function confirmReset(values: ConfirmResetFormValues) {
     setError(null);
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
     setLoading(true);
     try {
-      await confirmPasswordReset({ email, otp, newPassword });
+      await confirmPasswordReset({ email, otp: values.otp, newPassword: values.newPassword });
       router.push('/login?reset=success');
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to reset password'));
@@ -73,83 +82,112 @@ export default function ForgotPasswordPage() {
 
         <div className="bg-[#161B22] border border-[#30363D] rounded-[10px] p-6">
           {step === 1 ? (
-            <form onSubmit={requestOtp} className="space-y-4" noValidate>
-              <div>
-                <label htmlFor="email" className="block text-sm text-[#E6EDF3] mb-1.5">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@leveragedgrowth.in"
-                  className={inputClass}
+            <Form {...requestOtpForm}>
+              <form onSubmit={requestOtpForm.handleSubmit(requestOtp)} className="space-y-4" noValidate>
+                <FormField
+                  control={requestOtpForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel htmlFor="email" className={labelClass}>Email</FormLabel>
+                      <FormControl>
+                        <input
+                          id="email"
+                          type="email"
+                          autoComplete="email"
+                          placeholder="you@leveragedgrowth.in"
+                          className={inputClass}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-[#58A6FF] text-white rounded-[6px] px-3 py-2 text-sm font-medium hover:bg-[#79B8FF] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading && <Spinner size={16} />}
-                {loading ? 'Sending…' : 'Send reset code'}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-[#58A6FF] text-white rounded-[6px] px-3 py-2 text-sm font-medium hover:bg-[#79B8FF] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading && <Spinner size={16} />}
+                  {loading ? 'Sending…' : 'Send reset code'}
+                </button>
+              </form>
+            </Form>
           ) : (
-            <form onSubmit={confirmReset} className="space-y-4" noValidate>
-              <div>
-                <label htmlFor="otp" className="block text-sm text-[#E6EDF3] mb-1.5">
-                  6-digit code
-                </label>
-                <input
-                  id="otp"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="123456"
-                  className={`${inputClass} tracking-[0.4em] font-mono`}
+            <Form {...confirmResetForm}>
+              <form onSubmit={confirmResetForm.handleSubmit(confirmReset)} className="space-y-4" noValidate>
+                <FormField
+                  control={confirmResetForm.control}
+                  name="otp"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel htmlFor="otp" className={labelClass}>6-digit code</FormLabel>
+                      <FormControl>
+                        <input
+                          id="otp"
+                          inputMode="numeric"
+                          maxLength={6}
+                          placeholder="123456"
+                          className={`${inputClass} tracking-[0.4em] font-mono`}
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, ''))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div>
-                <label htmlFor="newPassword" className="block text-sm text-[#E6EDF3] mb-1.5">
-                  New password
-                </label>
-                <input
-                  id="newPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className={inputClass}
+                <FormField
+                  control={confirmResetForm.control}
+                  name="newPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel htmlFor="newPassword" className={labelClass}>New password</FormLabel>
+                      <FormControl>
+                        <input
+                          id="newPassword"
+                          type="password"
+                          autoComplete="new-password"
+                          placeholder="At least 8 characters"
+                          className={inputClass}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm text-[#E6EDF3] mb-1.5">
-                  Confirm password
-                </label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter password"
-                  className={inputClass}
+                <FormField
+                  control={confirmResetForm.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel htmlFor="confirmPassword" className={labelClass}>Confirm password</FormLabel>
+                      <FormControl>
+                        <input
+                          id="confirmPassword"
+                          type="password"
+                          autoComplete="new-password"
+                          placeholder="Re-enter password"
+                          className={inputClass}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-[#58A6FF] text-white rounded-[6px] px-3 py-2 text-sm font-medium hover:bg-[#79B8FF] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading && <Spinner size={16} />}
-                {loading ? 'Resetting…' : 'Reset password'}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-[#58A6FF] text-white rounded-[6px] px-3 py-2 text-sm font-medium hover:bg-[#79B8FF] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading && <Spinner size={16} />}
+                  {loading ? 'Resetting…' : 'Reset password'}
+                </button>
+              </form>
+            </Form>
           )}
 
           {error && (

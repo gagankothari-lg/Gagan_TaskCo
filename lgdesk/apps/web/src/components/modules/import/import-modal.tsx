@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { Spinner } from '../../ui/spinner';
 import { useAuth } from '../../../hooks/use-auth';
@@ -16,6 +18,13 @@ import {
   type PreviewResult,
 } from '../../../lib/api/importTasks';
 import { useQueryClient } from '@tanstack/react-query';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
+import {
+  previewCsvSchema,
+  previewSheetSchema,
+  type PreviewCsvFormValues,
+  type PreviewSheetFormValues,
+} from './import-modal.schema';
 
 interface ImportModalProps {
   open: boolean;
@@ -88,12 +97,19 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
   const [stage, setStage] = useState<Stage>('form');
   const [tab, setTab] = useState<Tab>('sheet');
 
-  // form state
-  const [sheetUrl, setSheetUrl] = useState('');
-  const [tabName, setTabName] = useState('');
-  const [projectId, setProjectId] = useState('');
-  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const sheetForm = useForm<PreviewSheetFormValues>({
+    resolver: zodResolver(previewSheetSchema),
+    defaultValues: { sheetUrl: '', tabName: '', projectId: '' },
+  });
+  const csvForm = useForm<PreviewCsvFormValues>({
+    resolver: zodResolver(previewCsvSchema),
+    defaultValues: { projectId: '' },
+  });
+
   const [error, setError] = useState<string | null>(null);
+  // The projectId used for whichever tab produced the current preview — carried forward
+  // into onExecute() since the preview/execute stage isn't backed by either input form.
+  const [selectedProjectId, setSelectedProjectId] = useState('');
 
   // preview state
   const [rows, setRows] = useState<ImportRow[]>([]);
@@ -109,11 +125,10 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
   function reset() {
     setStage('form');
     setTab('sheet');
-    setSheetUrl('');
-    setTabName('');
-    setProjectId('');
-    setCsvFile(null);
+    sheetForm.reset();
+    csvForm.reset();
     setError(null);
+    setSelectedProjectId('');
     setRows([]);
     setStats({ functions: 0, subFunctions: 0, tasks: 0, total: 0 });
   }
@@ -129,32 +144,26 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     setStage('preview');
   }
 
-  async function onPreviewSheet() {
+  async function onPreviewSheet(values: PreviewSheetFormValues) {
     setError(null);
-    if (!sheetUrl.trim()) {
-      setError('Enter a Google Sheet URL or ID.');
-      return;
-    }
     try {
       const result = await previewSheet.mutateAsync({
-        sheetUrl: sheetUrl.trim(),
-        tabName: tabName.trim() || undefined,
-        projectId: projectId || undefined,
+        sheetUrl: values.sheetUrl.trim(),
+        tabName: values.tabName?.trim() || undefined,
+        projectId: values.projectId || undefined,
       });
+      setSelectedProjectId(values.projectId || '');
       applyPreview(result);
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to read that sheet.'));
     }
   }
 
-  async function onPreviewCsv() {
+  async function onPreviewCsv(values: PreviewCsvFormValues) {
     setError(null);
-    if (!csvFile) {
-      setError('Choose a CSV file first.');
-      return;
-    }
     try {
-      const result = await previewCsv.mutateAsync({ file: csvFile, projectId: projectId || undefined });
+      const result = await previewCsv.mutateAsync({ file: values.csvFile, projectId: values.projectId || undefined });
+      setSelectedProjectId(values.projectId || '');
       applyPreview(result);
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to read that CSV.'));
@@ -177,7 +186,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
       return;
     }
     try {
-      const result = await execute.mutateAsync({ rows: chosen, projectId: projectId || undefined });
+      const result = await execute.mutateAsync({ rows: chosen, projectId: selectedProjectId || undefined });
       let message = `Imported ${result.created} item(s)`;
       if (result.errors.length > 0) message += ` — ${result.errors.length} row(s) failed`;
       toast(message, result.errors.length > 0 ? 'warn' : 'success');
@@ -237,109 +246,149 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
             </div>
 
             {tab === 'sheet' ? (
-              <div>
-                <div style={{ background: '#e3f2fd', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#1565c0', marginBottom: 16, lineHeight: 1.5 }}>
-                  Make sure the sheet is shared with{' '}
-                  <strong style={{ color: '#3949ab' }}>info@aswinibajaj.com</strong> (Viewer), or set it to
-                  &ldquo;anyone with the link (Viewer)&rdquo;. If you can&apos;t share it, use the{' '}
-                  <button
-                    onClick={() => setTab('csv')}
-                    style={{ background: 'none', border: 'none', padding: 0, color: '#3949ab', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
-                  >
-                    Upload CSV
-                  </button>{' '}
-                  tab instead.
-                </div>
+              <Form {...sheetForm}>
+                <form onSubmit={sheetForm.handleSubmit(onPreviewSheet)}>
+                  <div style={{ background: '#e3f2fd', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#1565c0', marginBottom: 16, lineHeight: 1.5 }}>
+                    Make sure the sheet is shared with{' '}
+                    <strong style={{ color: '#3949ab' }}>info@aswinibajaj.com</strong> (Viewer), or set it to
+                    &ldquo;anyone with the link (Viewer)&rdquo;. If you can&apos;t share it, use the{' '}
+                    <button
+                      type="button"
+                      onClick={() => setTab('csv')}
+                      style={{ background: 'none', border: 'none', padding: 0, color: '#3949ab', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Upload CSV
+                    </button>{' '}
+                    tab instead.
+                  </div>
 
-                <div className="fg">
-                  <label>Google Sheet URL or ID *</label>
-                  <input
-                    className="fc"
-                    value={sheetUrl}
-                    onChange={(e) => setSheetUrl(e.target.value)}
-                    placeholder="https://docs.google.com/spreadsheets/d/…"
+                  <FormField
+                    control={sheetForm.control}
+                    name="sheetUrl"
+                    render={({ field }) => (
+                      <FormItem className="fg">
+                        <FormLabel>Google Sheet URL or ID *</FormLabel>
+                        <FormControl>
+                          <input className="fc" placeholder="https://docs.google.com/spreadsheets/d/…" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div className="fg">
-                    <label>Worksheet / Tab Name</label>
-                    <input
-                      className="fc"
-                      value={tabName}
-                      onChange={(e) => setTabName(e.target.value)}
-                      placeholder="Optional (first tab if blank)"
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <FormField
+                      control={sheetForm.control}
+                      name="tabName"
+                      render={({ field }) => (
+                        <FormItem className="fg">
+                          <FormLabel>Worksheet / Tab Name</FormLabel>
+                          <FormControl>
+                            <input className="fc" placeholder="Optional (first tab if blank)" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={sheetForm.control}
+                      name="projectId"
+                      render={({ field }) => (
+                        <FormItem className="fg">
+                          <FormLabel>Import into Project</FormLabel>
+                          <FormControl>
+                            <select className="fc" {...field}>
+                              <option value="">No project</option>
+                              {projects.map((p) => (
+                                <option key={p.projId} value={p.projId}>{p.name}</option>
+                              ))}
+                            </select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
                   </div>
-                  <div className="fg">
-                    <label>Import into Project</label>
-                    <select className="fc" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                      <option value="">No project</option>
-                      {projects.map((p) => (
-                        <option key={p.projId} value={p.projId}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
-                {error && (
-                  <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
-                )}
+                  {error && (
+                    <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
+                  )}
 
-                <button className="btn btn-primary btn-full" onClick={onPreviewSheet} disabled={previewing}>
-                  {previewing && <Spinner size={14} />} Preview Import →
-                </button>
-              </div>
+                  <button type="submit" className="btn btn-primary btn-full" disabled={previewing}>
+                    {previewing && <Spinner size={14} />} Preview Import →
+                  </button>
+                </form>
+              </Form>
             ) : (
-              <div>
-                <div style={{ background: '#e3f2fd', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#1565c0', marginBottom: 16, lineHeight: 1.5 }}>
-                  Download your sheet as CSV: <strong>File → Download → Comma-separated values (.csv)</strong>, then upload it here.
-                </div>
+              <Form {...csvForm}>
+                <form onSubmit={csvForm.handleSubmit(onPreviewCsv)}>
+                  <div style={{ background: '#e3f2fd', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#1565c0', marginBottom: 16, lineHeight: 1.5 }}>
+                    Download your sheet as CSV: <strong>File → Download → Comma-separated values (.csv)</strong>, then upload it here.
+                  </div>
 
-                <div className="fg">
-                  <label>CSV File *</label>
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      border: '1px dashed var(--border)',
-                      borderRadius: 8,
-                      padding: '12px 14px',
-                      cursor: 'pointer',
-                      color: csvFile ? 'var(--text)' : 'var(--muted)',
-                      fontSize: 13,
-                    }}
-                  >
-                    <Icon name="attach_file" size={18} style={{ color: 'var(--p)' }} />
-                    {csvFile ? csvFile.name : 'Choose CSV File'}
-                    <input
-                      type="file"
-                      accept=".csv"
-                      style={{ display: 'none' }}
-                      onChange={(e) => setCsvFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
-                    />
-                  </label>
-                </div>
+                  <FormField
+                    control={csvForm.control}
+                    name="csvFile"
+                    render={({ field }) => (
+                      <FormItem className="fg">
+                        <FormLabel>CSV File *</FormLabel>
+                        <FormControl>
+                          <label
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              border: '1px dashed var(--border)',
+                              borderRadius: 8,
+                              padding: '12px 14px',
+                              cursor: 'pointer',
+                              color: field.value ? 'var(--text)' : 'var(--muted)',
+                              fontSize: 13,
+                            }}
+                          >
+                            <Icon name="attach_file" size={18} style={{ color: 'var(--p)' }} />
+                            {field.value ? field.value.name : 'Choose CSV File'}
+                            <input
+                              type="file"
+                              accept=".csv"
+                              style={{ display: 'none' }}
+                              onChange={(e) => field.onChange(e.target.files?.[0] ?? null)}
+                            />
+                          </label>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <div className="fg">
-                  <label>Import into Project</label>
-                  <select className="fc" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                    <option value="">No project</option>
-                    {projects.map((p) => (
-                      <option key={p.projId} value={p.projId}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
+                  <FormField
+                    control={csvForm.control}
+                    name="projectId"
+                    render={({ field }) => (
+                      <FormItem className="fg">
+                        <FormLabel>Import into Project</FormLabel>
+                        <FormControl>
+                          <select className="fc" {...field}>
+                            <option value="">No project</option>
+                            {projects.map((p) => (
+                              <option key={p.projId} value={p.projId}>{p.name}</option>
+                            ))}
+                          </select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                {error && (
-                  <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
-                )}
+                  {error && (
+                    <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
+                  )}
 
-                <button className="btn btn-primary btn-full" onClick={onPreviewCsv} disabled={previewing}>
-                  {previewing && <Spinner size={14} />} Preview CSV →
-                </button>
-              </div>
+                  <button type="submit" className="btn btn-primary btn-full" disabled={previewing}>
+                    {previewing && <Spinner size={14} />} Preview CSV →
+                  </button>
+                </form>
+              </Form>
             )}
           </div>
         ) : (

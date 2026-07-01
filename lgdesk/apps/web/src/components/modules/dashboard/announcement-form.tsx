@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { useCreateAnnouncement } from '../../../lib/api/dashboard';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
+import { announcementSchema, VISIBILITY, type AnnouncementFormValues } from './announcement-form.schema';
 
-const field = 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm w-full focus:border-[var(--p)] focus:outline-none';
-const VISIBILITY = ['Organisation', 'TCs & TFs', 'TCs Only'];
+const fieldClass = 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm w-full focus:border-[var(--p)] focus:outline-none';
 
 function plus7(): string {
   const d = new Date();
@@ -18,28 +21,34 @@ function plus7(): string {
 export function AnnouncementForm() {
   const create = useCreateAnnouncement();
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(plus7);
-  const [visibility, setVisibility] = useState('Organisation');
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  const form = useForm<AnnouncementFormValues>({
+    resolver: zodResolver(announcementSchema),
+    defaultValues: {
+      title: '',
+      content: '',
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: plus7(),
+      visibility: 'Organisation',
+    },
+  });
+
+  async function onSubmit(values: AnnouncementFormValues) {
     setError(null);
     setOk(false);
-    if (!title.trim()) return setError('Title is required');
     try {
       await create.mutateAsync({
-        title,
-        content: content || undefined,
-        startDate: new Date(startDate).toISOString(),
-        endDate: new Date(endDate).toISOString(),
-        visibility,
+        title: values.title,
+        content: values.content || undefined,
+        startDate: values.startDate ? new Date(values.startDate).toISOString() : undefined,
+        endDate: values.endDate ? new Date(values.endDate).toISOString() : undefined,
+        visibility: values.visibility,
       });
-      setTitle(''); setContent(''); setOk(true);
+      form.resetField('title');
+      form.resetField('content');
+      setOk(true);
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to post announcement'));
     }
@@ -52,22 +61,71 @@ export function AnnouncementForm() {
         <span className="ml-auto text-[var(--muted)]">{open ? <Icon name="expand_more" size={16} /> : <Icon name="chevron_right" size={16} />}</span>
       </button>
       {open && (
-        <form onSubmit={submit} className="mt-3 space-y-3">
-          <input className={field} placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea rows={2} className={`${field} resize-none`} placeholder="Content" value={content} onChange={(e) => setContent(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <input type="date" className={field} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            <input type="date" className={field} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-          <select className={field} value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-            {VISIBILITY.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
-          {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
-          {ok && <div className="rounded-[8px] border border-[var(--ok)]/40 bg-[var(--ok)]/10 px-3 py-2 text-sm text-[var(--ok)]">Announcement posted.</div>}
-          <button type="submit" disabled={create.isPending} className="btn btn-primary disabled:opacity-60">
-            {create.isPending && <Spinner size={14} />} Post
-          </button>
-        </form>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-3 space-y-3">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl><input className={fieldClass} placeholder="Title" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="content"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl><textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Content" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="visibility"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <select className={fieldClass} {...field}>
+                      {VISIBILITY.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
+            {ok && <div className="rounded-[8px] border border-[var(--ok)]/40 bg-[var(--ok)]/10 px-3 py-2 text-sm text-[var(--ok)]">Announcement posted.</div>}
+            <button type="submit" disabled={create.isPending} className="btn btn-primary disabled:opacity-60">
+              {create.isPending && <Spinner size={14} />} Post
+            </button>
+          </form>
+        </Form>
       )}
     </div>
   );
