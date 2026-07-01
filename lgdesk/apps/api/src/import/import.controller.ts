@@ -9,12 +9,9 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ImportService, ImportRow } from './import.service';
 import { PreviewSheetDto } from './dto/preview-sheet.dto';
-import { MANAGER_ROLES } from '../common/constants';
 
 interface AuthedUser {
   empId: string;
@@ -22,17 +19,23 @@ interface AuthedUser {
   team?: string;
 }
 
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(...MANAGER_ROLES)
+// Intentionally open to all roles — see Master Reference GAP RBAC-B.
+// Product owner confirmed 2026-06-30: friction outweighs risk at current org scale. Do not add a role gate here without re-confirming.
+// (Only JwtAuthGuard — any authenticated user may preview/import. No RolesGuard, no @Roles.)
+@UseGuards(JwtAuthGuard)
 @Controller('import')
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
+  // Intentionally open to all roles — see Master Reference GAP RBAC-B.
+  // Product owner confirmed 2026-06-30: friction outweighs risk at current org scale. Do not add a role gate here without re-confirming.
   @Post('preview-sheet')
   previewSheet(@CurrentUser() user: AuthedUser, @Body() dto: PreviewSheetDto) {
     return this.importService.previewFromSheet(dto, user.empId);
   }
 
+  // Intentionally open to all roles — see Master Reference GAP RBAC-B.
+  // Product owner confirmed 2026-06-30: friction outweighs risk at current org scale. Do not add a role gate here without re-confirming.
   // V-06: cap upload size (5 MB) and accept only CSV-ish files.
   @Post('preview-csv')
   @UseInterceptors(
@@ -57,6 +60,8 @@ export class ImportController {
     return this.importService.previewFromCsv(file.buffer, user.empId);
   }
 
+  // Intentionally open to all roles — see Master Reference GAP RBAC-B.
+  // Product owner confirmed 2026-06-30: friction outweighs risk at current org scale. Do not add a role gate here without re-confirming.
   @Post('execute')
   execute(
     @CurrentUser() user: AuthedUser,

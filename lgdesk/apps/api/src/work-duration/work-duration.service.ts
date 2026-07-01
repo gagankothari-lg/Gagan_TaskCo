@@ -203,15 +203,18 @@ export class WorkDurationService {
   // ─────────────────────────────────────────────── cron (hourly daily-boundary check)
   @Cron('0 * * * *')
   async autoClockOut() {
-    const midnight = this.todayUtc(); // 00:00 UTC = 05:30 IST
+    const today = this.todayUtc(); // 00:00 UTC = 05:30 IST — the daily-reset boundary
+    // Midnight-UTC DATE-based reset (Master Reference Part 29/31): close any still-open
+    // session whose session DATE is before today (UTC). This is a calendar-day boundary,
+    // NOT an elapsed-hours / LIMIT_MS cap. The hourly cron just catches the reset promptly.
     const sessions = await this.prisma.workDuration.findMany({
-      where: { status: { in: ['ACTIVE', 'ON_BREAK'] }, clockIn: { lt: midnight } },
+      where: { status: { in: ['ACTIVE', 'ON_BREAK'] }, date: { lt: today } },
     });
     for (const s of sessions) {
       if (!s.clockIn) continue;
-      const gross = Math.floor((midnight.getTime() - s.clockIn.getTime()) / 60000);
+      const gross = Math.floor((today.getTime() - s.clockIn.getTime()) / 60000);
       const net = Math.max(0, gross - s.totalBreakMins);
-      await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut: midnight, status: 'AUTO_CLOSED', grossMinutes: gross, netMinutes: net, autoClocked: true } });
+      await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut: today, status: 'AUTO_CLOSED', grossMinutes: gross, netMinutes: net, autoClocked: true } });
       await this.syncWorkLog(s.empId, s.date, net);
       await this.audit(s.empId, 'AUTO_CLOSE', s.sessionId);
     }

@@ -348,13 +348,17 @@ export class AuthService {
 
   private async getPendingLeaveCount(user: UserRow): Promise<number> {
     if (isAdmin(user.role)) {
-      return this.prisma.leave.count({ where: { status: 'Pending', reviewedBy: null } });
+      return this.prisma.leave.count({ where: { status: 'Pending' } });
     }
     if (isManager(user.role)) {
-      const teamIds = await this.getTeamEmpIds(user);
-      return this.prisma.leave.count({
-        where: { status: 'Pending', reviewedBy: null, empId: { in: teamIds } },
-      });
+      // Change #48 additive OR: direct reports (managerId) OR same flat Team string.
+      // Must match LeavesService.getPendingLeaves/getPendingLeaveCount so the sidebar
+      // badge always equals the approvals list (BR-5).
+      const or: Array<{ managerId: string } | { team: string }> = [{ managerId: user.empId }];
+      if (user.team) or.push({ team: user.team });
+      const members = await this.prisma.user.findMany({ where: { OR: or }, select: { empId: true } });
+      const ids = members.map((m) => m.empId);
+      return this.prisma.leave.count({ where: { status: 'Pending', empId: { in: ids } } });
     }
     return 0;
   }

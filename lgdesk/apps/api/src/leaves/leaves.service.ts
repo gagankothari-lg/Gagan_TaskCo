@@ -30,8 +30,10 @@ export class LeavesService {
 
     let days: number;
     if (dto.leaveType === 'Half Day') {
+      // Server-side enforcement (Master Reference BR-7 / FR-1): Half Day must be a single
+      // day and always books 0.5 days — never trust client-side Zod validation alone.
       if (start.getTime() !== end.getTime()) {
-        throw new BadRequestException('Half Day leave must have the same start and end date');
+        throw new BadRequestException('Half Day leave must be a single day.');
       }
       days = 0.5;
     } else {
@@ -54,8 +56,12 @@ export class LeavesService {
 
     const caller = await this.getCaller(callerEmpId);
     if (!isAdmin(caller.role)) {
-      const owner = await this.prisma.user.findUnique({ where: { empId: leave.empId }, select: { managerId: true } });
-      if (!owner || owner.managerId !== callerEmpId) throw new ForbiddenException();
+      // Change #48 additive OR: approve if EITHER the target's Manager_ID is the caller
+      // (direct report) OR the target shares the caller's flat Team string. Never narrows.
+      const owner = await this.prisma.user.findUnique({ where: { empId: leave.empId }, select: { managerId: true, team: true } });
+      const isDirectReport = !!owner && owner.managerId === callerEmpId;
+      const isSameTeam = !!owner && !!caller.team && owner.team === caller.team;
+      if (!isDirectReport && !isSameTeam) throw new ForbiddenException();
     }
 
     await this.prisma.leave.update({
@@ -76,8 +82,7 @@ export class LeavesService {
     if (isAdmin(caller.role)) {
       return this.prisma.leave.findMany({ where: { status: 'Pending' }, orderBy: { createdAt: 'desc' } });
     }
-    const reports = await this.prisma.user.findMany({ where: { managerId: callerEmpId }, select: { empId: true } });
-    const ids = reports.map((r) => r.empId);
+    const ids = await this.getApprovableEmpIds(caller);
     return this.prisma.leave.findMany({ where: { status: 'Pending', empId: { in: ids } }, orderBy: { createdAt: 'desc' } });
   }
 
@@ -86,8 +91,7 @@ export class LeavesService {
     if (isAdmin(caller.role)) {
       return { count: await this.prisma.leave.count({ where: { status: 'Pending' } }) };
     }
-    const reports = await this.prisma.user.findMany({ where: { managerId: callerEmpId }, select: { empId: true } });
-    const ids = reports.map((r) => r.empId);
+    const ids = await this.getApprovableEmpIds(caller);
     return { count: await this.prisma.leave.count({ where: { status: 'Pending', empId: { in: ids } } }) };
   }
 
@@ -126,9 +130,19 @@ export class LeavesService {
 
   // ═══════════════════════════════════════════════ helpers
   private async getCaller(empId: string) {
-    const caller = await this.prisma.user.findUnique({ where: { empId }, select: { empId: true, role: true } });
+    const caller = await this.prisma.user.findUnique({ where: { empId }, select: { empId: true, role: true, team: true } });
     if (!caller) throw new ForbiddenException();
     return caller;
+  }
+
+  // Change #48: the set of employees whose leaves a TC/TF may approve — additive OR of
+  // direct reports (managerId === self) and same flat-Team members. Used identically by
+  // getPendingLeaves and getPendingLeaveCount so the badge and the list always match (BR-5).
+  private async getApprovableEmpIds(caller: { empId: string; team: string | null }): Promise<string[]> {
+    const or: Array<{ managerId: string } | { team: string }> = [{ managerId: caller.empId }];
+    if (caller.team) or.push({ team: caller.team });
+    const users = await this.prisma.user.findMany({ where: { OR: or }, select: { empId: true } });
+    return users.map((u) => u.empId);
   }
 
   private normalize(iso: string): Date {

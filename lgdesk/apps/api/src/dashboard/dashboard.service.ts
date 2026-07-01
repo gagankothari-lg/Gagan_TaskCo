@@ -2,6 +2,7 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TasksService } from '../tasks/tasks.service';
 import { MeetingsService } from '../meetings/meetings.service';
+import { UsersService } from '../users/users.service';
 import { isAdmin, isManager, parseIds, isDone, isInProgress, isClosed, calcScore } from '../common/constants';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 
@@ -14,6 +15,7 @@ export class DashboardService {
     private readonly prisma: PrismaService,
     private readonly tasks: TasksService,
     private readonly meetings: MeetingsService,
+    private readonly users: UsersService,
   ) {}
 
   async getDashboardExtras(callerEmpId: string) {
@@ -81,8 +83,14 @@ export class DashboardService {
   async getScoreboard(caller: Caller, employees: Emp[]) {
     let scope: Emp[];
     if (isAdmin(caller.role)) scope = employees;
-    else if (isManager(caller.role)) scope = employees.filter((e) => e.team && e.team === caller.team);
-    else scope = employees.filter((e) => e.empId === caller.empId);
+    else if (isManager(caller.role)) {
+      // Scoreboard scope is the subordinate TREE (getSubordinateIds — follows Manager_ID
+      // links recursively). This is DELIBERATELY different from team work-logs / clock
+      // status, which use a flat Team-string match. Keep the two separate — Part 5 (Verified
+      // matrix) and GAP-007 document this as an intentional divergence, not a bug to unify.
+      const subIds = new Set(await this.users.getSubordinateIds(caller.empId));
+      scope = employees.filter((e) => subIds.has(e.empId));
+    } else scope = employees.filter((e) => e.empId === caller.empId);
 
     const tasks = await this.prisma.task.findMany();
     const today = this.todayUtc();

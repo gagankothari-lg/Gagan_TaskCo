@@ -13,7 +13,9 @@ export class RegisterRequestDto {
   email!: string;
 
   @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  // Master Reference Part 11: password minimum is 6 characters (not 8). Kept in sync
+  // with the frontend Zod schemas (min-6) to avoid a client-pass / server-400 mismatch.
+  @MinLength(6, { message: 'Password must be at least 6 characters' })
   password!: string;
 
   @IsOptional()

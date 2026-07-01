@@ -56,12 +56,14 @@ export class WorkLogService {
       comments: manager ? dto.comments : undefined,
     };
 
-    const logId = await this.idUtils.generateId('workLog', 'logId', 'WL');
-    const log = await this.prisma.workLog.upsert({
-      where: { empId_date: { empId: callerEmpId, date } },
-      create: { logId, empId: callerEmpId, date, ...data },
-      update: data,
-    });
+    // Collision-safe: retry on a unique-ID race (concurrent submissions from other users).
+    const log = await this.idUtils.createWithId('workLog', 'logId', 'WL', (logId) =>
+      this.prisma.workLog.upsert({
+        where: { empId_date: { empId: callerEmpId, date } },
+        create: { logId, empId: callerEmpId, date, ...data },
+        update: data,
+      }),
+    );
     await this.audit(callerEmpId, 'WORKLOG_SUBMIT', log.logId);
     return { logId: log.logId };
   }
@@ -80,12 +82,13 @@ export class WorkLogService {
       extraHours: dto.extraHours ?? 0,
       remark: dto.remark,
     };
-    const logId = await this.idUtils.generateId('internWorkLog', 'logId', 'IWL');
-    const log = await this.prisma.internWorkLog.upsert({
-      where: { empId_date: { empId: callerEmpId, date } },
-      create: { logId, empId: callerEmpId, date, ...data },
-      update: data,
-    });
+    const log = await this.idUtils.createWithId('internWorkLog', 'logId', 'IWL', (logId) =>
+      this.prisma.internWorkLog.upsert({
+        where: { empId_date: { empId: callerEmpId, date } },
+        create: { logId, empId: callerEmpId, date, ...data },
+        update: data,
+      }),
+    );
     return { logId: log.logId };
   }
 
@@ -201,12 +204,13 @@ export class WorkLogService {
     const date = this.normalizeDate(dto.date);
     if (target.role === 'Intern') {
       const data = { month: this.monthOf(date), dayName: this.dayNameOf(date), attendance: dto.attendance ?? 'Present', work1stHalf: dto.work1stHalf, work2ndHalf: dto.work2ndHalf, extraHours: dto.extraHours ?? 0, remark: dto.remark };
-      const logId = await this.idUtils.generateId('internWorkLog', 'logId', 'IWL');
-      const log = await this.prisma.internWorkLog.upsert({
-        where: { empId_date: { empId: dto.targetEmpId, date } },
-        create: { logId, empId: dto.targetEmpId, date, ...data },
-        update: data,
-      });
+      const log = await this.idUtils.createWithId('internWorkLog', 'logId', 'IWL', (logId) =>
+        this.prisma.internWorkLog.upsert({
+          where: { empId_date: { empId: dto.targetEmpId, date } },
+          create: { logId, empId: dto.targetEmpId, date, ...data },
+          update: data,
+        }),
+      );
       await this.audit(callerEmpId, 'WORKLOG_ADMIN', log.logId);
       return { logId: log.logId };
     }
@@ -216,12 +220,13 @@ export class WorkLogService {
       purpose: dto.purpose, leaveRequested: dto.leaveRequested, work1stHalf: dto.work1stHalf, work2ndHalf: dto.work2ndHalf,
       extraHours: dto.extraHours ?? 0, remark: dto.remark, status: dto.status, comments: dto.comments,
     };
-    const logId = await this.idUtils.generateId('workLog', 'logId', 'WL');
-    const log = await this.prisma.workLog.upsert({
-      where: { empId_date: { empId: dto.targetEmpId, date } },
-      create: { logId, empId: dto.targetEmpId, date, ...data },
-      update: data,
-    });
+    const log = await this.idUtils.createWithId('workLog', 'logId', 'WL', (logId) =>
+      this.prisma.workLog.upsert({
+        where: { empId_date: { empId: dto.targetEmpId, date } },
+        create: { logId, empId: dto.targetEmpId, date, ...data },
+        update: data,
+      }),
+    );
     await this.audit(callerEmpId, 'WORKLOG_ADMIN', log.logId);
     return { logId: log.logId };
   }
@@ -244,7 +249,9 @@ export class WorkLogService {
         this.classify(l.attendance, c);
         c.totalOtHours += l.extraHours ?? 0;
       }
-      const otHours = c.totalOtHours + c.extraFull * 9 + c.extraHalf * 4;
+      // OT formula (Master Reference Change #46): Σ(Extra Hours) + (EF days × 9) + (EH days × 4),
+      // then round to 1 decimal (Math.round(x*10)/10) to avoid float drift on 0.5-hour steps.
+      const otHours = Math.round((c.totalOtHours + c.extraFull * 9 + c.extraHalf * 4) * 10) / 10;
       out.push({ empId: m.empId, name: `${m.firstName} ${m.lastName}`, P: c.present, LF: c.leaveFullDay, LH: c.leaveHalfDay, H: c.holiday, W: c.weekOff, AW: c.altWeekOff, EF: c.extraFull, EH: c.extraHalf, otHours });
     }
     return out;
