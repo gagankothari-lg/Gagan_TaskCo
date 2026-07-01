@@ -321,6 +321,7 @@ export class TasksService {
       taskId: t.taskId,
       projId: t.projId ?? undefined,
       functionId: t.functionId ?? undefined,
+      subFnId: t.subFnId ?? undefined,
       title: t.title,
       description: t.description ?? undefined,
       assigneeIds: parseIds(t.assigneeIds),

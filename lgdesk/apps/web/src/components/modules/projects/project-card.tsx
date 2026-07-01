@@ -2,7 +2,13 @@
 
 import { useMemo } from 'react';
 import { Icon } from '../../ui/icon';
+import { Progress } from '../../ui/progress';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../ui/dropdown-menu';
 import { useAuth } from '../../../hooks/use-auth';
+import { canDeleteProject, canEditProject } from '../../../lib/rbac';
+import { useDeleteProject } from '../../../lib/api/projects';
+import { apiErrorMessage } from '../../../lib/api/client';
+import { toast } from '../../../lib/toast';
 import { statusPillStyle, priorityDisplay, statusDot } from '../../../lib/status-styles';
 import { avatarColor, initials, fmtDate } from '../../../lib/utils';
 import type { Project, User } from '../../../lib/types';
@@ -12,10 +18,15 @@ function nameFor(empId: string, employees: User[]): string {
   return u ? `${u.firstName} ${u.lastName}`.trim() : empId;
 }
 
-export function ProjectCard({ project, onClick }: { project: Project; onClick?: () => void }) {
-  const { employees, projects, tasks } = useAuth();
+/**
+ * Standalone / sub-project card. Per Part 37 (GAP G5), the card BODY is not
+ * clickable — there is no "click card -> open detail" affordance on the My Projects
+ * grid; only the explicit Edit action opens the shared <ProjectDetailModal>.
+ */
+export function ProjectCard({ project, onEdit }: { project: Project; onEdit: () => void }) {
+  const { currentUser, employees, projects, tasks, attCounts } = useAuth();
+  const del = useDeleteProject();
 
-  // Sub-projects + linked tasks are derived from the cached payload (no extra fetch).
   const subProjectCount = useMemo(
     () => projects.filter((p) => p.parentProjId === project.projId).length,
     [projects, project.projId],
@@ -28,18 +39,29 @@ export function ProjectCard({ project, onClick }: { project: Project; onClick?: 
   const pill = statusPillStyle(project.status);
   const pr = priorityDisplay(project.priority);
   const barColor = statusDot(project.status);
+  const attCount = attCounts[project.projId] ?? 0;
+
+  const canEdit = canEditProject(currentUser, project);
+  const canDelete = canDeleteProject(currentUser, project);
 
   const assigner = nameFor(project.assignerId, employees);
   const assignees = project.assigneeIds.length > 0 ? project.assigneeIds : project.ownerIds;
   const assigneeNames = assignees.map((id) => nameFor(id, employees));
   const avatarIds = assignees.slice(0, 3);
+  const ownerNames = project.ownerIds.map((id) => nameFor(id, employees));
+
+  async function remove() {
+    if (!confirm(`Delete ${project.name}? Its tasks, functions and sub-functions will also be removed.`)) return;
+    try {
+      await del.mutateAsync(project.projId);
+      toast('Project deleted', 'success');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Unable to delete project'), 'error');
+    }
+  }
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="proj-card flex w-full flex-col gap-2.5 text-left transition-shadow hover:shadow-md"
-    >
+    <div className="proj-card flex w-full flex-col gap-2.5 text-left transition-shadow hover:shadow-md">
       {/* Top row: status pill + priority + date */}
       <div className="flex items-center gap-2">
         <span
@@ -49,16 +71,16 @@ export function ProjectCard({ project, onClick }: { project: Project; onClick?: 
           {project.status}
         </span>
         <span className="text-[11px] font-semibold" style={{ color: pr.color }}>{pr.label}</span>
-        <span className="ml-auto text-[11px] text-[var(--muted)]">
+        <span className="ml-auto text-[11px] text-muted">
           {project.deadline ? fmtDate(project.deadline) : '—'}
         </span>
       </div>
 
       {/* Title + sub-project count */}
       <div>
-        <p className="truncate text-[14px] font-bold text-[var(--text)]">{project.name}</p>
-        <p className="text-[11px] text-[var(--muted)]">
-          {subProjectCount} sub-project{subProjectCount === 1 ? '' : 's'}
+        <p className="truncate text-[14px] font-bold text-text">{project.name}</p>
+        <p className="text-[11px] text-muted">
+          {subProjectCount} sub-project{subProjectCount === 1 ? '' : 's'} · {openTasks}/{linkedTasks.length} task{linkedTasks.length === 1 ? '' : 's'} open
         </p>
       </div>
 
@@ -69,44 +91,69 @@ export function ProjectCard({ project, onClick }: { project: Project; onClick?: 
             <div
               key={id}
               title={nameFor(id, employees)}
-              className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--surface)] text-[9px] font-semibold text-white"
+              className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface text-[9px] font-semibold text-white"
               style={{ background: avatarColor(id) }}
             >
               {initials(nameFor(id, employees))}
             </div>
           ))}
           {assignees.length > avatarIds.length && (
-            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--surface)] bg-[var(--p3)] text-[9px] font-semibold text-[var(--p)]">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-p3 text-[9px] font-semibold text-p">
               +{assignees.length - avatarIds.length}
             </div>
           )}
         </div>
-        <p className="min-w-0 truncate text-[12px] text-[var(--muted)]">
+        <p className="min-w-0 truncate text-[12px] text-muted">
           {assigner} → {assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Unassigned'}
         </p>
       </div>
+      <p className="truncate text-[11px] text-muted2">Owner: {ownerNames.length > 0 ? ownerNames.join(', ') : '—'}</p>
 
       {/* Progress bar + completion % */}
       <div className="flex items-center gap-2">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
-          <div className="h-full rounded-full" style={{ width: `${completion}%`, background: barColor }} />
-        </div>
-        <span className="text-[11px] font-semibold text-[var(--muted)]">{completion}%</span>
+        <Progress value={completion} className="h-1.5 flex-1" indicatorStyle={{ background: barColor }} />
+        <span className="text-[11px] font-semibold text-muted">{completion}%</span>
       </div>
 
       {/* Footer: open-tasks count + action icons */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-[var(--muted)]">
+        <span className="text-[11px] text-muted">
           {openTasks} open task{openTasks === 1 ? '' : 's'}
         </span>
-        <div className="flex items-center gap-2 text-[var(--muted2)]">
-          <Icon name="chat_bubble_outline" size={15} title="Comments" />
-          <Icon name="attach_file" size={15} title="Attachments" />
-          <Icon name="edit" size={15} title="Edit" />
-          <Icon name="delete" size={15} title="Delete" />
+        <div className="flex items-center gap-2 text-muted2">
+          <button
+            type="button"
+            onClick={() => toast(attCount > 0 ? `${attCount} attachment(s) — viewer coming soon.` : 'Attachments require Google Drive credentials (coming soon).', 'info')}
+            className="flex items-center gap-1 rounded-[6px] p-1 hover:bg-bg hover:text-p"
+            title="Attachments"
+          >
+            <Icon name="attach_file" size={15} />
+            {attCount > 0 && <span className="text-[10px] font-semibold">{attCount}</span>}
+          </button>
+          {(canEdit || canDelete) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="rounded-[6px] p-1 hover:bg-bg hover:text-p" title="More actions" aria-label="More actions">
+                  <Icon name="more_vert" size={16} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {canEdit && (
+                  <DropdownMenuItem onSelect={onEdit}>
+                    <Icon name="edit" size={14} /> Edit
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <DropdownMenuItem destructive onSelect={remove}>
+                    <Icon name="delete" size={14} /> Delete
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

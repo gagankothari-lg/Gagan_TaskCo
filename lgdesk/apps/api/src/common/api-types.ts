@@ -14,6 +14,7 @@ export interface Task {
   taskId: string;
   projId?: string;
   functionId?: string;
+  subFnId?: string;
   title: string;
   description?: string;
   assigneeIds: string[];

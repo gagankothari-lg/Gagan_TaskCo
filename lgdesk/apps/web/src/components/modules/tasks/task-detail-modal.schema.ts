@@ -14,6 +14,8 @@ import { TASK_PRIORITIES, TASK_STATUSES, optionalNonNegativeNumberString } from 
 export const editTaskSchema = z.object({
   title: z.string().trim().min(1, 'Title is required.'),
   description: z.string().optional(),
+  functionId: z.string().optional(),
+  subFnId: z.string().optional(),
   status: z.enum(TASK_STATUSES),
   priority: z.enum(TASK_PRIORITIES),
   dueDate: z.string().optional(),

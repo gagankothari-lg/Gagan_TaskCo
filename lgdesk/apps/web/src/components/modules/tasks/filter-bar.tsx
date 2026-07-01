@@ -3,12 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../../ui/icon';
+import { TASK_STATUSES, TASK_PRIORITIES as PRIORITIES } from './create-task-modal.schema';
 import type { Task, User, Project, WorkFunction } from '../../../lib/types';
 
 const LG_NAVY = '#2D3E51';
 const LG_CRIMSON = '#E64D3D';
-const TASK_STATUSES = ['Backlog', 'Not Started', 'WIP - 25%', 'WIP - 50%', 'WIP - 75%', 'Done', 'Cancelled', 'Under Review'];
-const PRIORITIES = ['Critical', 'High', 'Medium', 'Low'];
 
 export interface Opt { value: string; label: string }
 
@@ -87,17 +86,18 @@ export function MultiSelect({ placeholder, options, selected, onChange, width = 
 
 // ─── Filter state + apply (cross-field AND, within-field OR) ────────────────
 export interface ColFilter {
-  functions: string[]; projects: string[]; assignee: string[]; assigner: string[];
+  functions: string[]; subFunctions: string[]; projects: string[]; assignee: string[]; assigner: string[];
   status: string[]; priority: string[]; recurring: 'all' | 'yes' | 'no';
   adateFrom: string; adateTo: string; due: string;
 }
 export const DEFAULT_COL_FILTER: ColFilter = {
-  functions: [], projects: [], assignee: [], assigner: [], status: [], priority: [], recurring: 'all', adateFrom: '', adateTo: '', due: '',
+  functions: [], subFunctions: [], projects: [], assignee: [], assigner: [], status: [], priority: [], recurring: 'all', adateFrom: '', adateTo: '', due: '',
 };
 
 export function applyColFilters(tasks: Task[], f: ColFilter): Task[] {
   return tasks.filter((t) => {
     if (f.functions.length && !(t.functionId && f.functions.includes(t.functionId))) return false;
+    if (f.subFunctions.length && !(t.subFnId && f.subFunctions.includes(t.subFnId))) return false;
     if (f.projects.length && !(t.projId && f.projects.includes(t.projId))) return false;
     if (f.assignee.length && !t.assigneeIds.some((a) => f.assignee.includes(a))) return false;
     if (f.assigner.length && !f.assigner.includes(t.assignerId)) return false;
@@ -119,26 +119,71 @@ export function FilterBar({ value, onChange, employees, projects, functions }: {
   const set = (patch: Partial<ColFilter>) => onChange({ ...value, ...patch });
 
   const empName = (e: User) => `${e.firstName} ${e.lastName}`;
-  const empOpts = useMemo<Opt[]>(() => employees.map((e) => ({ value: e.empId, label: empName(e) })), [employees]);
+  // Assignee/Assigner options are the full employee list, A→Z, with no cascade
+  // (Part 37: unlike Function/Sub-Function, these never narrow by Project/Function).
+  const empOpts = useMemo<Opt[]>(
+    () => employees.map((e) => ({ value: e.empId, label: empName(e) })).sort((a, b) => a.label.localeCompare(b.label)),
+    [employees],
+  );
   // Cascade: Functions narrowed to selected Projects.
   const fnOpts = useMemo<Opt[]>(
-    () => functions.filter((fn) => !value.projects.length || (fn.projId && value.projects.includes(fn.projId))).map((fn) => ({ value: fn.functionId, label: fn.name })),
+    () =>
+      functions
+        .filter((fn) => !fn.parentFnId)
+        .filter((fn) => !value.projects.length || (fn.projId && value.projects.includes(fn.projId)))
+        .map((fn) => ({ value: fn.functionId, label: fn.name })),
     [functions, value.projects],
+  );
+  // Cascade: Sub-Functions narrowed to selected Functions (and, failing that, Projects).
+  const subFnOpts = useMemo<Opt[]>(
+    () =>
+      functions
+        .filter((fn) => !!fn.parentFnId)
+        .filter((fn) => (value.functions.length ? fn.parentFnId && value.functions.includes(fn.parentFnId) : true))
+        .filter((fn) => !value.projects.length || (fn.projId && value.projects.includes(fn.projId)))
+        .map((fn) => ({ value: fn.functionId, label: fn.name })),
+    [functions, value.functions, value.projects],
   );
   const projOpts = useMemo<Opt[]>(() => projects.map((p) => ({ value: p.projId, label: p.name })), [projects]);
   const statusOpts = TASK_STATUSES.map((s) => ({ value: s, label: s }));
   const prioOpts = PRIORITIES.map((p) => ({ value: p, label: p }));
 
+  // Selecting a broader filter (Project, then Function) prunes any narrower selection
+  // that's fallen out of scope, instead of silently leaving an invisible/stale filter
+  // active (Part 37: "previously-selected out-of-scope functions are pruned").
+  const setProjects = (v: string[]) => {
+    const nextProjects = v;
+    const nextFunctions = value.functions.filter((id) => {
+      const fn = functions.find((f) => f.functionId === id);
+      return !nextProjects.length || (fn?.projId && nextProjects.includes(fn.projId));
+    });
+    const nextSubFunctions = value.subFunctions.filter((id) => {
+      const fn = functions.find((f) => f.functionId === id);
+      const parentOk = nextFunctions.length ? fn?.parentFnId && nextFunctions.includes(fn.parentFnId) : true;
+      const projOk = !nextProjects.length || (fn?.projId && nextProjects.includes(fn.projId));
+      return parentOk && projOk;
+    });
+    onChange({ ...value, projects: nextProjects, functions: nextFunctions, subFunctions: nextSubFunctions });
+  };
+  const setFunctions = (v: string[]) => {
+    const nextSubFunctions = value.subFunctions.filter((id) => {
+      const fn = functions.find((f) => f.functionId === id);
+      return !v.length || (fn?.parentFnId && v.includes(fn.parentFnId));
+    });
+    onChange({ ...value, functions: v, subFunctions: nextSubFunctions });
+  };
+
   const dateInp = 'fc';
-  const isFiltering = value.functions.length || value.projects.length || value.assignee.length || value.assigner.length || value.status.length || value.priority.length || value.recurring !== 'all' || value.adateFrom || value.adateTo || value.due;
+  const isFiltering = value.functions.length || value.subFunctions.length || value.projects.length || value.assignee.length || value.assigner.length || value.status.length || value.priority.length || value.recurring !== 'all' || value.adateFrom || value.adateTo || value.due;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
       {/* Secondary row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>Filter:</span>
-        <MultiSelect placeholder="All Functions" options={fnOpts} selected={value.functions} onChange={(v) => set({ functions: v })} width={200} />
-        <MultiSelect placeholder="All Projects" options={projOpts} selected={value.projects} onChange={(v) => set({ projects: v })} width={200} />
+        <MultiSelect placeholder="All Projects" options={projOpts} selected={value.projects} onChange={setProjects} width={200} />
+        <MultiSelect placeholder="All Functions" options={fnOpts} selected={value.functions} onChange={setFunctions} width={200} />
+        <MultiSelect placeholder="All Sub-Functions" options={subFnOpts} selected={value.subFunctions} onChange={(v) => set({ subFunctions: v })} width={200} />
       </div>
       {/* Aligned column row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

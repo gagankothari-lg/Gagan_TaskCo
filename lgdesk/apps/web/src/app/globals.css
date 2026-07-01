@@ -223,6 +223,11 @@ body {
 .empty-state .ei { font-size: 40px; color: var(--muted); opacity: 0.5; display: block; margin-bottom: 12px; }
 .empty-state p { font-size: 14px; }
 
+/* ── TASK TABLE ROW STATE ────────────────────────────── */
+/* Part 37 "My Tasks" checklist: closed tasks (Done/Cancelled) render dimmed. */
+.tsk-row-closed { opacity: 0.62; }
+.tsk-row-closed:hover { opacity: 0.85; }
+
 /* ── TABLES ──────────────────────────────────────────── */
 .tbl-wrap { overflow-x: auto; border-radius: var(--r); box-shadow: var(--sh); background: var(--surface); }
 table { width: 100%; border-collapse: collapse; }

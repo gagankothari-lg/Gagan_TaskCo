@@ -3,15 +3,18 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { useUpdateTask, useDeleteTask } from '../../../lib/api/tasks';
-import { isManager } from '../../../lib/auth';
-import { Icon } from '../../ui/icon';
+import { canDeleteTask, canEditTask } from '../../../lib/rbac';
 import { toast } from '../../../lib/toast';
+import { Icon } from '../../ui/icon';
+import { Badge } from '../../ui/badge';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../ui/dropdown-menu';
 import { avatarColor, initials, statusDotColor as dotColor, fmtDate } from '../../../lib/utils';
-import { statusDot, priorityDisplay } from '../../../lib/status-styles';
+import { statusDot, priorityDisplay, statusPillStyle } from '../../../lib/status-styles';
+import { TASK_STATUSES } from './create-task-modal.schema';
 import type { Task, User } from '../../../lib/types';
 
 const CLOSED = ['Done', 'Cancelled'];
-export const TASK_STATUSES = ['Backlog', 'Not Started', 'WIP - 25%', 'WIP - 50%', 'WIP - 75%', 'Done', 'Cancelled', 'Under Review'];
+export { TASK_STATUSES };
 
 export function isTaskOverdue(task: Pick<Task, 'dueDate' | 'status'>): boolean {
   if (!task.dueDate || CLOSED.includes(task.status)) return false;
@@ -63,11 +66,12 @@ function AvatarStack({ ids }: { ids: string[] }) {
 }
 
 /** Function-mode table row (10 columns) with double-click inline status edit. */
-export function TaskRow({ task, onOpen }: { task: Task; onOpen: (id: string) => void }) {
+export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: string) => void; onEdit: (id: string) => void }) {
   const { currentUser, employees, functions } = useAuth();
   const update = useUpdateTask();
   const del = useDeleteTask();
-  const manager = currentUser ? isManager(currentUser.role) : false;
+  const canEdit = canEditTask(currentUser, task);
+  const canDelete = canDeleteTask(currentUser, task);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,7 +79,7 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen: (id: string) => 
 
   const overdue = isTaskOverdue(task);
   const closed = CLOSED.includes(task.status);
-  const fnName = functions.find((f) => f.functionId === task.functionId)?.name;
+  const subFnName = functions.find((f) => f.functionId === task.subFnId)?.name;
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   async function saveStatus(newStatus: string) {
@@ -93,13 +97,26 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen: (id: string) => 
     }
   }
 
+  async function remove() {
+    if (confirm(`Delete ${task.taskId}?`)) {
+      try {
+        await del.mutateAsync(task.taskId);
+        toast('Task deleted', 'success');
+      } catch {
+        toast('Could not delete task', 'error');
+      }
+    }
+  }
+
+  const sp = statusPillStyle(task.status);
+
   return (
-    <tr onClick={() => onOpen(task.taskId)} style={{ cursor: 'pointer', opacity: closed ? 0.6 : 1 }}>
+    <tr onClick={() => onOpen(task.taskId)} className={closed ? 'tsk-row-closed' : undefined} style={{ cursor: 'pointer' }}>
       <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{fmtDate(task.createdAt, { month: 'short', day: 'numeric' })}</td>
-      <td>{fnName ? <span>{fnName}</span> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
+      <td>{subFnName ? <span>{subFnName} <span style={{ color: 'var(--muted2)', fontFamily: 'monospace', fontSize: 10 }}>{task.subFnId}</span></span> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
       <td>
         <div style={{ fontWeight: 600, color: closed ? 'var(--muted)' : 'var(--text)', textDecoration: closed ? 'line-through' : 'none' }}>{task.title}</div>
-        <div style={{ fontSize: 11, color: 'var(--muted2)', fontFamily: 'monospace' }}>{task.taskId}{task.links?.length ? ` · +${task.links.length} link` : ''}</div>
+        <div style={{ fontSize: 11, color: 'var(--muted2)', fontFamily: 'monospace' }}>{task.taskId}{task.links?.length ? ` · +${task.links.split('\n').filter(Boolean).length} link` : ''}</div>
       </td>
       <td>{task.assigneeIds.length ? <AvatarStack ids={task.assigneeIds} /> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
       <td style={{ whiteSpace: 'nowrap' }}>
@@ -115,7 +132,7 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen: (id: string) => 
         {editing ? (
           <select
             autoFocus className="wl-inp" defaultValue={task.status} disabled={saving}
-            style={{ border: '1.5px solid var(--lg-navy, #2D3E51)' }}
+            style={{ border: '1.5px solid var(--p)' }}
             onChange={(e) => saveStatus(e.target.value)}
             onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Escape') setEditing(false); }}
             onBlur={() => setTimeout(() => { if (!committed.current) setEditing(false); committed.current = false; }, 200)}
@@ -123,10 +140,9 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen: (id: string) => 
             {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         ) : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusDot(task.status, overdue) }} />
-            <span style={{ fontSize: 12 }}>{task.status}</span>
-          </span>
+          <Badge style={{ background: sp.bg, color: sp.color, borderColor: 'transparent' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusDot(task.status, overdue) }} /> {task.status}
+          </Badge>
         )}
       </td>
 
@@ -139,12 +155,26 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen: (id: string) => 
         ) : <span style={{ color: 'var(--muted2)' }}>—</span>}
       </td>
       <td onClick={stop} style={{ whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 2 }}>
           <button className="wl-save-btn" title="Open" onClick={() => onOpen(task.taskId)}><Icon name="open_in_new" size={16} /></button>
-          {manager && (
-            <button className="wl-save-btn" title="Delete" onClick={() => { if (confirm(`Delete ${task.taskId}?`)) del.mutate(task.taskId); }}>
-              <Icon name="delete" size={16} style={{ color: 'var(--danger)' }} />
-            </button>
+          {(canEdit || canDelete) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="wl-save-btn" title="More actions" aria-label="More actions"><Icon name="more_vert" size={16} /></button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {canEdit && (
+                  <DropdownMenuItem onSelect={() => onEdit(task.taskId)}>
+                    <Icon name="edit" size={14} /> Edit
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <DropdownMenuItem destructive onSelect={remove}>
+                    <Icon name="delete" size={14} /> Delete
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </td>

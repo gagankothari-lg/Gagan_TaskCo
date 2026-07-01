@@ -6,11 +6,13 @@ import { useTasks, type TaskScope } from '../../../lib/api/tasks';
 import { isManager } from '../../../lib/auth';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Icon } from '../../ui/icon';
-import { pillClass, badgeClass, fmtDate } from '../../../lib/utils';
+import { Badge } from '../../ui/badge';
+import { pillClass, badgeClass, fmtDate, isClosedTaskStatus } from '../../../lib/utils';
 import { TaskRow, isTaskOverdue } from './task-row';
 import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
 import { CreateTaskModal } from './create-task-modal';
 import { TaskDetailModal } from './task-detail-modal';
+import { TaskEditModal } from './task-edit-modal';
 import type { Task } from '../../../lib/types';
 
 type OwnershipTab = 'To Me' | 'By Me' | 'All';
@@ -37,8 +39,15 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   const [team, setTeam] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [rawQuery, setRawQuery] = useState('');
   const [query, setQuery] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  // Lazy render (Part 13 FR-5 / Phase 6): first 80 rows render immediately; scrolling
+  // within 300px of #main's bottom appends 80 more. Resets to 80 whenever the active
+  // filter set changes, and the listener detaches once every row is rendered.
+  const PAGE_SIZE = 80;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const grpKey = `lgd_grp_${scope === 'mine' ? 'my' : scope}`;
   const [grp, setGrp] = useState<GroupMode>('function');
@@ -67,6 +76,26 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     if (query) list = list.filter((t) => `${t.title} ${t.description ?? ''} ${t.taskId}`.toLowerCase().includes(query));
     return list;
   }, [tasks, showOwnershipTabs, tab, team, showTeamSelector, currentUser, filter, query]);
+
+  // A change to any filter/tab/search/group re-pages from the top (Part 37:
+  // "navigate away and back -> fresh first-page render", extended to cover any
+  // re-filter within the same mount too, so a narrower result set never leaves stale
+  // rows 81+ rendered from a previous, larger result set).
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [tab, team, filter, query, grp]);
+
+  // Scroll listener on the dashboard shell's #main container — appends 80 more rows
+  // when within 300px of the bottom; detaches once every row is already rendered.
+  useEffect(() => {
+    if (grp !== 'function' || visibleCount >= filtered.length) return;
+    const onScroll = () => {
+      const main = document.getElementById('main');
+      if (!main) return;
+      const rect = main.getBoundingClientRect();
+      if (rect.bottom - window.innerHeight < 300) setVisibleCount((v) => Math.min(v + PAGE_SIZE, filtered.length));
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [grp, visibleCount, filtered.length]);
 
   // Date/Week buckets (open tasks only).
   const buckets = useMemo(() => {
@@ -105,8 +134,30 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   const functionGroups = useMemo(() => {
     const m = new Map<string, Task[]>();
     for (const t of filtered) { const k = t.functionId ?? '__none'; (m.get(k) ?? m.set(k, []).get(k)!).push(t); }
-    return Array.from(m.entries());
-  }, [filtered]);
+    const entries = Array.from(m.entries());
+    entries.sort((a, b) => {
+      const an = fnName(a[0] === '__none' ? undefined : a[0]);
+      const bn = fnName(b[0] === '__none' ? undefined : b[0]);
+      return sortDir === 'asc' ? an.localeCompare(bn) : bn.localeCompare(an);
+    });
+    return entries;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, sortDir]);
+
+  // Lazy-render page: take the first `visibleCount` task rows in the already-sorted
+  // group order, re-deriving the same [functionId, rows][] shape so partially-consumed
+  // groups still render with a correct header + count.
+  const pagedFunctionGroups = useMemo(() => {
+    let remaining = visibleCount;
+    const out: [string, Task[]][] = [];
+    for (const [fid, list] of functionGroups) {
+      if (remaining <= 0) break;
+      const slice = list.slice(0, remaining);
+      if (slice.length) out.push([fid, slice]);
+      remaining -= slice.length;
+    }
+    return out;
+  }, [functionGroups, visibleCount]);
 
   const TaskCard = ({ t }: { t: Task }) => {
     const overdue = isTaskOverdue(t);
@@ -137,11 +188,16 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     );
   };
 
+  const openCount = (tasks ?? []).filter((t) => !isClosedTaskStatus(t.status)).length;
+
   return (
     <div>
       <div className="ph">
         <div className="ph-left">
-          <div className="ph-title">{title}</div>
+          <div className="ph-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {title}
+            {openCount > 0 && <Badge variant="secondary">{openCount} open</Badge>}
+          </div>
           {subtitle && <div className="ph-sub">{subtitle}</div>}
         </div>
         <div className="ph-actions">
@@ -149,6 +205,13 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
             <Icon name="search" size={16} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
             <input className="fc" placeholder="Search tasks…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)} style={{ paddingLeft: 30, width: 200 }} />
           </div>
+          <button
+            className="btn btn-ghost btn-sm"
+            title={sortDir === 'asc' ? 'Sorted A→Z — click for Z→A' : 'Sorted Z→A — click for A→Z'}
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+          >
+            A-Z <Icon name={sortDir === 'asc' ? 'chevron_down' : 'chevron_up'} size={13} />
+          </button>
           <div className="tl-tabs">
             <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center', marginRight: 4 }}>Group by:</span>
             {(['function', 'date', 'week'] as GroupMode[]).map((m) => (
@@ -186,8 +249,8 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
           <table>
             <thead><tr>{COLS.map((c, i) => <th key={i}>{c}</th>)}</tr></thead>
             <tbody>
-              {functionGroups.map(([fid, list]) => (
-                <FunctionGroup key={fid} name={fnName(fid === '__none' ? undefined : fid)} list={list} onOpen={setDetailId} />
+              {pagedFunctionGroups.map(([fid, list]) => (
+                <FunctionGroup key={fid} name={fnName(fid === '__none' ? undefined : fid)} list={list} onOpen={setDetailId} onEdit={setEditId} />
               ))}
             </tbody>
           </table>
@@ -212,11 +275,12 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
 
       <CreateTaskModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <TaskDetailModal taskId={detailId} onClose={() => setDetailId(null)} />
+      <TaskEditModal taskId={editId} onClose={() => setEditId(null)} />
     </div>
   );
 }
 
-function FunctionGroup({ name, list, onOpen }: { name: string; list: Task[]; onOpen: (id: string) => void }) {
+function FunctionGroup({ name, list, onOpen, onEdit }: { name: string; list: Task[]; onOpen: (id: string) => void; onEdit: (id: string) => void }) {
   return (
     <>
       <tr>
@@ -228,7 +292,7 @@ function FunctionGroup({ name, list, onOpen }: { name: string; list: Task[]; onO
           </div>
         </td>
       </tr>
-      {list.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} />)}
+      {list.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} onEdit={onEdit} />)}
     </>
   );
 }
