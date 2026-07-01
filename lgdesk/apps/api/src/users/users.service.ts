@@ -337,13 +337,30 @@ export class UsersService {
     const target = await this.prisma.user.findUnique({ where: { empId: targetEmpId } });
     if (!target) throw new NotFoundException('Employee not found');
 
-    // Reaching here means the guard already confirmed caller is Admin/Super Admin.
-    // Hierarchy: an Admin may neither grant Super Admin nor modify an existing one.
-    if (caller.role === 'Admin' && target.role === 'Super Admin') {
-      throw new ForbiddenException('Cannot modify a Super Admin');
-    }
-    if (caller.role === 'Admin' && newRole === 'Super Admin') {
-      throw new ForbiddenException('Cannot assign Super Admin role');
+    if (isAdmin(caller.role)) {
+      // Hierarchy: an Admin may neither grant Super Admin nor modify an existing one.
+      if (caller.role === 'Admin' && target.role === 'Super Admin') {
+        throw new ForbiddenException('Cannot modify a Super Admin');
+      }
+      if (caller.role === 'Admin' && newRole === 'Super Admin') {
+        throw new ForbiddenException('Cannot assign Super Admin role');
+      }
+    } else if (caller.role === 'Team Captain') {
+      // RBAC matrix Row 19 (_allowedNewRoles): a Team Captain may change roles for
+      // own-team Team Members / Interns ONLY — never a TC/TF/Admin/Super Admin
+      // target — and may not promote them into an admin role.
+      if (target.role !== 'Team Member' && target.role !== 'Intern') {
+        throw new ForbiddenException("You are not authorised to change this employee's role.");
+      }
+      if (!caller.team || target.team !== caller.team) {
+        throw new ForbiddenException('You can only change roles of members in your own team.');
+      }
+      if (isAdmin(newRole)) {
+        throw new ForbiddenException('You are not authorised to assign that role.');
+      }
+    } else {
+      // Team Facilitator (no branch, by design) and everyone else: no capability.
+      throw new ForbiddenException();
     }
 
     const oldRole = target.role;

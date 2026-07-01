@@ -87,7 +87,10 @@ export class UsersController {
     return this.users.rejectProfileUpdate(reqId, user.empId, dto.notes);
   }
 
-  @Roles(...ADMIN_ROLES)
+  // RBAC matrix Row 19: Admin/SA plus Team Captain (own-team TM/Intern only) — the
+  // scope check lives in UsersService.changeRole. Team Facilitator is intentionally
+  // excluded here (no TF branch) and cannot change any role.
+  @Roles('Super Admin', 'Admin', 'Team Captain')
   @Patch(':empId/role')
   changeRole(
     @Param('empId') empId: string,

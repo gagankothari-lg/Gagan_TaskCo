@@ -154,8 +154,8 @@ export class ProjectsService {
 
   async deleteProject(projId: string, callerEmpId: string): Promise<{ ok: true }> {
     const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role)) throw new ForbiddenException();
     const project = await this.requireProject(projId);
+    if (!this.canDelete(project, caller)) throw new ForbiddenException();
     if (project.calEventId) void this.calendar.deleteGCalEvent(project.calEventId).catch(() => undefined);
     await this.prisma.project.delete({ where: { projId } });
     await this.audit(callerEmpId, 'DELETE', projId);
@@ -201,6 +201,18 @@ export class ProjectsService {
   private canModify(p: ProjectRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
     if (parseIds(p.ownerIds).includes(caller.empId)) return true;
+    if (isManager(caller.role) && caller.team && parseIds(p.assignedTeams).includes(caller.team)) return true;
+    // RBAC matrix Row 5: a TM may update a project they are assigned to (own
+    // assignee), and TC/TF may update one they own OR are assigned to. Interns (✗)
+    // never qualify, even when listed as an assignee.
+    if (caller.role !== 'Intern' && parseIds(p.assigneeIds).includes(caller.empId)) return true;
+    return false;
+  }
+
+  // RBAC matrix Row 6: Admin/SA always; TC/TF within their own team (flat
+  // Team-string match against assignedTeams). TM/Intern can never delete.
+  private canDelete(p: ProjectRow, caller: Caller): boolean {
+    if (isAdmin(caller.role)) return true;
     if (isManager(caller.role) && caller.team && parseIds(p.assignedTeams).includes(caller.team)) return true;
     return false;
   }

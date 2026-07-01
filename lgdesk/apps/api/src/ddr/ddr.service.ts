@@ -65,6 +65,10 @@ export class DdrService {
     const ddr = await this.prisma.dueDateRequest.findUnique({ where: { ddrId } });
     if (!ddr) throw new NotFoundException('Request not found');
     if (ddr.status !== 'Pending') throw new BadRequestException('Request already processed');
+    // RBAC matrix Row 24: Interns may NEVER approve a due-date change, even for an
+    // entity they assigned (which would otherwise satisfy assertCanReview).
+    const caller = await this.getCaller(callerEmpId);
+    if (caller.role === 'Intern') throw new ForbiddenException();
     await this.assertCanReview(ddr.entityType as EntityType, ddr.entityId, callerEmpId);
 
     await this.applyDueDate(ddr.entityType as EntityType, ddr.entityId, ddr.newDueDate);

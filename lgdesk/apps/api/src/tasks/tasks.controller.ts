@@ -74,7 +74,9 @@ export class TasksController {
     return this.tasks.updateTask(id, dto, user.empId);
   }
 
-  @Roles(...ADMIN_ROLES)
+  // No route-level role gate: RBAC matrix Row 3 allows TC/TF (own team) and the
+  // creating Team Member, so the precise check lives in TasksService.canDeleteTask
+  // (same pattern as the @Patch update route).
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: AuthedUser) {
     return this.tasks.deleteTask(id, user.empId);

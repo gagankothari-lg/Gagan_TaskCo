@@ -56,7 +56,9 @@ export class ProjectsController {
     return this.projects.updateProject(id, dto, user.empId);
   }
 
-  @Roles(...ADMIN_ROLES)
+  // RBAC matrix Row 6: managers (TC/TF) may delete within their own team; the
+  // team-scope check lives in ProjectsService.canDelete. TM/Intern stay blocked.
+  @Roles(...MANAGER_ROLES)
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: AuthedUser) {
     return this.projects.deleteProject(id, user.empId);

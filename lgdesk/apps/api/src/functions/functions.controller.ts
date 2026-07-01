@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ADMIN_ROLES } from '../common/constants';
+import { MANAGER_ROLES } from '../common/constants';
 import { CreateFunctionDto } from './dto/create-function.dto';
 import { UpdateFunctionDto } from './dto/update-function.dto';
 
@@ -38,7 +38,9 @@ export class FunctionsController {
     return this.functions.updateFunction(id, dto, user.empId);
   }
 
-  @Roles(...ADMIN_ROLES)
+  // RBAC matrix Row 9: managers (TC/TF) may delete within their own team; the
+  // team-scope check lives in FunctionsService.canDelete. TM/Intern stay blocked.
+  @Roles(...MANAGER_ROLES)
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: AuthedUser) {
     return this.functions.deleteFunction(id, user.empId);

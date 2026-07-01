@@ -139,6 +139,9 @@ export class TasksService {
   async updateTask(taskId: string, dto: UpdateTaskDto, callerEmpId: string): Promise<Task> {
     const task = await this.requireTask(taskId);
     const caller = await this.getCaller(callerEmpId);
+    // RBAC matrix Row 2: Interns may NOT update tasks at all, even ones they are
+    // assigned to or assigned themselves.
+    if (caller.role === 'Intern') throw new ForbiddenException();
     if (!(await this.canModifyTask(task, caller))) throw new ForbiddenException();
 
     const data: {
@@ -195,8 +198,8 @@ export class TasksService {
 
   async deleteTask(taskId: string, callerEmpId: string): Promise<{ ok: true }> {
     const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role)) throw new ForbiddenException(); // admin-only (route also guarded)
     const task = await this.requireTask(taskId);
+    if (!this.canDeleteTask(task, caller)) throw new ForbiddenException();
     if (task.calEventId) void this.calendar.deleteGCalEvent(task.calEventId).catch(() => undefined);
     await this.prisma.task.delete({ where: { taskId } }); // ProgressUpdates cascade via FK
     await this.audit(callerEmpId, 'DELETE', taskId);
@@ -248,6 +251,17 @@ export class TasksService {
       const subs = await this.users.getSubordinateIds(caller.empId);
       if (parseIds(task.assigneeIds).some((a) => subs.includes(a))) return true;
     }
+    return false;
+  }
+
+  // RBAC matrix Row 3: Admin/SA always; TC/TF within their own team (flat
+  // Team-string match against assignedTeams); the Team Member who created the
+  // task (assignerId is set to the creator at creation) — own-created only.
+  // Interns can never delete (they fall through to false).
+  canDeleteTask(task: TaskRow, caller: Caller): boolean {
+    if (isAdmin(caller.role)) return true;
+    if (isManager(caller.role) && caller.team && parseIds(task.assignedTeams).includes(caller.team)) return true;
+    if (caller.role === 'Team Member' && task.assignerId === caller.empId) return true;
     return false;
   }
 

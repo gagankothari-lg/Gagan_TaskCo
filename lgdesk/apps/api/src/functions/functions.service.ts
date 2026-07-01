@@ -140,8 +140,8 @@ export class FunctionsService {
 
   async deleteFunction(functionId: string, callerEmpId: string): Promise<{ ok: true }> {
     const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role)) throw new ForbiddenException();
-    await this.requireFn(functionId);
+    const fn = await this.requireFn(functionId);
+    if (!this.canDelete(fn, caller)) throw new ForbiddenException();
 
     const ids = await this.collectDescendants(functionId);
     // Unlink tasks (do NOT delete tasks), then delete the function subtree.
@@ -204,6 +204,14 @@ export class FunctionsService {
     if (isAdmin(caller.role)) return true;
     if (f.assignerId === caller.empId || f.createdById === caller.empId) return true;
     if (parseIds(f.assigneeIds).includes(caller.empId)) return true;
+    if (isManager(caller.role) && caller.team && parseIds(f.assignedTeams).includes(caller.team)) return true;
+    return false;
+  }
+
+  // RBAC matrix Row 9: Admin/SA always; TC/TF within their own team (flat
+  // Team-string match against assignedTeams). TM/Intern can never delete.
+  private canDelete(f: FnRow, caller: Caller): boolean {
+    if (isAdmin(caller.role)) return true;
     if (isManager(caller.role) && caller.team && parseIds(f.assignedTeams).includes(caller.team)) return true;
     return false;
   }
