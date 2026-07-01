@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '../../../components/ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { useCalendar } from '../../../hooks/use-leaves';
+import { useCalendar } from '../../../lib/api/calendar';
 import { HolidayModal } from '../../../components/modules/leaves/holiday-modal';
 import { Spinner } from '../../../components/ui/spinner';
 

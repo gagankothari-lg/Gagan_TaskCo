@@ -2,7 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
-import { useUpdateTask, useDeleteTask } from '../../../hooks/use-tasks';
+import { useUpdateTask, useDeleteTask } from '../../../lib/api/tasks';
 import { isManager } from '../../../lib/auth';
 import { Icon } from '../../ui/icon';
 import { toast } from '../../../lib/toast';

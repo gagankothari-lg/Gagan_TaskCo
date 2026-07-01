@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Icon } from '../../ui/icon';
-import { useMemberWorkLogs, useAdminSubmitWorkLog } from '../../../hooks/use-work-log';
+import { useMemberWorkLogs, useAdminSubmitWorkLog } from '../../../lib/api/workLog';
 import { WeekRow } from './week-row';
 import { Spinner } from '../../ui/spinner';
 import type { WorkLogInput, WorkLogEntry } from '../../../lib/types';

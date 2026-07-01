@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { isManager as isMgr } from '../../../lib/auth';
-import { useMyWorkLogs, useSubmitWorkLog } from '../../../hooks/use-work-log';
+import { useMyWorkLogs, useSubmitWorkLog } from '../../../lib/api/workLog';
 import { WorkRow } from '../../../components/modules/work-log/work-row';
 import { WeeklySummaryModal } from '../../../components/modules/weekly-summary/weekly-summary-modal';
 import { Icon } from '../../../components/ui/icon';

@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
-import { useCreateAnnouncement } from '../../../hooks/use-dashboard';
-import { apiErrorMessage } from '../../../lib/api';
+import { useCreateAnnouncement } from '../../../lib/api/dashboard';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 
 const field = 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm w-full focus:border-[var(--p)] focus:outline-none';

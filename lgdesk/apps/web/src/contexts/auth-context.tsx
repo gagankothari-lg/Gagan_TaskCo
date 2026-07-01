@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { api } from '../lib/api';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { login as loginRequest, logout as logoutRequest, fetchMe } from '../lib/api/auth';
 import { getToken, setToken as storeToken, removeToken } from '../lib/auth';
 import type {
   InitialPayload,
@@ -46,9 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchPayload = useCallback(async () => {
-    // Backend wraps responses as { ok:true, data: <InitialPayload> }.
-    const res = await api.get('/auth/me');
-    const data = res.data?.data as InitialPayload;
+    const data = await fetchMe();
     setPayload(data);
     return data;
   }, []);
@@ -72,8 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const res = await api.post('/auth/login', { email, password });
-      const { token: newToken } = res.data.data as { token: string };
+      const { token: newToken } = await loginRequest(email, password);
       storeToken(newToken);
       setTokenState(newToken);
       await fetchPayload();
@@ -83,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.post('/auth/logout');
+      await logoutRequest();
     } catch {
       // Best-effort — clear locally regardless of server outcome.
     }
@@ -115,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

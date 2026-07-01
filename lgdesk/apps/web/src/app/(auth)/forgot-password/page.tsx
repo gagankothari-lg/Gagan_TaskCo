@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
+import { requestPasswordReset, confirmPasswordReset } from '../../../lib/api/auth';
 import { Spinner } from '../../../components/ui/spinner';
 
 const inputClass =
@@ -26,7 +27,7 @@ export default function ForgotPasswordPage() {
     setError(null);
     setLoading(true);
     try {
-      await api.post('/auth/password-reset/request', { email });
+      await requestPasswordReset(email);
       // Always succeeds (no email-existence leak) → advance to step 2.
       setStep(2);
     } catch (err) {
@@ -49,7 +50,7 @@ export default function ForgotPasswordPage() {
     }
     setLoading(true);
     try {
-      await api.post('/auth/password-reset/confirm', { email, otp, newPassword });
+      await confirmPasswordReset({ email, otp, newPassword });
       router.push('/login?reset=success');
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to reset password'));

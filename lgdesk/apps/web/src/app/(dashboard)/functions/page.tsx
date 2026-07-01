@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { Icon } from '../../../components/ui/icon';
-import { useProjects } from '../../../hooks/use-projects';
-import { useFunctions } from '../../../hooks/use-functions';
+import { useProjects } from '../../../lib/api/projects';
+import { useFunctions } from '../../../lib/api/functions';
 import { FunctionTree } from '../../../components/modules/functions/function-tree';
 import { CreateFunctionModal } from '../../../components/modules/functions/create-function-modal';
 import { FunctionDetailModal } from '../../../components/modules/functions/function-detail-modal';

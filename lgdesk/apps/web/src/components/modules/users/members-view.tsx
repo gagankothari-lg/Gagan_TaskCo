@@ -2,9 +2,9 @@
 
 import { useMemo } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
-import { useDdrs, useApproveDdr, useRejectDdr } from '../../../hooks/use-tasks';
+import { useDdrs, useApproveDdr, useRejectDdr } from '../../../lib/api/dueDateRequests';
 import { isManager } from '../../../lib/auth';
-import { apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { avatarColor, initials, fmtDate, rolePillClass } from '../../../lib/utils';
 import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';

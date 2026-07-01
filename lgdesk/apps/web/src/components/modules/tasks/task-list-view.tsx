@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
-import { useTasks, type TaskScope } from '../../../hooks/use-tasks';
+import { useTasks, type TaskScope } from '../../../lib/api/tasks';
 import { isManager } from '../../../lib/auth';
-import { apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Icon } from '../../ui/icon';
 import { pillClass, badgeClass, fmtDate } from '../../../lib/utils';
 import { TaskRow, isTaskOverdue } from './task-row';

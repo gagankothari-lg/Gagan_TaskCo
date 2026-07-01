@@ -3,7 +3,8 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../hooks/use-auth';
-import { api, apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
+import { requestPasswordReset, confirmPasswordReset } from '../../../lib/api/auth';
 import { Icon } from '../../../components/ui/icon';
 import { RegistrationModal } from '../../../components/modules/users/registration-modal';
 import { rolePillClass, initials, avatarColor } from '../../../lib/utils';
@@ -79,7 +80,7 @@ export default function LoginPage() {
     if (!email.trim()) { setError('Enter your email.'); return; }
     setLoading(true);
     try {
-      await api.post('/auth/password-reset/request', { email: email.trim() });
+      await requestPasswordReset(email.trim());
       setStatus('If that email exists, a 6-digit code was sent. Enter it below.');
       setMode('forgot2');
     } catch (err) {
@@ -96,7 +97,7 @@ export default function LoginPage() {
     if (newPw !== confirmPw) { setError('Passwords do not match.'); return; }
     setLoading(true);
     try {
-      await api.post('/auth/password-reset/confirm', { email: email.trim(), otp: otp.trim(), newPassword: newPw });
+      await confirmPasswordReset({ email: email.trim(), otp: otp.trim(), newPassword: newPw });
       setMode('login');
       setPassword(''); setOtp(''); setNewPw(''); setConfirmPw('');
       setError(null);

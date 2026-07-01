@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Icon } from '../../ui/icon';
 import { Spinner } from '../../ui/spinner';
 import { useAuth } from '../../../hooks/use-auth';
-import { apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { avatarColor, initials } from '../../../lib/utils';
 import { statusPillStyle } from '../../../lib/status-styles';
 import { toast } from '../../../lib/toast';
@@ -14,7 +14,7 @@ import {
   usePreviewSheet,
   type ImportRow,
   type PreviewResult,
-} from '../../../hooks/use-import';
+} from '../../../lib/api/importTasks';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface ImportModalProps {

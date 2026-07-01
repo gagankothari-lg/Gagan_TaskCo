@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react';
 import { Icon } from '../../../../components/ui/icon';
 import { useAuth } from '../../../../hooks/use-auth';
 import { isAdmin, isManager } from '../../../../lib/auth';
-import { usePendingLeaves, useReviewLeave } from '../../../../hooks/use-leaves';
+import { usePendingLeaves, useReviewLeave } from '../../../../lib/api/leaves';
 import { HolidayModal } from '../../../../components/modules/leaves/holiday-modal';
-import { apiErrorMessage } from '../../../../lib/api';
+import { apiErrorMessage } from '../../../../lib/api/client';
 import { Spinner } from '../../../../components/ui/spinner';
 import { pillClass } from '../../../../lib/utils';
 

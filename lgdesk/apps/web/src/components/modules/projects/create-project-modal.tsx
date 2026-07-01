@@ -3,8 +3,8 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { useCreateProject, useProjects } from '../../../hooks/use-projects';
-import { apiErrorMessage } from '../../../lib/api';
+import { useCreateProject, useProjects } from '../../../lib/api/projects';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { EmployeeMultiSelect, fieldClass, TASK_PRIORITIES } from '../tasks/create-task-modal';
 

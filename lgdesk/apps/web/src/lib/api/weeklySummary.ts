@@ -1,9 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
-
-const data = <T>(res: { data: { data: T } }): T => res.data.data;
+import { apiFetch } from './client';
 
 export interface WeeklySummaryData {
   found: boolean;
@@ -17,7 +15,7 @@ export interface WeeklySummaryData {
 export function useWeeklySummary(weekStart: string, enabled: boolean) {
   return useQuery({
     queryKey: ['weekly-summary', weekStart],
-    queryFn: async () => data<WeeklySummaryData>(await api.get('/weekly-summary', { params: { weekStart } })),
+    queryFn: () => apiFetch<WeeklySummaryData>('/weekly-summary', { params: { weekStart } }),
     enabled: enabled && !!weekStart,
     staleTime: 30_000,
   });
@@ -26,7 +24,8 @@ export function useWeeklySummary(weekStart: string, enabled: boolean) {
 export function useSaveWeeklySummary() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ weekStart, bullets }: { weekStart: string; bullets: string[] }) => api.post('/weekly-summary', { weekStart, bullets }),
+    mutationFn: ({ weekStart, bullets }: { weekStart: string; bullets: string[] }) =>
+      apiFetch<WeeklySummaryData>('/weekly-summary', { method: 'POST', body: { weekStart, bullets } }),
     onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['weekly-summary', v.weekStart] }),
   });
 }
@@ -34,7 +33,7 @@ export function useSaveWeeklySummary() {
 export function useGenerateWeeklySummary() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (weekStart: string) => api.post('/weekly-summary/generate', { weekStart }),
+    mutationFn: (weekStart: string) => apiFetch<WeeklySummaryData>('/weekly-summary/generate', { method: 'POST', body: { weekStart } }),
     onSuccess: (_d, weekStart) => qc.invalidateQueries({ queryKey: ['weekly-summary', weekStart] }),
   });
 }

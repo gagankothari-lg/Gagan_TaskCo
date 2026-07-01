@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Icon } from '../../../../components/ui/icon';
-import { usePlanWeek } from '../../../../hooks/use-tasks';
+import { usePlanWeek } from '../../../../lib/api/tasks';
 import { TaskDetailModal } from '../../../../components/modules/tasks/task-detail-modal';
 import { statusDotColor, isTaskOverdue } from '../../../../components/modules/tasks/task-row';
 import { Spinner } from '../../../../components/ui/spinner';

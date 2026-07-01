@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
-import { useCreateDdr } from '../../../hooks/use-tasks';
-import { apiErrorMessage } from '../../../lib/api';
+import { useCreateDdr } from '../../../lib/api/dueDateRequests';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 
 interface DdrModalProps {

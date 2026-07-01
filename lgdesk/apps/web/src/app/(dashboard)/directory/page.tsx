@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
-import { useTeamDirectory, useCompanyDirectory, type DirectoryUser } from '../../../hooks/use-directory';
+import { useTeamDirectory, useCompanyDirectory, type DirectoryUser } from '../../../lib/api/directory';
 import { Icon } from '../../../components/ui/icon';
 import { avatarColor, initials, rolePillClass } from '../../../lib/utils';
 

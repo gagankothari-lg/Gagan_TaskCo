@@ -3,8 +3,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { useSubmitProfileUpdate, useChangePassword, useMe } from '../../../hooks/use-users';
-import { apiErrorMessage } from '../../../lib/api';
+import { useSubmitProfileUpdate, useMe } from '../../../lib/api/teamMembers';
+import { useChangePassword } from '../../../lib/api/auth';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { RoleBadge } from '../../ui/role-badge';
 import { Spinner } from '../../ui/spinner';
 import type { ProfileUpdateInput } from '../../../lib/types';

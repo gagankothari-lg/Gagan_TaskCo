@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useTeamClockStatus, hmsFromMs, hmsFromMin } from '../../../hooks/use-work-duration';
+import { useTeamClockStatus, hmsFromMs, hmsFromMin } from '../../../lib/api/workDuration';
 import { Spinner } from '../../ui/spinner';
 import { avatarColor } from '../../../lib/avatar-colors';
 import { initials as initialsOf } from '../../../lib/utils';

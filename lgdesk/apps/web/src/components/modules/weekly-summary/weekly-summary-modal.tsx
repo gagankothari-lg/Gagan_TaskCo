@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../ui/icon';
 import { toast } from '../../../lib/toast';
-import { apiErrorMessage } from '../../../lib/api';
-import { useWeeklySummary, useSaveWeeklySummary, useGenerateWeeklySummary } from '../../../hooks/use-weekly-summary';
+import { apiErrorMessage } from '../../../lib/api/client';
+import { useWeeklySummary, useSaveWeeklySummary, useGenerateWeeklySummary } from '../../../lib/api/weeklySummary';
 import { Spinner } from '../../ui/spinner';
 
 // GAS Option-C inline-edit summary. Bullets persist via the weekly-summary API

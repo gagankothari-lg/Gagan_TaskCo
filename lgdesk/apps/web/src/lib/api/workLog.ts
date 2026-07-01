@@ -1,10 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
-import type { WorkLogEntry, WorkLogInput, TeamOverviewRow, Holiday } from '../lib/types';
-
-const data = <T>(res: { data: { data: T } }): T => res.data.data;
+import { apiFetch } from './client';
+import type { WorkLogEntry, WorkLogInput, TeamOverviewRow, Holiday } from '../types';
 
 export const ATTENDANCE_TYPES = [
   'Present',
@@ -20,28 +18,28 @@ export const ATTENDANCE_TYPES = [
 export function useMyWorkLogs(start?: string, end?: string) {
   return useQuery({
     queryKey: ['work-logs', 'mine', start, end],
-    queryFn: async () => data<WorkLogEntry[]>(await api.get('/work-logs/mine', { params: { start, end } })),
+    queryFn: () => apiFetch<WorkLogEntry[]>('/work-logs/mine', { params: { start, end } }),
   });
 }
 
 export function useTeamWorkLogs(start?: string, end?: string) {
   return useQuery({
     queryKey: ['work-logs', 'team', start, end],
-    queryFn: async () => data<{ logs: WorkLogEntry[]; holidays: Holiday[] }>(await api.get('/work-logs/team', { params: { start, end } })),
+    queryFn: () => apiFetch<{ logs: WorkLogEntry[]; holidays: Holiday[] }>('/work-logs/team', { params: { start, end } }),
   });
 }
 
 export function useTeamOverview(month: string) {
   return useQuery({
     queryKey: ['work-logs', 'team-overview', month],
-    queryFn: async () => data<TeamOverviewRow[]>(await api.get('/work-logs/team/overview', { params: { month } })),
+    queryFn: () => apiFetch<TeamOverviewRow[]>('/work-logs/team/overview', { params: { month } }),
   });
 }
 
 export function useMemberWorkLogs(empId: string | null, start?: string, end?: string) {
   return useQuery({
     queryKey: ['work-logs', 'member', empId, start, end],
-    queryFn: async () => data<WorkLogEntry[]>(await api.get(`/work-logs/member/${empId}`, { params: { start, end } })),
+    queryFn: () => apiFetch<WorkLogEntry[]>(`/work-logs/member/${empId}`, { params: { start, end } }),
     enabled: !!empId,
   });
 }
@@ -56,7 +54,7 @@ export function useSubmitWorkLog() {
     // Strip the `intern` discriminator from the body — it only picks the endpoint.
     // (The API runs ValidationPipe with forbidNonWhitelisted, which rejects unknown fields.)
     mutationFn: ({ intern, ...body }: WorkLogInput & { intern?: boolean }) =>
-      api.post(intern ? '/work-logs/intern' : '/work-logs', body),
+      apiFetch<WorkLogEntry>(intern ? '/work-logs/intern' : '/work-logs', { method: 'POST', body }),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -64,7 +62,7 @@ export function useSubmitWorkLog() {
 export function useAdminSubmitWorkLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: WorkLogInput & { targetEmpId: string }) => api.post('/work-logs/admin', dto),
+    mutationFn: (dto: WorkLogInput & { targetEmpId: string }) => apiFetch<WorkLogEntry>('/work-logs/admin', { method: 'POST', body: dto }),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -73,7 +71,7 @@ export function useSetWorkLogStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ empId, date, status }: { empId: string; date: string; status: string }) =>
-      api.patch(`/work-logs/${empId}/${date}/status`, { status }),
+      apiFetch<WorkLogEntry>(`/work-logs/${empId}/${date}/status`, { method: 'PATCH', body: { status } }),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -82,7 +80,7 @@ export function useSetWorkLogComment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ empId, date, comment }: { empId: string; date: string; comment: string }) =>
-      api.patch(`/work-logs/${empId}/${date}/comment`, { comment }),
+      apiFetch<WorkLogEntry>(`/work-logs/${empId}/${date}/comment`, { method: 'PATCH', body: { comment } }),
     onSuccess: () => invalidate(qc),
   });
 }

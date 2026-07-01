@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
-import { useOrgChart, type DirectoryUser } from '../../../hooks/use-directory';
+import { useOrgChart, type DirectoryUser } from '../../../lib/api/directory';
 import { Icon } from '../../../components/ui/icon';
 import { initials } from '../../../lib/utils';
 

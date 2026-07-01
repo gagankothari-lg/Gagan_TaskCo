@@ -3,8 +3,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { useTask, useUpdateTask, useProgressUpdates, useAddProgress } from '../../../hooks/use-tasks';
-import { apiErrorMessage } from '../../../lib/api';
+import { useTask, useUpdateTask, useProgressUpdates, useAddProgress } from '../../../lib/api/tasks';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { DdrModal } from './ddr-modal';
 import { EmployeeMultiSelect, TASK_STATUSES, TASK_PRIORITIES, fieldClass } from './create-task-modal';

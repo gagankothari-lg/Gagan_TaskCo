@@ -3,8 +3,8 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { useCreateTask } from '../../../hooks/use-tasks';
-import { apiErrorMessage } from '../../../lib/api';
+import { useCreateTask } from '../../../lib/api/tasks';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 
 export const TASK_STATUSES = ['Backlog', 'Not Started', 'WIP - 25%', 'WIP - 50%', 'WIP - 75%', 'Under Review', 'Done', 'Cancelled'];

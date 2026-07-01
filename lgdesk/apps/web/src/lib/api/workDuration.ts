@@ -1,15 +1,13 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
-import type { ClockStatus, TeamClockRow } from '../lib/types';
-
-const data = <T>(res: { data: { data: T } }): T => res.data.data;
+import { apiFetch } from './client';
+import type { ClockStatus, TeamClockRow } from '../types';
 
 export function useWorkDurationStatus() {
   return useQuery({
     queryKey: ['work-duration', 'status'],
-    queryFn: async () => data<ClockStatus>(await api.get('/work-duration/status')),
+    queryFn: () => apiFetch<ClockStatus>('/work-duration/status'),
     refetchInterval: (q) => {
       const status = (q.state.data as ClockStatus | undefined)?.status;
       return status === 'ACTIVE' || status === 'ON_BREAK' ? 30_000 : false;
@@ -20,7 +18,7 @@ export function useWorkDurationStatus() {
 export function useTeamClockStatus() {
   return useQuery({
     queryKey: ['work-duration', 'team-status'],
-    queryFn: async () => data<TeamClockRow[]>(await api.get('/work-duration/team-status')),
+    queryFn: () => apiFetch<TeamClockRow[]>('/work-duration/team-status'),
     refetchInterval: 30_000,
   });
 }
@@ -32,20 +30,20 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
 
 export function useClockIn() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: () => api.post('/work-duration/clock-in'), onSuccess: () => invalidate(qc) });
+  return useMutation({ mutationFn: () => apiFetch<void>('/work-duration/clock-in', { method: 'POST' }), onSuccess: () => invalidate(qc) });
 }
 export function useStartBreak() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: () => api.post('/work-duration/break/start'), onSuccess: () => invalidate(qc) });
+  return useMutation({ mutationFn: () => apiFetch<void>('/work-duration/break/start', { method: 'POST' }), onSuccess: () => invalidate(qc) });
 }
 export function useEndBreak() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: () => api.post('/work-duration/break/end'), onSuccess: () => invalidate(qc) });
+  return useMutation({ mutationFn: () => apiFetch<void>('/work-duration/break/end', { method: 'POST' }), onSuccess: () => invalidate(qc) });
 }
 export function useClockOut() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto?: { customTime?: string; reason?: string }) => api.post('/work-duration/clock-out', dto ?? {}),
+    mutationFn: (dto?: { customTime?: string; reason?: string }) => apiFetch<void>('/work-duration/clock-out', { method: 'POST', body: dto ?? {} }),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -53,14 +51,14 @@ export function useEditTime() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: { startTime: string; endTime?: string; breakMins?: number; reason: string }) =>
-      api.patch('/work-duration/edit-time', dto),
+      apiFetch<void>('/work-duration/edit-time', { method: 'PATCH', body: dto }),
     onSuccess: () => invalidate(qc),
   });
 }
 export function useEditBreak() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: { breakMins: number }) => api.patch('/work-duration/edit-break', dto),
+    mutationFn: (dto: { breakMins: number }) => apiFetch<void>('/work-duration/edit-break', { method: 'PATCH', body: dto }),
     onSuccess: () => invalidate(qc),
   });
 }

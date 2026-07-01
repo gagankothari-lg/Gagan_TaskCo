@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
-import { useClockOut } from '../../../hooks/use-work-duration';
-import { apiErrorMessage } from '../../../lib/api';
+import { useClockOut } from '../../../lib/api/workDuration';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 
 const pad = (n: number) => String(n).padStart(2, '0');

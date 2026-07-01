@@ -10,7 +10,7 @@ import {
   useEndBreak,
   hmsFromMs,
   hmsFromMin,
-} from '../../../hooks/use-work-duration';
+} from '../../../lib/api/workDuration';
 import { ChangeClockOutModal } from './change-clock-out-modal';
 
 export function ClockWidget() {

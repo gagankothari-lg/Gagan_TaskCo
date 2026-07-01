@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
-import { api, apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
+import { registerRequest } from '../../../lib/api/auth';
 import { Spinner } from '../../ui/spinner';
 
 interface RegistrationModalProps {
@@ -58,7 +59,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
     try {
       // Only the API-whitelisted fields are persisted; role/dob/manager/message are
       // collected for parity with the GAS form (the backend strips unknown keys).
-      await api.post('/auth/register/request', {
+      await registerRequest({
         firstName, lastName, email, password,
         team: team || undefined,
         subDepartment: subDepartment || undefined,

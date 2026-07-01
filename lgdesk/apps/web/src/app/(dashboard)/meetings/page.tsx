@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../../../components/ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
 import { isAdmin } from '../../../lib/auth';
-import { useUpcomingMeetings, useCancelMeeting } from '../../../hooks/use-meetings';
+import { useUpcomingMeetings, useCancelMeeting } from '../../../lib/api/meetings';
 import { MeetingCard } from '../../../components/modules/meetings/meeting-card';
 import { ScheduleMeetingModal } from '../../../components/modules/meetings/schedule-meeting-modal';
 import { Spinner } from '../../../components/ui/spinner';

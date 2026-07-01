@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../../hooks/use-auth';
 import { isAdmin, isManager } from '../../../../lib/auth';
-import { useTeamWorkLogs, useTeamOverview } from '../../../../hooks/use-work-log';
+import { useTeamWorkLogs, useTeamOverview } from '../../../../lib/api/workLog';
 import { MemberLogModal } from '../../../../components/modules/work-log/member-log-modal';
 import { DayMemberCard } from '../../../../components/modules/work-log/team/day-member-card';
 import { WeekMemberCard } from '../../../../components/modules/work-log/team/week-member-card';

@@ -3,9 +3,9 @@
 import { Fragment, useState } from 'react';
 import { Icon } from '../../../components/ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { useRegistrations, useApproveRegistration, useRejectRegistration } from '../../../hooks/use-users';
+import { useRegistrations, useApproveRegistration, useRejectRegistration } from '../../../lib/api/teamMembers';
 import { isManager } from '../../../lib/auth';
-import { apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../../components/ui/spinner';
 import { RoleBadge } from '../../../components/ui/role-badge';
 

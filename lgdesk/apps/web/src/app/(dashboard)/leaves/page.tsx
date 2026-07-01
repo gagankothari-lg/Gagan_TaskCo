@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Icon } from '../../../components/ui/icon';
-import { useMyLeaves, useHolidays } from '../../../hooks/use-leaves';
+import { useMyLeaves, useHolidays } from '../../../lib/api/leaves';
 import { SubmitLeaveModal } from '../../../components/modules/leaves/submit-leave-modal';
 import { LeaveStatusBadge } from '../../../components/modules/leaves/leave-status-badge';
 import { Spinner } from '../../../components/ui/spinner';

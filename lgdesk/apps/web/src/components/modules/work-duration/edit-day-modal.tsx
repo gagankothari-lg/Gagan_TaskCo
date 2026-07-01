@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
-import { useEditTime } from '../../../hooks/use-work-duration';
-import { apiErrorMessage } from '../../../lib/api';
+import { useEditTime } from '../../../lib/api/workDuration';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { AnalogClock } from './change-clock-out-modal';
 

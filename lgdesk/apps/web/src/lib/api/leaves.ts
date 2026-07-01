@@ -1,10 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
-import type { Leave, Holiday } from '../lib/types';
-
-const data = <T>(res: { data: { data: T } }): T => res.data.data;
+import { apiFetch } from './client';
+import type { Leave, Holiday } from '../types';
 
 export interface LeaveInput {
   leaveType: string;
@@ -14,22 +12,15 @@ export interface LeaveInput {
 }
 
 export function useMyLeaves() {
-  return useQuery({ queryKey: ['leaves', 'mine'], queryFn: async () => data<Leave[]>(await api.get('/leaves/mine')) });
+  return useQuery({ queryKey: ['leaves', 'mine'], queryFn: () => apiFetch<Leave[]>('/leaves/mine') });
 }
 
 export function usePendingLeaves() {
-  return useQuery({ queryKey: ['leaves', 'pending'], queryFn: async () => data<Leave[]>(await api.get('/leaves/pending')) });
+  return useQuery({ queryKey: ['leaves', 'pending'], queryFn: () => apiFetch<Leave[]>('/leaves/pending') });
 }
 
 export function useHolidays() {
-  return useQuery({ queryKey: ['holidays'], queryFn: async () => data<Holiday[]>(await api.get('/holidays')), staleTime: 60_000 });
-}
-
-export function useCalendar() {
-  return useQuery({
-    queryKey: ['calendar'],
-    queryFn: async () => data<{ leaves: Leave[]; holidays: Holiday[]; meetings: unknown[] }>(await api.get('/calendar')),
-  });
+  return useQuery({ queryKey: ['holidays'], queryFn: () => apiFetch<Holiday[]>('/holidays'), staleTime: 60_000 });
 }
 
 function invalidate(qc: ReturnType<typeof useQueryClient>) {
@@ -39,14 +30,14 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
 
 export function useSubmitLeave() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (dto: LeaveInput) => api.post('/leaves', dto), onSuccess: () => invalidate(qc) });
+  return useMutation({ mutationFn: (dto: LeaveInput) => apiFetch<Leave>('/leaves', { method: 'POST', body: dto }), onSuccess: () => invalidate(qc) });
 }
 
 export function useReviewLeave() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ leaveId, status, notes }: { leaveId: string; status: 'Approved' | 'Rejected'; notes?: string }) =>
-      api.patch(`/leaves/${leaveId}/review`, { status, notes }),
+      apiFetch<Leave>(`/leaves/${leaveId}/review`, { method: 'PATCH', body: { status, notes } }),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -54,7 +45,7 @@ export function useReviewLeave() {
 export function useAddHoliday() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: { name: string; date: string }) => api.post('/holidays', dto),
+    mutationFn: (dto: { name: string; date: string }) => apiFetch<Holiday>('/holidays', { method: 'POST', body: dto }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['holidays'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
@@ -65,7 +56,7 @@ export function useAddHoliday() {
 export function useDeleteHoliday() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.delete(`/holidays/${id}`),
+    mutationFn: (id: string) => apiFetch<void>(`/holidays/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['holidays'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });

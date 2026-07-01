@@ -1,10 +1,9 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
-import type { Project } from '../lib/types';
+import { apiFetch } from './client';
+import type { Project } from '../types';
 
-const data = <T>(res: { data: { data: T } }): T => res.data.data;
 export type ProjectScope = 'mine' | 'team' | 'all';
 
 export interface ProjectDetail extends Project {
@@ -32,7 +31,7 @@ const path = (scope?: ProjectScope) =>
 export function useProjects(scope?: ProjectScope) {
   return useQuery({
     queryKey: ['projects', scope ?? 'default'],
-    queryFn: async () => data<Project[]>(await api.get(path(scope))),
+    queryFn: () => apiFetch<Project[]>(path(scope)),
     staleTime: 15_000,
   });
 }
@@ -40,7 +39,7 @@ export function useProjects(scope?: ProjectScope) {
 export function useProject(projId: string | null) {
   return useQuery({
     queryKey: ['project', projId],
-    queryFn: async () => data<ProjectDetail>(await api.get(`/projects/${projId}`)),
+    queryFn: () => apiFetch<ProjectDetail>(`/projects/${projId}`),
     enabled: !!projId,
   });
 }
@@ -52,7 +51,7 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (dto: CreateProjectInput) => data<Project>(await api.post('/projects', dto)),
+    mutationFn: (dto: CreateProjectInput) => apiFetch<Project>('/projects', { method: 'POST', body: dto }),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -60,8 +59,8 @@ export function useCreateProject() {
 export function useUpdateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ projId, dto }: { projId: string; dto: UpdateProjectInput }) =>
-      data<Project>(await api.patch(`/projects/${projId}`, dto)),
+    mutationFn: ({ projId, dto }: { projId: string; dto: UpdateProjectInput }) =>
+      apiFetch<Project>(`/projects/${projId}`, { method: 'PATCH', body: dto }),
     onSuccess: (_d, vars) => {
       invalidate(qc);
       qc.invalidateQueries({ queryKey: ['project', vars.projId] });
@@ -72,7 +71,7 @@ export function useUpdateProject() {
 export function useDeleteProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (projId: string) => api.delete(`/projects/${projId}`),
+    mutationFn: (projId: string) => apiFetch<void>(`/projects/${projId}`, { method: 'DELETE' }),
     onSuccess: () => invalidate(qc),
   });
 }

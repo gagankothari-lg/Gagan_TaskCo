@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
-import { useAddHoliday } from '../../../hooks/use-leaves';
-import { apiErrorMessage } from '../../../lib/api';
+import { useAddHoliday } from '../../../lib/api/leaves';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 
 const field = 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm w-full focus:border-[var(--p)] focus:outline-none';

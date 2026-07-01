@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Icon } from '../../ui/icon';
-import { useSubmitLeave } from '../../../hooks/use-leaves';
-import { apiErrorMessage } from '../../../lib/api';
+import { useSubmitLeave } from '../../../lib/api/leaves';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { LEAVE_TYPES } from '../../../lib/types';
 

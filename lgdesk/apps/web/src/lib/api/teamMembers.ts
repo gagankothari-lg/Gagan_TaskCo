@@ -1,23 +1,20 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
+import { apiFetch } from './client';
 import type {
   User,
   OrgNode,
   RegistrationRequest,
   ProfileUpdateRequest,
   ProfileUpdateInput,
-} from '../lib/types';
-
-// Backend wraps every success as { ok:true, data }.
-const data = <T>(res: { data: { data: T } }): T => res.data.data;
+} from '../types';
 
 // ─── Queries ────────────────────────────────────────
 export function useUsers() {
   return useQuery({
     queryKey: ['users'],
-    queryFn: async () => data<User[]>(await api.get('/users')),
+    queryFn: () => apiFetch<User[]>('/users'),
     staleTime: 30_000,
   });
 }
@@ -30,7 +27,7 @@ export interface MeResponse extends User {
 export function useMe(enabled = true) {
   return useQuery({
     queryKey: ['me'],
-    queryFn: async () => data<MeResponse>(await api.get('/users/me')),
+    queryFn: () => apiFetch<MeResponse>('/users/me'),
     enabled,
     staleTime: 30_000,
   });
@@ -39,7 +36,7 @@ export function useMe(enabled = true) {
 export function useOrgTree() {
   return useQuery({
     queryKey: ['org-tree'],
-    queryFn: async () => data<OrgNode[]>(await api.get('/users/org-tree')),
+    queryFn: () => apiFetch<OrgNode[]>('/users/org-tree'),
     staleTime: 30_000,
   });
 }
@@ -47,14 +44,14 @@ export function useOrgTree() {
 export function useRegistrations() {
   return useQuery({
     queryKey: ['registrations'],
-    queryFn: async () => data<RegistrationRequest[]>(await api.get('/users/registrations')),
+    queryFn: () => apiFetch<RegistrationRequest[]>('/users/registrations'),
   });
 }
 
 export function useProfileRequests() {
   return useQuery({
     queryKey: ['profile-requests'],
-    queryFn: async () => data<ProfileUpdateRequest[]>(await api.get('/users/profile-requests')),
+    queryFn: () => apiFetch<ProfileUpdateRequest[]>('/users/profile-requests'),
   });
 }
 
@@ -62,7 +59,7 @@ export function useProfileRequests() {
 export function useApproveRegistration() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (reqId: string) => api.patch(`/users/registrations/${reqId}/approve`),
+    mutationFn: (reqId: string) => apiFetch<void>(`/users/registrations/${reqId}/approve`, { method: 'PATCH' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['registrations'] });
       qc.invalidateQueries({ queryKey: ['users'] });
@@ -75,7 +72,7 @@ export function useRejectRegistration() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ reqId, notes }: { reqId: string; notes?: string }) =>
-      api.patch(`/users/registrations/${reqId}/reject`, { notes }),
+      apiFetch<void>(`/users/registrations/${reqId}/reject`, { method: 'PATCH', body: { notes } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['registrations'] }),
   });
 }
@@ -83,8 +80,8 @@ export function useRejectRegistration() {
 export function useSubmitProfileUpdate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (dto: ProfileUpdateInput) =>
-      data<{ immediate: boolean; reqId?: string }>(await api.patch('/users/me/profile', dto)),
+    mutationFn: (dto: ProfileUpdateInput) =>
+      apiFetch<{ immediate: boolean; reqId?: string }>('/users/me/profile', { method: 'PATCH', body: dto }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['me'] });
@@ -96,7 +93,7 @@ export function useSubmitProfileUpdate() {
 export function useApproveProfileUpdate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (reqId: string) => api.patch(`/users/profile-requests/${reqId}/approve`),
+    mutationFn: (reqId: string) => apiFetch<void>(`/users/profile-requests/${reqId}/approve`, { method: 'PATCH' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile-requests'] });
       qc.invalidateQueries({ queryKey: ['users'] });
@@ -109,7 +106,7 @@ export function useRejectProfileUpdate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ reqId, notes }: { reqId: string; notes?: string }) =>
-      api.patch(`/users/profile-requests/${reqId}/reject`, { notes }),
+      apiFetch<void>(`/users/profile-requests/${reqId}/reject`, { method: 'PATCH', body: { notes } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['profile-requests'] }),
   });
 }
@@ -118,17 +115,10 @@ export function useChangeRole() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ empId, newRole }: { empId: string; newRole: string }) =>
-      api.patch(`/users/${empId}/role`, { newRole }),
+      apiFetch<void>(`/users/${empId}/role`, { method: 'PATCH', body: { newRole } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['org-tree'] });
     },
-  });
-}
-
-export function useChangePassword() {
-  return useMutation({
-    mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
-      api.post('/auth/change-password', { currentPassword, newPassword }),
   });
 }

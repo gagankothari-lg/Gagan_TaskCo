@@ -3,9 +3,9 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { useProjects, type ProjectScope } from '../../../hooks/use-projects';
+import { useProjects, type ProjectScope } from '../../../lib/api/projects';
 import { isManager } from '../../../lib/auth';
-import { apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { ProjectCard } from './project-card';
 import { CreateProjectModal } from './create-project-modal';

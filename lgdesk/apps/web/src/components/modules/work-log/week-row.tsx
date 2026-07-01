@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Icon } from '../../ui/icon';
 import { WorkChipInput } from './work-chip-input';
-import { ATTENDANCE_TYPES } from '../../../hooks/use-work-log';
+import { ATTENDANCE_TYPES } from '../../../lib/api/workLog';
 import type { WorkLogEntry, WorkLogInput } from '../../../lib/types';
 
 const fieldClass = 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-2 py-1.5 text-sm focus:border-[var(--p)] focus:outline-none';

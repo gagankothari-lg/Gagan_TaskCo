@@ -8,9 +8,9 @@ import {
   useUsers,
   useApproveProfileUpdate,
   useRejectProfileUpdate,
-} from '../../../hooks/use-users';
+} from '../../../lib/api/teamMembers';
 import { isManager } from '../../../lib/auth';
-import { apiErrorMessage } from '../../../lib/api';
+import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../../components/ui/spinner';
 
 const FIELD_LABELS: Record<string, string> = {
