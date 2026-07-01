@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../../../components/ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
-import { isAdmin } from '../../../lib/auth';
+import { isAdmin, isManager } from '../../../lib/auth';
 import { useUpcomingMeetings, useCancelMeeting } from '../../../lib/api/meetings';
+import { apiErrorMessage } from '../../../lib/api/client';
+import { toast } from '../../../lib/toast';
 import { MeetingCard } from '../../../components/modules/meetings/meeting-card';
 import { ScheduleMeetingModal } from '../../../components/modules/meetings/schedule-meeting-modal';
 import { Spinner } from '../../../components/ui/spinner';
@@ -33,25 +36,55 @@ const cardTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, col
 const cardSubStyle: React.CSSProperties = { fontSize: 12, color: 'var(--muted)', marginTop: 2 };
 
 export default function MeetingsPage() {
+  return (
+    <Suspense fallback={<div className="empty-state"><Spinner size={20} /><p>Loading…</p></div>}>
+      <MeetingsPageInner />
+    </Suspense>
+  );
+}
+
+function MeetingsPageInner() {
   const { currentUser } = useAuth();
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('highlight');
   const { data: upcoming, isLoading } = useUpcomingMeetings();
   const cancel = useCancelMeeting();
+  const highlightRef = useRef<HTMLDivElement>(null);
 
   const [joinCode, setJoinCode] = useState('');
   const [modalType, setModalType] = useState<string | null>(null);
+
+  const admin = !!currentUser && isAdmin(currentUser.role);
+  const manager = !!currentUser && isManager(currentUser.role);
+
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightId, upcoming]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['meetings'] });
 
   const join = () => {
     const v = joinCode.trim();
-    if (!v) return;
+    if (!v) { toast('Enter a meeting code or link', 'error'); return; }
     const url = v.startsWith('http') ? v : `https://meet.google.com/${v}`;
     window.open(url, '_blank');
   };
 
   const canCancel = (organizerId: string) =>
-    !!currentUser && (organizerId === currentUser.empId || isAdmin(currentUser.role));
+    !!currentUser && (organizerId === currentUser.empId || admin || manager);
+
+  async function onCancel(meetingId: string) {
+    if (!confirm('Cancel this meeting?')) return;
+    try {
+      await cancel.mutateAsync(meetingId);
+      toast('Meeting cancelled', 'success');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Not authorized to cancel this meeting.'), 'error');
+    }
+  }
 
   return (
     <div>
@@ -119,41 +152,47 @@ export default function MeetingsPage() {
         </div>
       </div>
 
-      {/* ── Meeting templates ──────────────────────────── */}
-      <div style={sectionLabelStyle}>
-        <Icon name="account_tree" size={15} /> MEETING TEMPLATES
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-        {/* Company Meeting */}
-        <button
-          onClick={() => setModalType('custom')}
-          style={{ textAlign: 'left', background: '#e3f2fd', borderRadius: 8, padding: 20, border: 'none', cursor: 'pointer' }}
-        >
-          <Icon name="corporate_fare" size={28} style={{ color: 'var(--accent)' }} />
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--p)', marginTop: 8 }}>Company Meeting</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-            Invite your entire company — all active employees are auto-added.
+      {/* ── Meeting templates — Company: admin/SA only; Team: managers only. ── */}
+      {(admin || manager) && (
+        <>
+          <div style={sectionLabelStyle}>
+            <Icon name="account_tree" size={15} /> MEETING TEMPLATES
           </div>
-          <span style={{ display: 'inline-block', marginTop: 12, background: 'var(--p)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999 }}>
-            Admin &amp; Founders only
-          </span>
-        </button>
+          <div style={{ display: 'grid', gridTemplateColumns: admin && manager ? 'repeat(2, 1fr)' : '1fr', gap: 16 }}>
+            {admin && (
+              <button
+                onClick={() => setModalType('company')}
+                style={{ textAlign: 'left', background: '#e3f2fd', borderRadius: 8, padding: 20, border: 'none', cursor: 'pointer' }}
+              >
+                <Icon name="corporate_fare" size={28} style={{ color: 'var(--accent)' }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--p)', marginTop: 8 }}>Company Meeting</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  Invite your entire company — all active employees are auto-added.
+                </div>
+                <span style={{ display: 'inline-block', marginTop: 12, background: 'var(--p)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999 }}>
+                  Admin &amp; Founders only
+                </span>
+              </button>
+            )}
 
-        {/* Team Meeting */}
-        <button
-          onClick={() => setModalType('custom')}
-          style={{ textAlign: 'left', background: '#e8f5e9', borderRadius: 8, padding: 20, border: 'none', cursor: 'pointer' }}
-        >
-          <Icon name="groups" size={28} style={{ color: 'var(--ok)' }} />
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--p)', marginTop: 8 }}>Team Meeting</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-            Invite your team members for a focused sync.
+            {manager && (
+              <button
+                onClick={() => setModalType('team')}
+                style={{ textAlign: 'left', background: '#e8f5e9', borderRadius: 8, padding: 20, border: 'none', cursor: 'pointer' }}
+              >
+                <Icon name="groups" size={28} style={{ color: 'var(--ok)' }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--p)', marginTop: 8 }}>Team Meeting</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  Invite your team members for a focused sync.
+                </div>
+                <span style={{ display: 'inline-block', marginTop: 12, background: 'var(--ok)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999 }}>
+                  Managers &amp; above
+                </span>
+              </button>
+            )}
           </div>
-          <span style={{ display: 'inline-block', marginTop: 12, background: 'var(--ok)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999 }}>
-            Managers &amp; above
-          </span>
-        </button>
-      </div>
+        </>
+      )}
 
       {/* ── Upcoming meetings ──────────────────────────── */}
       <div style={sectionLabelStyle}>
@@ -174,9 +213,11 @@ export default function MeetingsPage() {
           {upcoming!.map((m) => (
             <MeetingCard
               key={m.meetingId}
+              ref={m.meetingId === highlightId ? highlightRef : undefined}
               meeting={m}
               canCancel={canCancel(m.organizerId)}
-              onCancel={() => cancel.mutate(m.meetingId)}
+              onCancel={() => onCancel(m.meetingId)}
+              highlighted={m.meetingId === highlightId}
             />
           ))}
         </div>

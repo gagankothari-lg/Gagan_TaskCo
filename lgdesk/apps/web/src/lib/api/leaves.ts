@@ -33,6 +33,11 @@ export function useSubmitLeave() {
   return useMutation({ mutationFn: (dto: LeaveInput) => apiFetch<Leave>('/leaves', { method: 'POST', body: dto }), onSuccess: () => invalidate(qc) });
 }
 
+export function useCancelLeave() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (leaveId: string) => apiFetch<void>(`/leaves/${leaveId}`, { method: 'DELETE' }), onSuccess: () => invalidate(qc) });
+}
+
 export function useReviewLeave() {
   const qc = useQueryClient();
   return useMutation({

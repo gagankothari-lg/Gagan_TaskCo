@@ -6,8 +6,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { GoogleCalendarService } from './google-calendar.service';
-import { isAdmin, parseIds, joinIds } from '../common/constants';
+import { isAdmin, isManager, parseIds, joinIds } from '../common/constants';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
+
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 min — Master Reference Part 21 "Cache Strategy"
 
 type Caller = { empId: string; role: string; team: string | null };
 type MeetingRow = {
@@ -18,6 +20,12 @@ type MeetingRow = {
 
 @Injectable()
 export class MeetingsService {
+  // Simple in-process TTL cache (Master Reference: "CacheService-backed, key
+  // mtg_{email}_{start}_{end}, TTL 10 min"). No Redis in this stack (CLAUDE.md), so a
+  // per-instance Map is the direct equivalent of GAS's CacheService semantics.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly rangeCache = new Map<string, { at: number; data: any[] }>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
@@ -33,6 +41,30 @@ export class MeetingsService {
   }
 
   async createMeeting(dto: CreateMeetingDto, callerEmpId: string) {
+    const caller = await this.getCaller(callerEmpId);
+    const meetType = dto.meetType === 'personal' ? 'custom' : (dto.meetType ?? 'custom');
+
+    // Master Reference Part 21 "Schedule Meeting" authorization gates.
+    if (meetType === 'company' && !isAdmin(caller.role)) {
+      throw new ForbiddenException('Only Super Admins and Admins can schedule Company Meetings.');
+    }
+    if (meetType === 'team' && !isManager(caller.role)) {
+      throw new ForbiddenException('Only Managers and above can schedule Team Meetings.');
+    }
+
+    // Team meetings auto-resolve to the organizer's own team when no explicit teams
+    // are supplied; Company meetings invite every active employee regardless of what
+    // the client sent (attendeeIds/attendeeTeams are ignored for that template).
+    let attendeeIds = dto.attendeeIds ?? [];
+    let attendeeTeams = dto.attendeeTeams ?? [];
+    if (meetType === 'team' && attendeeTeams.length === 0 && caller.team) {
+      attendeeTeams = [caller.team];
+    }
+    if (meetType === 'company') {
+      attendeeIds = [];
+      attendeeTeams = [];
+    }
+
     const meetingId = await this.idUtils.generateId('meeting', 'meetingId', 'MTG');
     const start = new Date(dto.startTime);
     const end = new Date(start.getTime() + dto.durationMins * 60000);
@@ -44,9 +76,9 @@ export class MeetingsService {
         title: dto.title,
         description: dto.description,
         organizerId: callerEmpId, // ← from JWT
-        attendeeIds: joinIds(dto.attendeeIds ?? []),
-        attendeeTeams: joinIds(dto.attendeeTeams ?? []),
-        meetType: dto.meetType ?? 'personal',
+        attendeeIds: joinIds(attendeeIds),
+        attendeeTeams: joinIds(attendeeTeams),
+        meetType,
         startTime: start,
         endTime: end,
         status: 'Scheduled',
@@ -54,7 +86,7 @@ export class MeetingsService {
     });
 
     // Calendar sync — fire-and-forget; never blocks/fails the response.
-    void this.syncToCalendar(meeting.id, meetingId, dto, start, end);
+    void this.syncToCalendar(meeting.id, meetingId, meetType, attendeeIds, attendeeTeams, dto, start, end);
     await this.audit(callerEmpId, 'MEETING_CREATE', meetingId);
     return { meetingId, meetLink: meeting.meetLink ?? undefined };
   }
@@ -66,12 +98,18 @@ export class MeetingsService {
   }
 
   async getMeetingsForRange(callerEmpId: string, start: string, end: string) {
+    const cacheKey = `mtg_${callerEmpId}_${start}_${end}`;
+    const hit = this.rangeCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+
     const caller = await this.getCaller(callerEmpId);
     const rows = await this.prisma.meeting.findMany({
       where: { status: { not: 'Cancelled' }, startTime: { gte: new Date(start), lte: new Date(end) } },
       orderBy: { startTime: 'asc' },
     });
-    return rows.filter((m) => this.userCanSeeMeeting(m, caller)).map((m) => this.mapMeeting(m));
+    const data = rows.filter((m) => this.userCanSeeMeeting(m, caller)).map((m) => this.mapMeeting(m));
+    this.rangeCache.set(cacheKey, { at: Date.now(), data });
+    return data;
   }
 
   async getUpcomingMeetings(callerEmpId: string) {
@@ -87,7 +125,11 @@ export class MeetingsService {
     const meeting = await this.prisma.meeting.findUnique({ where: { meetingId } });
     if (!meeting) throw new NotFoundException('Meeting not found');
     const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role) && meeting.organizerId !== callerEmpId) throw new ForbiddenException();
+    // Master Reference Part 21 "Cancel" GAP: a non-organizer manager may see the Cancel
+    // button in the UI, but only the organizer/creator or an admin may actually cancel.
+    if (!isAdmin(caller.role) && meeting.organizerId !== callerEmpId) {
+      throw new ForbiddenException('Not authorized to cancel this meeting.');
+    }
 
     await this.prisma.meeting.update({ where: { meetingId }, data: { status: 'Cancelled' } });
     if (meeting.calEventId) void this.calendar.cancelCalendarEvent(meeting.calEventId);
@@ -102,7 +144,13 @@ export class MeetingsService {
     return caller;
   }
 
-  private async resolveAttendeesToEmails(attendeeIds: string[], attendeeTeams: string[]): Promise<string[]> {
+  // meetType 'company' invites every active employee regardless of attendeeIds/Teams
+  // (Master Reference Meeting Templates table: "All employees ... auto-added").
+  private async resolveAttendeesToEmails(meetType: string, attendeeIds: string[], attendeeTeams: string[]): Promise<string[]> {
+    if (meetType === 'company') {
+      const users = await this.prisma.user.findMany({ where: { isActive: true }, select: { email: true } });
+      return users.map((u) => u.email);
+    }
     const emails = new Set<string>();
     if (attendeeIds.length) {
       const users = await this.prisma.user.findMany({ where: { empId: { in: attendeeIds } }, select: { email: true } });
@@ -115,9 +163,18 @@ export class MeetingsService {
     return [...emails];
   }
 
-  private async syncToCalendar(id: string, meetingId: string, dto: CreateMeetingDto, start: Date, end: Date) {
+  private async syncToCalendar(
+    id: string,
+    meetingId: string,
+    meetType: string,
+    attendeeIds: string[],
+    attendeeTeams: string[],
+    dto: CreateMeetingDto,
+    start: Date,
+    end: Date,
+  ) {
     try {
-      const attendeeEmails = await this.resolveAttendeesToEmails(dto.attendeeIds ?? [], dto.attendeeTeams ?? []);
+      const attendeeEmails = await this.resolveAttendeesToEmails(meetType, attendeeIds, attendeeTeams);
       const result = await this.calendar.createCalendarEvent({ meetingId, title: dto.title, description: dto.description, startTime: start, endTime: end, attendeeEmails });
       if (result) {
         await this.prisma.meeting.update({ where: { id }, data: { calEventId: result.calEventId, meetLink: result.meetLink } });

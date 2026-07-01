@@ -9,6 +9,8 @@ import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { CalendarService } from '../calendar/calendar.service';
+import { UsersService } from '../users/users.service';
+import { MeetingsService } from '../meetings/meetings.service';
 import { isAdmin, isManager } from '../common/constants';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { ReviewLeaveDto } from './dto/review-leave.dto';
@@ -21,6 +23,8 @@ export class LeavesService {
     private readonly idUtils: IdUtilsService,
     private readonly config: ConfigService,
     private readonly calendar: CalendarService,
+    private readonly users: UsersService,
+    private readonly meetings: MeetingsService,
   ) {}
 
   async submitLeave(dto: CreateLeaveDto, callerEmpId: string) {
@@ -37,7 +41,10 @@ export class LeavesService {
       }
       days = 0.5;
     } else {
-      days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+      // Master Reference FR-1: days = round((end-start)/86400000) + 1. start/end are
+      // both UTC-midnight-normalized above, so the difference is always an exact
+      // multiple of a day — round and floor agree, but round matches the spec text.
+      days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
     }
 
     const leaveId = await this.idUtils.generateId('leave', 'leaveId', 'LV');
@@ -75,6 +82,18 @@ export class LeavesService {
 
   async getMyLeaves(callerEmpId: string) {
     return this.prisma.leave.findMany({ where: { empId: callerEmpId }, orderBy: { createdAt: 'desc' } });
+  }
+
+  // Master Reference leaves.gs `cancelLeaveRequest(email, leaveId)` — own pending leave only.
+  async cancelLeave(leaveId: string, callerEmpId: string) {
+    const leave = await this.prisma.leave.findUnique({ where: { leaveId } });
+    if (!leave) throw new NotFoundException('Leave not found');
+    if (leave.empId !== callerEmpId) throw new ForbiddenException();
+    if (leave.status !== 'Pending') throw new BadRequestException('Only pending leave requests can be cancelled.');
+
+    await this.prisma.leave.update({ where: { leaveId }, data: { status: 'Cancelled' } });
+    await this.audit(callerEmpId, 'LEAVE_CANCEL', leaveId, leave.status, 'Cancelled');
+    return { ok: true };
   }
 
   async getPendingLeaves(callerEmpId: string) {
@@ -119,13 +138,31 @@ export class LeavesService {
     return this.prisma.holiday.findMany({ orderBy: { date: 'asc' } });
   }
 
+  // Master Reference Part 20 BR-1: Admin = all approved leaves; Manager = subordinates +
+  // self; Member = own only. Only APPROVED leaves render on the calendar (Event Types
+  // table — Task/Project/Holiday/Meeting are unconditional, but "Approved leave" is the
+  // only leave state that gets a calendar chip).
   async getCalendarData(callerEmpId: string) {
-    const [leaves, holidays] = await Promise.all([
-      this.prisma.leave.findMany({ where: { empId: callerEmpId }, orderBy: { startDate: 'asc' } }),
+    const caller = await this.getCaller(callerEmpId);
+    let empScope: string[] | null = null; // null = no filter (Admin/SA sees all)
+    if (!isAdmin(caller.role)) {
+      if (isManager(caller.role)) {
+        const subs = await this.users.getSubordinateIds(caller.empId);
+        empScope = [caller.empId, ...subs];
+      } else {
+        empScope = [caller.empId];
+      }
+    }
+
+    const leaveWhere: Record<string, unknown> = { status: 'Approved' };
+    if (empScope) leaveWhere.empId = { in: empScope };
+
+    const [leaves, holidays, meetings] = await Promise.all([
+      this.prisma.leave.findMany({ where: leaveWhere, orderBy: { startDate: 'asc' } }),
       this.prisma.holiday.findMany({ orderBy: { date: 'asc' } }),
+      this.meetings.getMeetings(callerEmpId),
     ]);
-    // Meetings come from the (not-yet-built) MeetingsModule — empty for now.
-    return { leaves, holidays, meetings: [] as unknown[] };
+    return { leaves, holidays, meetings };
   }
 
   // ═══════════════════════════════════════════════ helpers

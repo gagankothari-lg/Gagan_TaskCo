@@ -37,3 +37,32 @@ export function useGenerateWeeklySummary() {
     onSuccess: (_d, weekStart) => qc.invalidateQueries({ queryKey: ['weekly-summary', weekStart] }),
   });
 }
+
+// ─── MIS Report (Part 19 "MIS Report" — gated by hasMisAccess, not role) ──────
+export interface MisSummaryRow {
+  empId: string;
+  name: string;
+  team?: string | null;
+  role: string;
+  found: boolean;
+  bullets: string[];
+  isEdited: boolean;
+  generatedAt?: string | null;
+}
+
+export interface MisSummariesData {
+  weekStart: string;
+  weekEnd: string;
+  total: number;
+  submitted: number;
+  rows: MisSummaryRow[];
+}
+
+export function useMisSummaries(weekStart: string) {
+  return useQuery({
+    queryKey: ['weekly-summary', 'mis', weekStart],
+    queryFn: () => apiFetch<MisSummariesData>('/weekly-summary/mis', { params: { weekStart } }),
+    enabled: !!weekStart,
+    retry: false,
+  });
+}

@@ -357,3 +357,7 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 
 /* ── HIDDEN UTILITY ──────────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ── WEEKLY SUMMARY BULLET ROW ────────────────────────── */
+/* Part 37 Weekly Summary Checklist: "hovering highlights the row". */
+.ws-bullet-row:hover { background: var(--p3); }
