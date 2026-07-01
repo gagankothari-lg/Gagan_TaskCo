@@ -1,4 +1,9 @@
-import { IsArray, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+
+// Master Reference Part 21 "Meeting Templates": Company (SA/Admin only), Team (managers
+// only), Custom (any role). 'personal' kept as a legacy alias for 'custom' so any
+// not-yet-migrated caller doesn't break.
+export const MEETING_TYPES = ['company', 'team', 'custom', 'personal'] as const;
 
 export class CreateMeetingDto {
   @IsString()
@@ -12,7 +17,7 @@ export class CreateMeetingDto {
 
   @IsInt() @Min(1) durationMins!: number;
 
-  @IsOptional() @IsString() meetType?: string;
+  @IsOptional() @IsIn(MEETING_TYPES) meetType?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) attendeeIds?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) attendeeTeams?: string[];
 

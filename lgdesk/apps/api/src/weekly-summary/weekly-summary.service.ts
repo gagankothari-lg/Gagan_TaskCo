@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseIds } from '../common/constants';
@@ -34,13 +35,18 @@ export class WeeklySummaryService {
 
   // ─── SAVE (edited bullets) ──────────────────────────────
   // Bullets are stored newline-delimited WITHOUT the leading "• " (rule §16.4).
+  // Master Reference: update-only — a row must already exist (created by the Monday
+  // batch job or by "Generate Now") before it can be edited; saving against a week
+  // with no row returns "Summary not found" rather than silently creating one.
   async saveWeeklySummary(empId: string, weekStartStr: string, bullets: string[]) {
     const weekStart = this.mondayUtc(weekStartStr);
+    const existing = await this.prisma.weeklySummary.findUnique({ where: { empId_weekStart: { empId, weekStart } } });
+    if (!existing) throw new NotFoundException('Summary not found');
+
     const content = (bullets ?? []).map((b) => b.replace(/^[•\-*]\s*/, '').trim()).filter(Boolean).join('\n');
-    const row = await this.prisma.weeklySummary.upsert({
+    const row = await this.prisma.weeklySummary.update({
       where: { empId_weekStart: { empId, weekStart } },
-      create: { empId, weekStart, content, isEdited: true, editedAt: new Date(), editedBy: empId },
-      update: { content, isEdited: true, editedAt: new Date(), editedBy: empId },
+      data: { content, isEdited: true, editedAt: new Date(), editedBy: empId },
     });
     return { ok: true, bullets: this.toBullets(row.content ?? '') };
   }
@@ -90,7 +96,7 @@ export class WeeklySummaryService {
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
 
     const dayText = await this.buildWeekText(empId, weekStart, weekEnd);
-    if (!dayText) throw new BadRequestException('No work logs for this week — fill in your work log first.');
+    if (!dayText) throw new BadRequestException('No work logs found for this week — fill in your work log first.');
 
     const bullets = await this.callGemini(dayText);
     const content = bullets.join('\n');
@@ -100,6 +106,46 @@ export class WeeklySummaryService {
       update: { content, isEdited: false, generatedAt: new Date(), aiModel: GEMINI_MODEL },
     });
     return { found: true, weekStart: this.iso(weekStart), bullets, generatedAt: new Date().toISOString(), isEdited: false };
+  }
+
+  // ─── BATCH GENERATION (org-wide, scheduled) ─────────────
+  // Master Reference Part 19 FR-1/FR-5: runs Monday atHour(0) in Etc/UTC, idempotent
+  // (skips employees who already have a row for the previous week), 5-10 bullets per
+  // employee. The GAS original also scheduled a one-shot ".after(60000)" continuation
+  // trigger for runs that exceeded the ~6-minute Apps Script execution cap — that cap is
+  // a GAS-specific constraint that doesn't apply to this Node/NestJS runtime, so no
+  // continuation-trigger analogue is implemented here; the cron simply runs to completion.
+  @Cron('0 0 * * 1')
+  async generateWeeklySummaries(): Promise<{ generated: number; skipped: number; failed: number }> {
+    const weekStart = this.mondayUtc(new Date(Date.now() - 7 * 86400000).toISOString());
+    const weekEnd = new Date(weekStart.getTime());
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+
+    const employees = await this.prisma.user.findMany({ where: { isActive: true }, select: { empId: true } });
+    let generated = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const emp of employees) {
+      try {
+        const existing = await this.prisma.weeklySummary.findUnique({ where: { empId_weekStart: { empId: emp.empId, weekStart } } });
+        if (existing) { skipped++; continue; }
+
+        const dayText = await this.buildWeekText(emp.empId, weekStart, weekEnd);
+        if (!dayText) { skipped++; continue; }
+
+        const bullets = await this.callGemini(dayText);
+        await this.prisma.weeklySummary.create({
+          data: { empId: emp.empId, weekStart, content: bullets.join('\n'), isEdited: false, generatedAt: new Date(), aiModel: GEMINI_MODEL },
+        });
+        generated++;
+      } catch (e) {
+        failed++;
+        this.logger.error(`generateWeeklySummaries failed for ${emp.empId}: ${(e as Error).message}`);
+      }
+    }
+    this.logger.log(`generateWeeklySummaries: ${generated} generated, ${skipped} skipped, ${failed} failed`);
+    return { generated, skipped, failed };
   }
 
   // ═══════════════════════════════════════════════ helpers
@@ -124,8 +170,12 @@ export class WeeklySummaryService {
   }
 
   private async callGemini(weekText: string): Promise<string[]> {
+    // Master Reference wording is "...not set in Script Properties" (a GAS-specific
+    // concept — Apps Script's key/value config store). This runtime configures the key
+    // via an environment variable instead, so the message is adapted accordingly while
+    // keeping the same "GEMINI_API_KEY not set" diagnostic text.
     const key = this.config.get<string>('GEMINI_API_KEY');
-    if (!key) throw new BadRequestException('AI summary is not configured (GEMINI_API_KEY missing).');
+    if (!key) throw new BadRequestException('GEMINI_API_KEY not set.');
 
     const prompt =
       `You are writing a concise weekly work summary for an internal MIS report. ` +

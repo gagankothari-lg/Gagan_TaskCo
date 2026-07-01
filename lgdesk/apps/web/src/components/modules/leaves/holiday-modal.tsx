@@ -1,75 +1,84 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Icon } from '../../ui/icon';
 import { useAddHoliday } from '../../../lib/api/leaves';
 import { apiErrorMessage } from '../../../lib/api/client';
+import { toast } from '../../../lib/toast';
 import { Spinner } from '../../ui/spinner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
+import { fieldClass } from '../tasks/create-task-modal';
 import { holidaySchema, type HolidayFormValues } from './holiday-modal.schema';
 
-const fieldClass = 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded-[8px] px-3 py-2 text-sm w-full focus:border-[var(--p)] focus:outline-none';
-
-export function HolidayModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function HolidayModal({ open, onClose, defaultDate }: { open: boolean; onClose: () => void; defaultDate?: string }) {
   const add = useAddHoliday();
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<HolidayFormValues>({
     resolver: zodResolver(holidaySchema),
-    defaultValues: { name: '', date: '' },
+    defaultValues: { name: '', date: defaultDate ?? '' },
   });
 
-  if (!open) return null;
+  useEffect(() => {
+    if (open) { form.reset({ name: '', date: defaultDate ?? '' }); setError(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultDate]);
 
   async function onSubmit(values: HolidayFormValues) {
     setError(null);
     try {
       await add.mutateAsync({ name: values.name, date: new Date(values.date).toISOString() });
+      toast('Holiday added', 'success');
       onClose();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Unable to add holiday'));
+      const msg = apiErrorMessage(err, 'Unable to add holiday');
+      setError(msg);
+      toast(msg, 'error');
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-[380px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] p-6 text-[var(--text)]">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--text)]">Add Holiday</h2>
-          <button onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--text)]"><Icon name="close" size={18} /></button>
-        </div>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Holiday</DialogTitle>
+        </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl><input className={fieldClass} placeholder="Holiday name" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {error && <div className="rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
-            <button type="submit" disabled={add.isPending} className="btn btn-primary btn-full">
-              {add.isPending && <Spinner size={14} />} Add holiday
-            </button>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="space-y-3 px-5 py-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input className={fieldClass} placeholder="Holiday name" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {error && <div className="rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
+            </div>
+            <DialogFooter>
+              <button type="submit" disabled={add.isPending} className="btn btn-primary disabled:opacity-60">
+                {add.isPending && <Spinner size={14} />} Add holiday
+              </button>
+            </DialogFooter>
           </form>
         </Form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -1,28 +1,30 @@
 // Zod schema for the "Schedule Meeting" form.
 // Mirrors apps/api/src/meetings/dto/create-meeting.dto.ts: title required non-empty,
-// description optional, durationMins required integer >= 1, meetType/attendeeIds/
-// attendeeTeams optional. The DTO's single ISO `startTime` is modelled here as separate
-// `date` + `time` fields (matching the UI's two native inputs) and combined into
-// `startTime` on submit exactly as before this migration — see the component's
-// onSubmit. meetType is constrained to the two values this UI actually offers
-// ('personal' | 'custom'); Company/Team meeting templates from Master Reference Part 21
-// are not implemented in this form (pre-existing gap, not introduced here).
+// description optional, durationMins one of the fixed Part 37 Meetings Checklist
+// options (15/30/45/60/90/120, default 30), meetType is one of the three Master
+// Reference Part 21 templates (company/team/custom). attendeeIds/teams only apply to
+// 'custom' (people + team pickers) — company auto-invites everyone, team auto-invites
+// the organizer's own team, both server-enforced (meetings.service.ts).
 import { z } from 'zod';
 
-export const MEET_TYPES = ['personal', 'custom'] as const;
+export const MEET_TYPES = ['company', 'team', 'custom'] as const;
+export const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120] as const;
 
-export const scheduleMeetingSchema = z.object({
-  title: z.string().trim().min(1, 'Title is required.'),
-  description: z.string().optional(),
-  date: z
-    .string()
-    .min(1, 'Date is required.')
-    .refine((v) => !Number.isNaN(Date.parse(v)), 'Enter a valid date.'),
-  time: z.string().trim().min(1, 'Time is required.'),
-  durationMins: z.number().int('Duration must be a whole number.').min(1, 'Duration must be at least 1 minute.'),
-  meetType: z.enum(MEET_TYPES),
-  attendeeIds: z.array(z.string()).optional(),
-  teams: z.array(z.string()).optional(),
-});
+export const scheduleMeetingSchema = z
+  .object({
+    title: z.string().trim().min(1, 'Meeting title is required'),
+    description: z.string().optional(),
+    date: z.string(),
+    time: z.string(),
+    durationMins: z.number().int(),
+    meetType: z.enum(MEET_TYPES),
+    attendeeIds: z.array(z.string()).optional(),
+    teams: z.array(z.string()).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.date || !data.time) {
+      ctx.addIssue({ code: 'custom', path: ['date'], message: 'Date and time are required' });
+    }
+  });
 
 export type ScheduleMeetingFormValues = z.infer<typeof scheduleMeetingSchema>;

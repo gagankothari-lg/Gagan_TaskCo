@@ -30,6 +30,11 @@ export class LeavesController {
     return this.leaves.getMyLeaves(user.empId);
   }
 
+  @Delete('leaves/:id')
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthedUser) {
+    return this.leaves.cancelLeave(id, user.empId);
+  }
+
   @Roles(...MANAGER_ROLES)
   @Get('leaves/pending/count')
   pendingCount(@CurrentUser() user: AuthedUser) {

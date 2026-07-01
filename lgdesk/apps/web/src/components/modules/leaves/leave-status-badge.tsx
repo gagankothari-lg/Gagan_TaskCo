@@ -1,12 +1,17 @@
-const STYLE: Record<string, string> = {
-  Pending: 'bg-[#E3B341]/20 text-[#E3B341]',
-  Approved: 'bg-[#3FB950]/20 text-[#3FB950]',
-  Rejected: 'bg-[#F85149]/20 text-[#F85149]',
+import { Badge } from '../../ui/badge';
+
+// Master Reference Part 23 BR-2: Pending | Approved | Rejected (Cancelled added for the
+// own-leave "Cancel" action). Badge variants line up with the existing .pill-Pending/
+// .pill-Approved/.pill-Rejected colours in globals.css.
+const VARIANT: Record<string, 'warning' | 'success' | 'destructive' | 'outline'> = {
+  Pending: 'warning',
+  Approved: 'success',
+  Rejected: 'destructive',
+  Cancelled: 'outline',
 };
 
 export function LeaveStatusBadge({ status }: { status: string }) {
-  const cls = STYLE[status] ?? 'bg-[#30363D] text-[#8B949E]';
-  return <span className={`inline-flex items-center rounded-[9999px] px-2 py-0.5 text-xs font-medium ${cls}`}>{status}</span>;
+  return <Badge variant={VARIANT[status] ?? 'outline'}>{status}</Badge>;
 }
 
 export default LeaveStatusBadge;

@@ -292,7 +292,8 @@ export interface Leave {
   updatedAt: string;
 }
 
-export const LEAVE_TYPES = ['Annual', 'Sick', 'Casual', 'Maternity', 'Paternity', 'Unpaid', 'Emergency', 'Half Day'] as const;
+// Master Reference Part 23 BR-1 / Part 37 My Leaves Checklist: exactly these 7 types.
+export const LEAVE_TYPES = ['Annual', 'Sick', 'Casual', 'Maternity', 'Paternity', 'Unpaid Leave', 'Half Day'] as const;
 
 // ─── Meetings (P16/P17) ────────────────────────────
 export interface Meeting {
