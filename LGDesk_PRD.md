@@ -104,7 +104,7 @@ Two server-side predicates gate almost all authorization (auth.gs):
 | Work Duration / Clock In-Out | F | F | F | F | F |
 | Plan My Week | F | F | F | F | F |
 | Leave Requests (submit) | F | F | F | F | F |
-| Leave Approvals | F (all) | F (all) | E (direct reports) | — | — |
+| Leave Approvals | F (all) | F (all) | E (same team or direct reports) | — | — |
 | Meetings | F | F | F | F (create + cancel own) | F |
 | Org Chart | V | V | V | V | V |
 | Directory | V | V | V | V | V |
@@ -117,7 +117,7 @@ Two server-side predicates gate almost all authorization (auth.gs):
 | Organisation view | F | F | V (team) | — | — |
 | AI Summary Reports *(planned)* | F (company) | F (company) | E (own dept) | — | — |
 
-> ⚠ **Implementation reality.** "Import Tasks" is exposed to every logged-in user (the nav button calls `openMigrateModal()`; backend `migrationImport`/`migrationImportDirectRows` only require a valid session). Tighten this to managers in production if desired. The "Organisation" and most "Team"/"Company" nav items are `.nav-mgr-only` and are revealed by JS only after a manager role check.
+> ✅ **Import Tasks access policy confirmed (2026-06-30).** Import Tasks is intentionally open to all logged-in roles. The `#nav-import-btn` element is pinned at the top of the sidebar (above the scrollable nav), never hidden, and calls `openMigrateModal()`. The backend performs session validation only (`getCurrentUser`) — no manager/admin gate. Product owner reviewed the trade-off (any TM/Intern can bulk-import into the shared hierarchy) and confirmed this is the desired policy. Audit comments in `migration.gs` and GAP RBAC-B in the verification doc preserve the rationale. Re-evaluate if the organisation grows significantly.
 
 ### 4.3 Intern-Specific Behaviour
 
@@ -244,7 +244,7 @@ Aswini Bajaj Classes  | #244287 (Blue)    | #F5872C (Orange)  | Montserrat
 | `--border` | `#e0e0e0` | Borders |
 | `--text` | `#212121` | Text |
 | `--muted` / `--muted2` | `#757575` / `#9e9e9e` | Secondary text |
-| `--sidebar` / `--hh` / `--r` / `--sh` | `230px` / `56px` / `8px` / `0 2px 8px rgba(0,0,0,.1)` | Layout/shape/shadow |
+| `--sidebar` / `--hh` / `--r` / `--sh` | `230px` / `68px` / `8px` / `0 2px 8px rgba(0,0,0,.1)` | Layout/shape/shadow |
 
 Newer task UI (app.js.html) uses the **LG brand accents directly**: group-by active buttons and date/week group headers `#2D3E51`; priority bars Critical `#7c3aed`, High `#E64D3D`, Medium `#f59e0b`, Low `#9ca3af`. Fonts loaded: `Montserrat` (300–800) and `Material Symbols Outlined`. Login uses gradient `linear-gradient(135deg,#1a237e,#283593,#1565c0)`.
 
@@ -261,7 +261,19 @@ Newer task UI (app.js.html) uses the **LG brand accents directly**: group-by act
 - Flat, editorial aesthetic: thin borders, subtle shadow, no gradients except the login screen.
 
 ### 6.3 Navigation Structure (sidebar `#nav-main`)
+
+**Shell:** `<nav id="sidebar">` — `position:fixed; top:0; height:100vh; overflow:visible` (`overflow:visible`, NOT `overflow:hidden` — allows `#sb-collapse-btn` at `right:-12px` to protrude without clipping; `.sb-scroll` carries `overflow-x:hidden` instead). Collapsible (54px icon-strip) via `#sb-collapse-btn` (`position:absolute; top:78px; right:-12px; z-index:10; width:24px; height:24px`) / `toggleSidebarCollapse()`; drag-resizable 180–400px via `#sb-resize-handle`. Both update `--sidebar` via `document.documentElement.style.setProperty` (never `inline width` on `#sidebar` directly). No localStorage persistence. Labels wrapped in `<span class="sb-label">` — hidden in collapsed state via CSS rule.
+
 ```
+[LOGO ROW — first pinned element, above Import Tasks]
+  task_alt icon (17px, color:#28384a) + <span class="sb-label">LG Desk</span>
+  Dark navy colours (#28384a) — logo moved from header to white sidebar
+
+[IMPORT TASKS PIN — above scroll area, all roles]
+  #nav-import-btn     (upload)             onclick=openMigrateModal()  [never hidden]
+  background:#faece7; color:#28384a; font-weight:500; icon color:#993c1d
+
+[SCROLLABLE .sb-scroll — overflow-y:auto; overflow-x:hidden]
 MY SPACE
   Dashboard          (home)               data-view=dashboard      [default active]
   Plan My Week       (calendar_view_week) data-view=plan-week
@@ -285,13 +297,22 @@ COMPANY  (.nav-mgr-only)
   All Tasks          (table_rows)         data-view=all-tasks
   All Projects       (account_tree)       data-view=all-projects
   Organisation       (corporate_fare)     data-view=org-page
-  Forms              (description)         data-view=forms
-  MIS Report         (assessment)         data-view=mis-report        [hidden by default; shown when hasMisAccess===true]
+  Forms              (description)        data-view=forms
+  MIS Report         (assessment)         data-view=mis-report        [hidden; shown when hasMisAccess===true]
 
-  Import Tasks       (upload_file)        onclick=openMigrateModal()  [hidden button]
+CHATS  (#nav-tc-sec, populated async with department chat-space links)
 
-CHATS  (#nav-tc-sec, populated asynchronously with department chat-space links)
+[PROFILE CARD — sibling AFTER .sb-scroll, flex-shrink:0, position:relative, never scrolls out]
+  #pres-menu (first child) — position:absolute; bottom:calc(100% - 2px); z-index:30 — floats UPWARD
+    Order: Online / Away / Do Not Disturb / Appear Offline / ── / My Profile /
+           Change password [opens modal on Password tab] / ── / Sign Out
+  #user-chip (second child) — onclick="togglePresMenu(event)"
+    #hd-avatar (28px circle, background:#28384a) · <div class="sb-label"> containing:
+    #hd-name (color:#1a2533) · #hd-status-dot (.pres-dot) · #hd-role (color:#28384a; background:rgba(40,56,74,.1))
+    (The .sb-label div collapses name/role on sidebar collapse; avatar stays visible)
 ```
+
+**Header** (`<header id="header">`): `position:fixed; top:0; left:var(--sidebar); right:0; height:68px; background:var(--p)`. Starts **beside** the sidebar (not above it); `left` updates automatically when `--sidebar` changes via collapse/resize. Mobile override: `left:0!important`. **No logo and no user-chip in the header** — logo is in the sidebar. Right cluster (left→right): `#wl-widget-container` (week-glance pill, `height:46px; border-radius:14px`) · `#wd-hdr-btn` inside `#wd-hdr-wrap` (clock pill, `height:46px; border-radius:14px`) · `#global-refresh-btn` (46×46px refresh pill, `border-radius:14px`). Shared pill style: `background:rgba(255,255,255,.08)`. Week-glance widget (`_buildWlWeekWidget`) outputs **3-row layout**: row 1 = day letters `M T W T F S S`, row 2 = `‹` + 7 attendance dots + `›`, row 3 = date range · hours · days-logged summary.
 
 ---
 
@@ -332,8 +353,13 @@ CHATS  (#nav-tc-sec, populated asynchronously with department chat-space links)
 - FR-1: `getDashboardExtras` returns `{ ok, notices, onLeave, scores, scoreScope }` from a single Employees read shared across sub-functions.
 - FR-2: Notice board aggregates **five** sources — manual Announcements, Holidays (next 48h), Birthdays (today), Calendar Meetings (next 30d), and shared Forms — sorted by priority (Urgent/High/Normal) then date.
 - FR-3: Scoreboard scope is `company` (Admin/SA), `team` (manager → `getSubordinateIds` + self), or `self` (everyone else).
-- FR-4: Team Clock Status widget (`getTeamClockStatus`) shows live clock state per team member with a ticking elapsed timer (managers/admins only).
+- FR-4: Team Clock Status widget (`getTeamClockStatus`) shows live clock state per team member with a ticking elapsed timer (managers/admins only). **Stays Dashboard-only — not relocated.**
 - FR-5: Upcoming-tasks widget buckets the user's tasks (Overdue/Today/This week/Next week/Later).
+
+**Widget lifecycle notes:**
+- Clock widget (`#wd-hdr-wrap`) and week-glance widget (`#wl-widget-container`) are **global header widgets** — initialized once at app boot (after `_presStart()` in `onPayloadLoaded`) and remain live on every view, not just Dashboard.
+- Team Clock Status widget (`_teamClockLoad()`) is **Dashboard-only** — called from `renderDashboard()` only.
+- `loadWorkDuration()` and `_wlLoadWidgetWeek()` are **removed from `renderDashboard()`** to avoid re-initialization on every Dashboard visit.
 
 **User Stories:**
 - US-1: As a manager, I want to see who is on leave and who is clocked in right now.
@@ -567,7 +593,7 @@ CHATS  (#nav-tc-sec, populated asynchronously with department chat-space links)
 
 **Functional Requirements:**
 - FR-1: `submitLeaveRequest` validates dates; Half Day requires `Start_Date === End_Date` and sets `Days=0.5`.
-- FR-2: `reviewLeaveRequest` (manager) — non-admins may only review direct reports (`Manager_ID === reviewer.empId`); approval syncs a calendar event.
+- FR-2: `reviewLeaveRequest` (manager) — non-admins may review leave requests for direct reports (`Manager_ID === reviewer.empId`) **or** same-team members (`Team` field match via `_getTeamEmpIds`); either condition independently grants access. Approval syncs a calendar event. `getPendingLeaves` and `getPendingLeaveCount` use the identical additive OR so the list and badge always reflect the same scope.
 - FR-3: `addHoliday`/`deleteHoliday` admin-only, calendar-synced.
 
 **Business Rules:**

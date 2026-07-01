@@ -43,7 +43,7 @@
 
 | View ID | Render Function | Notes |
 |---|---|---|
-| `view-dashboard` | `renderDashboard()` | Calls `getDashboardExtras()`, `loadWorkDuration()` |
+| `view-dashboard` | `renderDashboard()` | Calls `getDashboardExtras()`; does **NOT** call `loadWorkDuration()` or `_wlLoadWidgetWeek()` — both are initialized once at app boot after `_presStart()` in `onPayloadLoaded` and remain live on every view. `_teamClockLoad()` (team clock widget) **is** called here (Dashboard-only). |
 | `view-plan-week` | `renderPlanWeek()` | Day-grouped weekly planner of the user's tasks; week nav via `_pwPrevWeek`/`_pwNextWeek`/`_pwGoToday`; anchor `_PW_ANCHOR` |
 | `view-my-tasks` | `renderMyTasks()` | Filters APP.tasks by To Me / By Me / All |
 | `view-my-projects` | `renderMyProjects()` | Filters APP.projects by ownership/assignment |
@@ -81,7 +81,7 @@
 | `wd-edit-day-modal` | `_wdOpenEditDayModal()` (pencil ✏ next to clock-in) | Edit working day — start/end/break (two SVG clocks) |
 | `migrate-modal` | `openMigrateModal()` (sidebar Import button) | Personal sheet import |
 | `register-modal` | `openRegisterModal()` (login screen) | New user registration |
-| `profile-modal` | `openProfileModal()` | User profile + password |
+| `profile-modal` | `openProfileModal(initialTab?)` | User profile + password; optional `initialTab` arg (`'info'`\|`'password'`) — no-arg defaults to `'info'`; `openProfileModal('password')` jumps directly to the Password tab (used by "Change password" in the presence menu) |
 | `leave-modal` | Leave request button | Submit leave |
 | `holiday-modal` | `openHolidayModal(date)` | Add holiday (admin) |
 | `member-log-modal` | `loadMemberLogDetail(memberId)` | Manager drill-down |
@@ -116,9 +116,19 @@ All modals close with `closeModal('[modal-id]', event)`.
 | Organisation | org-page | `.nav-item.nav-mgr-only` | Manager+ |
 | Forms | forms | `.nav-item.nav-mgr-only` | Manager+ |
 | MIS Report | mis-report | `.nav-item.hidden` → shown when `APP.currentUser.hasMisAccess === true` | MIS Access list only |
-| Import Tasks | — | `.nav-item.hidden` → calls `openMigrateModal()` | All logged-in |
+| Import Tasks | — | `id="nav-import-btn"` pinned ABOVE `.sb-scroll`, **never hidden**, no role gate | All logged-in (deliberate product decision 2026-06-30; see GAP RBAC-B in verification doc) |
 
 Badges: `badge-my-tasks`, `badge-meetings`, `badge-leave-approvals`
+
+**Sidebar structure** (`<nav id="sidebar">`): `position:fixed; top:0; height:100vh; overflow:visible` (NOT `overflow:hidden` — changed so `#sb-collapse-btn` at `right:-12px` is visible outside the edge; `.sb-scroll` carries `overflow-x:hidden` instead). Width: `--sidebar` CSS var (default 230px). Children in order:
+1. `#sb-collapse-btn` — `position:absolute; top:78px; right:-12px; z-index:10; width:24px; height:24px` — protrudes outside sidebar right edge; `toggleSidebarCollapse()` sets `--sidebar` to 54px (collapsed) or `SB_EXPANDED_WIDTH` (expanded) and toggles `#sidebar.sb-collapsed`. No localStorage persistence.
+2. `#sb-resize-handle` — 4px drag strip; resizes 180–400px; both collapse and resize use `document.documentElement.style.setProperty('--sidebar', …)` so `#header{left}` and `#main{margin-left}` reflow live.
+3. Logo row (no id) — `display:flex; align-items:center; gap:7px; padding:11px 12px; color:#28384a; flex-shrink:0`. Material Symbol `task_alt` (17px) + `<span class="sb-label">LG Desk</span>`. Dark navy (`#28384a`) — moved from header to white sidebar; all header-era white colours replaced with dark sidebar colours.
+4. `#nav-import-btn` — Import Tasks pinned above scrollable area; `background:#faece7; color:#28384a; font-weight:500`; icon `color:#993c1d`; all logged-in roles (no RBAC gate — deliberate product decision 2026-06-30).
+5. `<div class="sb-scroll">` — the only scrollable child; `overflow-y:auto; overflow-x:hidden`; contains `#nav-main` + `#nav-chats-wrap`.
+6. `#sidebar-profile-pin` — sibling AFTER `.sb-scroll`; `flex-shrink:0; position:relative`; never scrolls out. Two direct children: (a) `#pres-menu` (`position:absolute; bottom:calc(100% - 2px); z-index:30` — floats upward above the chip), (b) `#user-chip` (clickable flex row, `onclick="togglePresMenu(event)"`) containing `#hd-avatar` + a `<div class="sb-label">` wrapper with `#hd-name` (`color:#1a2533`), `#hd-status-dot` (`.pres-dot`), `#hd-role` (`color:#28384a; background:rgba(40,56,74,.1)`). The `.sb-label` div hides name/role when collapsed; avatar stays visible. All sidebar text labels carry `class="sb-label"` — hidden via `#sidebar.sb-collapsed .sb-label{display:none!important}`.
+
+**Header** (`<header id="header">`): `position:fixed; top:0; left:var(--sidebar); right:0; height:68px`. Right cluster (left→right): `#wl-widget-container` (week-glance pill, `height:46px; border-radius:14px`) → `#wd-hdr-wrap` (clock pill, `height:46px; border-radius:14px`) → `#global-refresh-btn` (46×46px refresh pill, `border-radius:14px`). All three: `background:rgba(255,255,255,.08)`. Mobile override: `left:0!important; right:0!important`. **No logo and no user-chip in the header.** Logo is in sidebar item 3 above. User identity/presence elements live exclusively in `#sidebar-profile-pin`.
 
 ### 2.4 APP Global Object (complete shape)
 
@@ -149,7 +159,7 @@ Storage key: `_SESS_KEY = 'tm_sess'` (localStorage)
 | `loginWithPassword(email, password)` | `login()` | Shows user card; saves `r.token` to `APP._sessToken` + `localStorage('tm_sess')` immediately |
 | `requestPasswordReset(email)` | `sendResetCode()` | Show step2; toast 'Code sent!' |
 | `resetPasswordWithOTP(email, otp, newpw)` | `resetPasswordSubmit()` | `hideForgotPw()`; toast |
-| `getMyProfile(email)` | `openProfileModal()` | `renderProfileModal` |
+| `getMyProfile(email)` | `openProfileModal(initialTab?)` | `renderProfileModal`; `initialTab` passed through to `switchProfileTab(initialTab\|\|'info')` |
 | `submitProfileUpdate(record, email)` | `saveProfileUpdate()` | toast + reload |
 | `changePassword(email, cur, new)` | `savePasswordChange()` | toast |
 | `getInitialPayload(email)` | `enterDashboard()` | `onPayloadLoaded(r)` |
@@ -410,7 +420,7 @@ var _OC_TEAM_COLORS = {
 | `.wl-*` | `.wl-week-table`, `.wl-inp`, `.wl-row-today`, `.wl-row-wknd`, `.wl-status-badge` | Work log |
 | `.proj-card` | `.proj-card.p-High`, `.proj-card.p-Critical` | Project cards |
 | `.stat-card` | (scoreboard, dashboard stats) | Statistics cards |
-| CSS vars | `--p`, `--p2`, `--p3`, `--accent`, `--danger`, `--ok`, `--warn`, `--bg`, `--surface`, `--border`, `--text`, `--muted`, `--sidebar:230px`, `--hh:56px`, `--r:8px` | Theme tokens |
+| CSS vars | `--p`, `--p2`, `--p3`, `--accent`, `--danger`, `--ok`, `--warn`, `--bg`, `--surface`, `--border`, `--text`, `--muted`, `--sidebar:230px`, `--hh:68px`, `--r:8px` | Theme tokens; `--sidebar` updated live by collapse/resize via `setProperty` |
 
 ### 2.9 Key Form Element IDs (grouped by view/modal)
 
@@ -758,11 +768,11 @@ dueDateRequests.gs → calls from: db.gs (dbGetAll, dbInsert, dbUpdate, generate
 | `dueDateRequests.gs` | `requestDueDateChange` | `_isAdmin` or entity `Assigner_ID === caller.empId` → direct change; else inserts a Pending request |
 | `dueDateRequests.gs` | `approveDueDateChange` / `rejectDueDateChange` | `_isAdmin(role)` or matching `Approver_ID` |
 | `auth.gs` | `createFunction` / `updateFunction` | `_isManager(role)` **OR** `_isTmSelfAssign` (TM self-assigning: assignee list empty or only the caller); `updateFunction` also allows assignee/creator |
-| `leaves.gs` | `reviewLeaveRequest` | `_isManager(role)` or `_isAdmin(role)` required |
-| `leaves.gs` | `getPendingLeaves` | `_isManager(role)` scoping |
+| `leaves.gs` | `reviewLeaveRequest` | `_isManager(role)` required; Admin/SA → any pending leave; TC/TF → `emp.Manager_ID === user.empId` **OR** `_getTeamEmpIds(user).has(leave.Emp_ID)` (same-team) — whichever is true grants access |
+| `leaves.gs` | `getPendingLeaves` | `_isManager(role)` required; Admin/SA → all pending; TC/TF → `empMap[id].managerId === user.empId` **OR** `_getTeamEmpIds(user).has(id)` (same-team) — additive OR condition |
 | `leaves.gs` | `addHoliday` | `_isAdmin(role)` required |
 | `leaves.gs` | `deleteHoliday` | `_isAdmin(role)` required |
-| `leaves.gs` | `getPendingLeaveCount` | returns 0 if not manager |
+| `leaves.gs` | `getPendingLeaveCount` | returns 0 if not manager; Admin/SA → total count; TC/TF → same additive OR condition as `getPendingLeaves` so badge always matches list |
 | `dashboard.gs` | `createAnnouncement` | `_isAdmin(role)` required |
 | `dashboard.gs` | `deleteAnnouncement` | `_isAdmin(role)` required |
 | `dashboard.gs` | `_getScores` | Admin → company; Manager → team; TM → self |
@@ -811,11 +821,11 @@ dueDateRequests.gs → calls from: db.gs (dbGetAll, dbInsert, dbUpdate, generate
 
   - Primary breakpoint: `window.innerWidth <= 768`. Additional breakpoints referenced in CSS: 1024px, 960px, 576px, 375px.
   - **State vars:** `_IS_MOBILE`, `_MOB_NAV_OPEN`, and `_MOB_BLOCKED_VIEWS = ['calendar','meetings','org-chart','directory','team-tasks','team-mgmt','org-page','forms']`.
-  - **`_applyMobileLayout()`** — THE resize handler, registered via `window.addEventListener('resize', _applyMobileLayout)`. Also called immediately on parse, in `onPayloadLoaded` (after login), in `navigate()` (`if (_IS_MOBILE) _applyMobileLayout()` at the end), and in `_postDashRender`. On mobile: repositions sidebar as a slide-in drawer, makes tables scrollable, full-screens modals, shows `#mob-hamburger` / hides `#mob-menu-btn`. On desktop: clears the inline overrides.
-  - **`openMobNav()`** — the real function: sets `_MOB_NAV_OPEN = true`; slides sidebar to `left:0`; shows `#sidebar-overlay`; locks body scroll. Referenced by `#mob-menu-btn` / hamburger `onclick`.
-  - **`closeMobNav()`** — the real function: sets `_MOB_NAV_OPEN = false`; slides sidebar off-screen; hides `#sidebar-overlay`; restores scroll. Referenced by `#sidebar-overlay` `onclick`.
-  - **`navigate(view)`** — on mobile, blocked views in `_MOB_BLOCKED_VIEWS` are redirected to `dashboard`; closes the nav drawer if open; calls `_applyMobileLayout()` at the end.
-  - **Sidebar `left` is JS-owned:** Neither the static `<style>` block nor the IIFE bypass CSS sets `left` on `#sidebar`. Do NOT add `left` back to CSS.
+  - **`_applyMobileLayout()`** (aliased as `_mobileInit()`) — THE resize handler. On mobile: header gets `left:0!important`, sidebar becomes `position:fixed; left:-280px` slide-in drawer, tables scrollable, modals full-screen. On desktop: clears overrides. `toggleSidebarCollapse()` and the resize IIFE are no-ops on mobile (`if (_IS_MOBILE) return`).
+  - **`openMobNav()`** — sets `_MOB_NAV_OPEN = true`; slides sidebar to `left:0`; shows `#sidebar-overlay`; locks body scroll.
+  - **`closeMobNav()`** — sets `_MOB_NAV_OPEN = false`; slides sidebar to `left:-280px`; hides `#sidebar-overlay`; restores scroll.
+  - **`navigate(view)`** — on mobile, blocked views redirect to `dashboard`; closes the nav drawer if open; calls `_mobileInit()` at the end.
+  - **Sidebar `left` is JS-owned on mobile:** Neither the static `<style>` block nor the IIFE bypass CSS sets `left` on `#sidebar` for mobile. Do NOT add `left` back to CSS for the mobile breakpoint.
   - CSS triple-layer rule for non-sidebar mobile UI: new mobile CSS must appear in (1) static `<style>` block, (2) IIFE `<style id="_rsp_bypass">` injection, (3) `_applyMobileLayout()` inline styles.
   - Mobile-gated features (CSS `display:none` + `_applyMobileLayout` inline): nav items `calendar`, `meetings`, `org-chart`, `directory`, `team-tasks`, `team-mgmt`, `org-page`, `forms`; dashboard sections `#dash-stats`, `#dash-scoreboard-wrap`, `#dash-btn-forms`, `#dash-btn-new-task`; `#nav-chats-wrap`.
 - **OAuth2 token keys pattern:**
