@@ -20,10 +20,10 @@
 ---
 
 ## Repo layout
-The git root is `Gagan_TaskCo/`; the pnpm monorepo is `Gagan_TaskCo/lgdesk/`:
+The git root is `Gagan_TaskCo/`; the npm-workspaces monorepo is `Gagan_TaskCo/lgdesk/`:
 ```
 Gagan_TaskCo/
-└── lgdesk/                   ← pnpm workspace root
+└── lgdesk/                   ← npm workspace root ("workspaces": ["apps/*"])
     ├── apps/api              ← NestJS  → Railway (Docker: apps/api/Dockerfile)
     ├── apps/web              ← Next.js → Vercel (STANDALONE — mirrors API types locally)
     └── packages/types
@@ -38,10 +38,10 @@ Gagan_TaskCo/
 
 ## 1. Pre-deploy build check (green)
 ```bash
-cd lgdesk && pnpm install
-pnpm --filter api exec prisma generate
-pnpm --filter api build      # nest build → exit 0
-pnpm --filter web build      # next build → exit 0
+cd lgdesk && npm install
+npm run db:generate --workspace=apps/api    # prisma generate
+npm run build:api      # nest build → exit 0
+npm run build:web      # next build → exit 0
 ```
 
 ## 2. Database (Neon) — done
@@ -146,7 +146,7 @@ In-process `@nestjs/schedule` crons (no Railway scheduler): hourly auto clock-ou
 | Railway health fails / "no open ports" | App must bind `$PORT` — it does; don't override `PORT`. |
 | `prisma` engine / OpenSSL error | The Dockerfile installs `openssl` (Debian slim). |
 | CORS errors in browser | Railway `FRONTEND_URL` must equal the exact Vercel origin (no trailing slash); redeploy after changing. |
-| `Cannot find module './vendor-chunks/...'` (web local) | Stale `.next`: `rm -rf apps/web/.next && pnpm --filter web build`. |
+| `Cannot find module './vendor-chunks/...'` (web local) | Stale `.next`: `rm -rf apps/web/.next && npm run build:web`. |
 
 ```
 App URL:  https://lgdesk-web.vercel.app

@@ -1,27 +1,34 @@
-# LG Desk — Production Build Reference
-> Stack: NestJS 10 + PostgreSQL/Neon + Next.js 14 | Design: Dark Command
+# LG Desk — Build Reference
+
+> Stack: NestJS 10 + PostgreSQL/Neon + Next.js 14 | Design: light-indigo (GAS-derived), NOT dark mode
 > Read this file at the start of EVERY session. All rules live here.
 
+This is a from-scratch NestJS/Next.js rebuild (npm workspaces, no pnpm, no Google Apps Script). Do not
+carry over GAS-specific gotchas from any older version of this file — everything below reflects the
+current codebase.
+
 ## Tech Stack
+
 | Layer | Technology |
 |---|---|
 | Database | PostgreSQL on Neon (serverless, free tier) |
 | ORM | Prisma 5 |
 | Backend | NestJS 10, TypeScript strict mode |
-| Auth | Passport.js + @nestjs/jwt + bcrypt (rounds=12) |
+| Auth | Passport.js (`passport-jwt`) + `@nestjs/jwt` + bcryptjs (rounds=12) |
 | Validation | class-validator + class-transformer |
 | Frontend | Next.js 14 App Router, TypeScript strict mode |
-| UI | Tailwind CSS v3 + shadcn/ui + Lucide React (no emoji, no MUI icons) |
+| UI | Tailwind CSS v3 + shadcn/ui (hand-adapted) + Lucide React (no emoji, no MUI/Material icons) |
 | Data Fetching | TanStack Query v5 |
 | Forms | React Hook Form v7 + Zod v3 |
-| Background Jobs | @nestjs/schedule (cron — no BullMQ, no Redis) |
+| Background Jobs | `@nestjs/schedule` (cron — no BullMQ, no Redis) |
 | Email | Resend SDK |
-| File Storage | Google Drive API (googleapis npm) |
-| AI | Gemini 2.5 Flash via fetch (weekly summaries only) |
-| Package Manager | pnpm |
-| Deployment | Vercel (web) + Railway (api) |
+| AI | Gemini 2.5 Flash via raw `fetch` (weekly summaries only — no SDK) |
+| File Storage | Google Drive API (planned, blocked — see Google Integrations below) |
+| Package Manager | **npm workspaces** (`workspaces: ["apps/*"]`) |
+| Deployment | Vercel (web, standalone) + Railway (api, Docker) |
 
 ## Monorepo Structure
+
 ```
 lgdesk/
 ├── apps/
@@ -30,52 +37,76 @@ lgdesk/
 │   │   │   ├── main.ts
 │   │   │   ├── app.module.ts
 │   │   │   ├── prisma/
-│   │   │   ├── common/         # guards, interceptors, decorators, utils
+│   │   │   ├── common/          # guards, interceptors, decorators, utils, constants.ts
 │   │   │   ├── auth/
 │   │   │   ├── users/
 │   │   │   ├── tasks/
 │   │   │   ├── projects/
-│   │   │   ├── functions/      # WorkFunction (not 'function' — reserved word)
+│   │   │   ├── functions/       # WorkFunction (not 'function' — reserved word)
 │   │   │   ├── work-log/
 │   │   │   ├── work-duration/
 │   │   │   ├── leaves/
 │   │   │   ├── meetings/
+│   │   │   ├── calendar/        # task/project/leave/holiday → Google Calendar sync (blocked, no creds)
 │   │   │   ├── dashboard/
 │   │   │   ├── directory/
-│   │   │   ├── announcements/
-│   │   │   ├── notes/          # todos + notes + ideas (personal)
-│   │   │   ├── attachments/
+│   │   │   ├── import/          # Import Tasks (CSV/Sheet preview + commit) — see RBAC gotchas below
+│   │   │   ├── notes/           # todos + notes + ideas (personal productivity)
 │   │   │   ├── ddr/
 │   │   │   └── weekly-summary/
 │   │   └── prisma/schema.prisma
-│   └── web/                    # Next.js — port 3000
+│   └── web/                     # Next.js — port 3000
 │       └── src/
 │           ├── app/
-│           │   ├── (auth)/     # login, forgot-password
-│           │   └── (dashboard)/
+│           │   ├── (auth)/      # login, forgot-password, registration
+│           │   └── (dashboard)/ # every authenticated module/page
 │           ├── components/
-│           │   ├── ui/         # shadcn/ui
-│           │   └── modules/    # per-feature components
+│           │   ├── ui/          # shadcn/ui primitives — see "shadcn/ui primitives" below
+│           │   └── modules/     # per-feature components
 │           ├── lib/
-│           │   ├── api.ts
+│           │   ├── api/         # TanStack Query hooks, ONE FILE PER DOMAIN (see below)
+│           │   ├── icons.ts     # Lucide icon lookup — see "Icons" below
+│           │   ├── rbac.ts      # frontend permission mirror — see "RBAC" below
+│           │   ├── design-tokens.ts
 │           │   ├── auth.ts
-│           │   └── design-tokens.ts
-│           └── hooks/
+│           │   └── types.ts     # standalone-app local type mirror of the API's shapes
+│           └── contexts/        # auth-context.tsx, etc.
 └── packages/
-    └── types/
-        └── src/index.ts
+    └── types/                   # @lgdesk/types — orphaned; NOT in root workspaces list, NOT
+                                  # imported by apps/web (which is standalone) or apps/api.
 ```
 
-## Six Roles
+### Key file locations
+
+- **`apps/web/src/lib/api/*.ts`** — one file per domain (`tasks.ts`, `projects.ts`, `leaves.ts`, `workLog.ts`, `directory.ts`, `meetings.ts`, etc.), each exporting TanStack Query hooks (`useTasks`, `useCreateTask`, …) that wrap `client.ts`. This is the only sanctioned way pages/components talk to the API — don't hand-roll `fetch` calls in a component.
+- **`apps/web/src/lib/icons.ts`** — the single Lucide icon lookup (`ICON_MAP` + `resolveIcon(name)`). Call sites use `<Icon name="task_alt" />` (legacy Material-Symbol-style names as keys) instead of importing from `lucide-react` directly. **Never `import { X } from 'lucide-react'` in a component or page** — add the icon to `icons.ts`'s map instead, so there is one place that owns the icon set.
+- **`apps/web/src/lib/rbac.ts`** — frontend mirror of the backend's per-entity edit/delete/role-change predicates (`canEditTask`, `canDeleteProject`, `canChangeRole`, etc). Kept in lockstep with `apps/api/src/{tasks,projects,functions,users}/*.service.ts`. It's intentionally allowed to *under*-show an affordance relative to the server (never over-show) — see the file's header comment for the one documented gap (manager-scope via org-chart subordinates).
+- **`apps/web/src/components/ui/*.tsx`** — shadcn/ui primitives, **hand-adapted to this project's CSS-variable token set** (`--p`, `--p2`, `--p3`, `--accent`, `--bg`, `--surface`, etc. — see Design Tokens below), **NOT** the shadcn default `oklch()`/Tailwind-v4 color system. The shadcn CLI in this project has repeatedly regenerated components using its Tailwind-v4/oklch defaults and clobbered the hand-adapted CSS-var versions. **Always diff CLI output against the existing file before accepting it** — if the CLI wrote `oklch(...)` colors or a `@theme inline` block, discard those parts and keep the `var(--...)` mappings.
+- **`apps/api/src/common/constants.ts`** — `ALL_ROLES`, `ADMIN_ROLES`, `MANAGER_ROLES`, `isAdmin`, `isManager`, task/leave/attendance enums, ID prefixes, `calcScore`. Backend source of truth for role tiers.
+
+## Six Roles / RBAC
+
 ```typescript
-export const ALL_ROLES    = ['Super Admin','Admin','Team Captain','Team Facilitator','Team Member','Intern'] as const
-export const ADMIN_ROLES  = ['Super Admin','Admin'] as const
-export const MANAGER_ROLES= ['Super Admin','Admin','Team Captain','Team Facilitator'] as const
-export const isAdmin  = (role: string) => ADMIN_ROLES.includes(role as any)
-export const isManager= (role: string) => MANAGER_ROLES.includes(role as any)
+export const ALL_ROLES     = ['Super Admin','Admin','Team Captain','Team Facilitator','Team Member','Intern'] as const;
+export const ADMIN_ROLES   = ['Super Admin','Admin'] as const;
+export const MANAGER_ROLES = ['Super Admin','Admin','Team Captain','Team Facilitator'] as const;
+export const isAdmin   = (r: string) => (ADMIN_ROLES as readonly string[]).includes(r);
+export const isManager = (r: string) => (MANAGER_ROLES as readonly string[]).includes(r);
 ```
+
+RBAC lives in two places that must stay in lockstep:
+- **Backend (authoritative):** `apps/api/src/common/constants.ts` (role tiers) + per-service checks — `users.service.ts` (`changeRole`), `tasks.service.ts` (`canModifyTask`/`canDeleteTask`/self-assign), `projects.service.ts`, `functions.service.ts`.
+- **Frontend (mirror, UI-only):** `apps/web/src/lib/rbac.ts`. Never trust this for security — it only controls whether a button/affordance renders. The server re-checks everything.
+
+Role-change matrix (`users.service.ts` `changeRole`, mirrored in `rbac.ts` `allowedNewRoles`/`canChangeRole`):
+- **Super Admin** — no restriction, any role, any target.
+- **Admin** — any role except Super Admin, and never on an Admin or Super Admin target.
+- **Team Captain** — own-team **Team Member / Intern** targets ONLY, and only into Team Member / Intern / Team Facilitator / Team Captain (never Admin/Super Admin).
+- **Team Facilitator** — no capability at all. No code branch exists or should exist for TF changing anyone's role.
+- Nobody may change their own role (enforced server-side before any role branch).
 
 ## API Response Shape — enforced by ResponseInterceptor
+
 ```typescript
 // Success:
 { ok: true, data: <payload> }
@@ -85,6 +116,7 @@ export const isManager= (role: string) => MANAGER_ROLES.includes(role as any)
 ```
 
 ## ID Formats (5-digit zero-padded, auto-incremented)
+
 ```
 TSK-XXXXX  PRJ-XXXXX  FN-XXXXX  EMP-XXXXX  WL-XXXXX
 IWL-XXXXX  DDR-XXXXX  MTG-XXXXX  LV-XXXXX  UPD-XXXXX
@@ -102,6 +134,7 @@ async generateId(model: string, idField: string, prefix: string): Promise<string
 ```
 
 ## Array Fields — Storage Pattern
+
 Arrays stored as comma-separated strings in DB, always returned as string[] in API:
 ```typescript
 const parseIds = (s: string): string[] => s ? s.split(',').filter(Boolean) : []
@@ -110,53 +143,65 @@ const joinIds  = (a: string[]): string => a.filter(Boolean).join(',')
 // API: assigneeIds = ["EMP-00001","EMP-00002"]
 ```
 
-## Design System: Dark Command
-```typescript
-// apps/web/src/lib/design-tokens.ts
-export const tokens = {
-  colors: {
-    bg:              '#0D1117',
-    sidebar:         '#161B22',
-    header:          '#161B22',
-    card:            '#21262D',
-    border:          '#30363D',
-    text:            '#E6EDF3',
-    textSec:         '#8B949E',
-    accent:          '#58A6FF',
-    accentBg:        'rgba(88,166,255,0.1)',
-    success:         '#3FB950',
-    warning:         '#E3B341',
-    danger:          '#F85149',
-    sidebarText:     'rgba(230,237,243,0.5)',
-    sidebarTextActive:'#E6EDF3',
-    sidebarActive:   'rgba(255,255,255,0.07)',
-  },
-  radius: { sm:'3px', md:'6px', lg:'10px', pill:'9999px' },
-  font: {
-    sans: 'Inter, system-ui, -apple-system, sans-serif',
-    mono: "'Courier New', Courier, monospace", // task IDs and codes only
-  },
+## Design System: light-indigo
+
+The design system is **light**, indigo-primary — NOT dark mode. There is no "Dark Command" theme in
+this codebase; if you see that name anywhere it refers to a stale, superseded draft. Canonical source
+is `apps/web/src/app/globals.css`'s `:root` block (mirrored, for JS/TS consumers, in
+`apps/web/src/lib/design-tokens.ts`) — read those two files directly rather than trusting any other
+description, including this one, if they ever diverge.
+
+```css
+:root {
+  --p:       #1a237e;   /* header bg, active nav, primary buttons, stat-card border */
+  --p2:      #3949ab;   /* focus rings, project-card border, progress bars */
+  --p3:      #e8eaf6;   /* active nav bg, hover bg, chips */
+  --accent:  #00897b;   /* avatar bg, accent buttons, Team Member role pill */
+  --danger:  #c62828;
+  --warn:    #e65100;
+  --ok:      #2e7d32;
+  --bg:      #f0f2f5;   /* app background */
+  --surface: #ffffff;   /* card / panel / modal surface */
+  --border:  #e0e0e0;
+  --text:    #212121;   /* primary body text */
+  --muted:   #757575;
+  --muted2:  #9e9e9e;
+
+  --sidebar-width:     230px;
+  --sidebar-collapsed: 54px;
+  --hh:      68px;      /* header height — CONFIRMED 68px, not 56px */
+  --r:       8px;       /* border-radius base */
+  --sh:      0 2px 8px rgba(0,0,0,.1);
 }
 ```
 
-Tailwind shorthand for Dark Command:
-- Page bg:      `bg-[#0D1117]`
-- Sidebar:      `bg-[#161B22]`
-- Card:         `bg-[#21262D] border border-[#30363D]`
-- Primary text: `text-[#E6EDF3]`
-- Muted text:   `text-[#8B949E]`
-- Accent:       `text-[#58A6FF]` / `bg-[#58A6FF]`
-- Accent bg:    `bg-[rgba(88,166,255,0.1)]`
-- Success:      `text-[#3FB950]`
-- Warning:      `text-[#E3B341]`
-- Danger:       `text-[#F85149]`
-- Border:       `border-[#30363D]`
-- Radius:       `rounded-[6px]` (default), `rounded-[10px]` (modals)
-- Task IDs:     `font-mono text-[#8B949E] text-xs`
-- Sidebar width: `w-48` (192px)
-- Header height: `h-13` (52px)
+shadcn/ui semantic vars (`--background`, `--primary`, `--card`, `--ring`, etc.) are all `var()`
+indirections onto the tokens above — one source of truth. Font is **Montserrat** (`--font-montserrat`
+Next.js font var), not Inter.
+
+Tailwind shorthand:
+- Page/app bg: `bg-[var(--bg)]` · Card/surface: `bg-[var(--surface)]` · Border: `border-[var(--border)]`
+- Primary text: `text-[var(--text)]` · Muted: `text-[var(--muted)]` / `text-[var(--muted2)]`
+- Brand primary: `bg-[var(--p)]` / `text-[var(--p)]` · Hover/active tint: `bg-[var(--p3)]`
+- Accent (teal): `bg-[var(--accent)]` · Danger/Warn/OK: `[var(--danger)]` / `[var(--warn)]` / `[var(--ok)]`
+- Radius: `rounded-[var(--r)]` (8px base) · Sidebar width: `w-[230px]` (collapsed: `w-[54px]`)
+- Header height: `h-[68px]`
+
+## Google Integrations — blocked, do not implement
+
+Four integrations are planned but **blocked pending credentials that don't exist yet on Railway** (no
+Google service account, no OAuth2 client): Drive Attachments, Chat Spaces, Forms, Google Tasks sync.
+Treat these as a known TODO, not something to build out further this phase:
+- `apps/api/src/calendar/calendar.service.ts` (task/project/leave/holiday → Google Calendar sync) reads
+  `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` and no-ops without them.
+- `apps/api/src/meetings/google-calendar.service.ts` (meeting invites / Meet links) reads
+  `GOOGLE_CALENDAR_CREDENTIALS`, is an intentional stub (`createCalendarEvent` always returns `null`),
+  and is wrapped so a Calendar failure never affects the API response — the DB is the source of truth,
+  Calendar is invite-layer-only.
+- Attachments: the Prisma model exists; there is no controller/service yet.
 
 ## 22 Critical Business Rules — Never Violate
+
 ```
 1.  passwordHash NEVER in any API response
 2.  assignerId / ownerId NEVER from request body — always from JWT
@@ -177,25 +222,27 @@ Tailwind shorthand for Dark Command:
 17. Attachment soft-delete: isDeleted=true — file stays in Google Drive
 18. WeeklySummary content: newline-delimited bullets, NO leading "• " character
 19. weekStart: always normalized to Monday (date-fns startOfWeek({weekStartsOn:1}))
-20. bcrypt rounds=12 for all passwords. No SHA-256+salt.
+20. bcrypt rounds=12 for all passwords (bcryptjs). No SHA-256+salt.
 21. Meetings: DB is source of truth. Google Calendar = invite layer only.
-22. TM self-assign functions: allowed only when assigneeIds is empty OR = [their own empId]
+22. TM self-assign functions/tasks: allowed only when assigneeIds is empty OR = [their own empId], and no team may be set
 ```
 
-## Out of Scope — Do NOT Build
-- AI Summary Reports via Claude API
-- Google Forms module
-- Google Chat Spaces module
-- Data migration from GAS/Google Sheets
-- Docker / containerisation
-- Google OAuth login
+## Quick-reference gotchas
 
-## Common Pitfalls — Avoid
-- Never use raw SQL — Prisma only
-- Never return passwordHash — omit via Prisma select or manual delete
-- Never create test files unless a test prompt explicitly requests them
-- Never modify prisma/schema.prisma unless the current prompt says to
-- Never import from '@prisma/client' directly — use PrismaService only
-- Never hardcode empId in services — always use @CurrentUser() from JWT
-- Performance: use virtual scrolling (react-virtual) for lists > 50 items
-- Performance: use TanStack Query staleTime ≥ 30s for reference data (roles, teams)
+- **Import Tasks has no RBAC gate.** `apps/api/src/import/import.controller.ts` — only `JwtAuthGuard` (must be logged in); no `@Roles`/`RolesGuard`. This is intentional — see GAP RBAC-B in `LGDesk_Verification_Report.md` (product owner confirmed 2026-06-30: friction outweighs risk at current org scale). **Do not add a role gate here without re-confirming with product.**
+- **Registration password minimum is 6 characters** (Master Reference spec), **not 8**. If touching registration/password-change/reset flows, verify all three stay in sync: `apps/api/src/auth/dto/{register-request,change-password,reset-password-confirm}.dto.ts` (`@MinLength(6, …)`), the Zod schemas (`apps/web/src/app/(auth)/login/login-page.schema.ts`, `apps/web/src/components/modules/users/registration-modal.schema.ts` — `z.string().min(6, …)`), and the placeholder text ("Min 6 characters").
+- **Team Facilitator (TF) can never change any employee's role.** No code branch should ever exist for this on either backend (`users.service.ts` `changeRole`) or frontend (`rbac.ts` `allowedNewRoles`) — TF simply falls through to the empty-array/no-capability case.
+- **Team Captain (TC) can only change Team Member/Intern roles, and only within their own team.** `users.service.ts` `changeRole` gates on `target.role !== 'Team Member' && target.role !== 'Intern'` → reject, plus the caller/target team match; `rbac.ts` `canChangeRole` mirrors both checks.
+- **`GET /directory/org-chart` (`DirectoryController.orgChart` → `DirectoryService.getOrgChartData`) has no role-based RBAC guard** — it sits behind the controller-level `JwtAuthGuard` (must be authenticated) but there is no `@Roles`/`RolesGuard` on top, so any authenticated employee of any role can view the full org chart. This is intentional per spec — **do not add a role restriction without re-confirming with product.**
+- **`hasMisAccess` is independent of role** — it's derived from a dedicated `MisAccess` table row (`auth.service.ts` `checkMisAccess`), not from `isAdmin`/role tier. An Admin without a `MisAccess` row still can't call MIS endpoints; a non-Admin with one can.
+- **Never import from `lucide-react` directly in a component** — go through `apps/web/src/lib/icons.ts`'s `ICON_MAP`/`resolveIcon`.
+- **Never hand-roll a `fetch`/`axios` call in a page or component** — add a hook to the relevant `apps/web/src/lib/api/*.ts` file and consume it via TanStack Query.
+- **Diff shadcn CLI output before accepting it.** It defaults to Tailwind v4 / `oklch()` colors, which will silently clobber the hand-adapted `var(--...)`-based versions in `apps/web/src/components/ui/*.tsx`.
+- **`npm install` from the repo root, not `pnpm install`.** This repo migrated off pnpm to npm workspaces; there is no `pnpm-lock.yaml` anymore, only `package-lock.json`.
+- Never use raw SQL — Prisma only.
+- Never return `passwordHash` — omit via Prisma `select` or manual delete.
+- Never create test files unless a test prompt explicitly requests them.
+- Never modify `prisma/schema.prisma` unless the current prompt says to.
+- Never import from `@prisma/client` directly — use `PrismaService` only.
+- Never hardcode `empId` in services — always use `@CurrentUser()` from JWT.
+- Performance: use TanStack Query `staleTime ≥ 30s` for reference data (roles, teams).
