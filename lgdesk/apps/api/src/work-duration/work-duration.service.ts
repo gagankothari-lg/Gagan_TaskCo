@@ -32,15 +32,22 @@ export class WorkDurationService {
   // ─────────────────────────────────────────────── clock actions
   async clockIn(empId: string) {
     const s = await this.getOrCreateTodaySession(empId);
-    if (s.status === 'ACTIVE') throw new ConflictException('Already clocked in');
-    await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockIn: new Date(), status: 'ACTIVE' } });
+    // FR-1: ACTIVE and ON_BREAK both mean "already clocked in for today" — only IDLE and
+    // COMPLETED (re-clock-in / resume) may proceed.
+    if (s.status === 'ACTIVE' || s.status === 'ON_BREAK') throw new ConflictException('Already clocked in for today.');
+    const data: Record<string, unknown> = { status: 'ACTIVE' };
+    // Resuming a COMPLETED session must preserve the original Clock_In (and all break
+    // records) — only set it when this is the day's first clock-in (s.clockIn is null).
+    if (!s.clockIn) data.clockIn = new Date();
+    await this.prisma.workDuration.update({ where: { id: s.id }, data });
     await this.audit(empId, 'CLOCK_IN', s.sessionId);
     return this.getStatus(empId);
   }
 
   async startBreak(empId: string) {
     const s = await this.getOrCreateTodaySession(empId);
-    if (s.status !== 'ACTIVE') throw new ConflictException('Not clocked in or already on break');
+    if (s.status === 'ON_BREAK') throw new ConflictException('A break is already active.');
+    if (s.status !== 'ACTIVE') throw new ConflictException('Not clocked in.');
     await this.prisma.workDuration.update({ where: { id: s.id }, data: { status: 'ON_BREAK' } });
     await this.prisma.workBreak.create({ data: { sessionId: s.sessionId, breakStart: new Date() } });
     await this.audit(empId, 'BREAK_START', s.sessionId);
@@ -214,7 +221,8 @@ export class WorkDurationService {
       if (!s.clockIn) continue;
       const gross = Math.floor((today.getTime() - s.clockIn.getTime()) / 60000);
       const net = Math.max(0, gross - s.totalBreakMins);
-      await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut: today, status: 'AUTO_CLOSED', grossMinutes: gross, netMinutes: net, autoClocked: true } });
+      const notes = this.appendNote(s.notes, `Auto-closed [${new Date().toISOString()}]: session crossed the midnight-UTC boundary.`);
+      await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut: today, status: 'AUTO_CLOSED', grossMinutes: gross, netMinutes: net, autoClocked: true, notes } });
       await this.syncWorkLog(s.empId, s.date, net);
       await this.audit(s.empId, 'AUTO_CLOSE', s.sessionId);
     }

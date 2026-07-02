@@ -4,13 +4,15 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../../../hooks/use-auth';
 import { isAdmin, isManager } from '../../../../lib/auth';
 import { useTeamWorkLogs, useTeamOverview } from '../../../../lib/api/workLog';
+import { useHolidays } from '../../../../lib/api/leaves';
+import { toast } from '../../../../lib/toast';
 import { MemberLogModal } from '../../../../components/modules/work-log/member-log-modal';
 import { DayMemberCard } from '../../../../components/modules/work-log/team/day-member-card';
 import { WeekMemberCard } from '../../../../components/modules/work-log/team/week-member-card';
 import { MonthMemberCard } from '../../../../components/modules/work-log/team/month-member-card';
 import { Icon } from '../../../../components/ui/icon';
 import { Spinner } from '../../../../components/ui/spinner';
-import type { WorkLogEntry } from '../../../../lib/types';
+import type { TeamOverviewRow, WorkLogEntry } from '../../../../lib/types';
 
 type Period = 'day' | 'week' | 'month' | 'custom';
 type ViewMode = 'member' | 'date';
@@ -84,12 +86,15 @@ export default function TeamWorkLogPage() {
 
   const monthKey = useMemo(() => iso(range.start).slice(0, 7), [range.start]);
   const useOverview = period === 'month';
+  const periodDays = useMemo(() => daysBetween(range.start, range.end) + 1, [range.start, range.end]);
 
   const { data: teamData, isLoading: logsLoading, refetch: refetchLogs } = useTeamWorkLogs(
     useOverview ? undefined : iso(range.start),
     useOverview ? undefined : iso(range.end),
   );
   const { data: overview, isLoading: ovLoading, refetch: refetchOverview } = useTeamOverview(useOverview ? monthKey : '');
+  const { data: holidays } = useHolidays();
+  const holidaySet = useMemo(() => new Set((holidays ?? []).map((h) => h.date.slice(0, 10))), [holidays]);
 
   const logs = useMemo(() => teamData?.logs ?? [], [teamData]);
 
@@ -147,6 +152,32 @@ export default function TeamWorkLogPage() {
     return byMember;
   }, [logs]);
 
+  // Custom mode has no server-side "overview" endpoint (that's month-keyed only), so the
+  // Month/Custom card's P/LF/LH/H/W/AW/EF/EH + OT aggregate is built client-side here from
+  // the already-fetched range logs — same classification + OT formula as the backend's
+  // getTeamWorkLogOverview (Master Reference Part 17 Change #46).
+  const customOverview = useMemo<TeamOverviewRow[]>(() => {
+    if (period !== 'custom') return [];
+    return roster.map((m) => {
+      const c: TeamOverviewRow = { empId: m.empId, name: m.name, P: 0, LF: 0, LH: 0, H: 0, W: 0, AW: 0, EF: 0, EH: 0, otHours: 0 };
+      let otSum = 0;
+      Array.from(logsByMember.get(m.empId)?.values() ?? []).forEach((l) => {
+        const a = (l.attendance ?? '').toLowerCase();
+        if (a.includes('extra') && a.includes('full')) c.EF++;
+        else if (a.includes('extra') && a.includes('half')) c.EH++;
+        else if (a.includes('alt') && a.includes('week')) c.AW++;
+        else if (a.includes('week') && a.includes('off')) c.W++;
+        else if (a.includes('holiday')) c.H++;
+        else if (a.includes('half')) c.LH++;
+        else if (a.includes('leave') || a.includes('absent')) c.LF++;
+        else if (a) c.P++;
+        otSum += l.extraHours ?? 0;
+      });
+      c.otHours = Math.round((otSum + c.EF * 9 + c.EH * 4) * 10) / 10;
+      return c;
+    });
+  }, [period, roster, logsByMember]);
+
   // ── BY DATE: group entries by date (newest first), optional member filter ──
   const byDateGroups = useMemo(() => {
     const byDate = new Map<string, WorkLogEntry[]>();
@@ -162,6 +193,7 @@ export default function TeamWorkLogPage() {
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([date, entries]) => ({ date, entries: entries.sort((a, b) => a.empId.localeCompare(b.empId)) }));
   }, [logs, dateFilter]);
+  const byDateEntryCount = useMemo(() => byDateGroups.reduce((sum, g) => sum + g.entries.length, 0), [byDateGroups]);
 
   if (!currentUser) return null;
   if (!isManager(currentUser.role)) {
@@ -177,18 +209,15 @@ export default function TeamWorkLogPage() {
 
   const admin = isAdmin(currentUser.role);
 
-  // ── Custom-range validation ──
-  let customError = '';
-  if (period === 'custom' && customFrom && customTo) {
+  // Custom-range validation fires as a toast on Apply click (Part 37 checklist exact
+  // wording), rather than silently disabling the button.
+  const applyCustom = () => {
+    if (!customFrom || !customTo) { toast('Please select both a start and end date.', 'warn'); return; }
     const f = new Date(`${customFrom}T00:00:00`);
     const t = new Date(`${customTo}T00:00:00`);
-    if (f > t) customError = 'From date must be on or before To date.';
-    else if (daysBetween(f, t) > 90) customError = 'Range cannot exceed 90 days.';
-  }
-  const canApply = period === 'custom' && !!customFrom && !!customTo && !customError;
-
-  const applyCustom = () => {
-    if (canApply) setApplied({ from: customFrom, to: customTo });
+    if (f > t) { toast('Start date must be before end date.', 'warn'); return; }
+    if (daysBetween(f, t) > 90) { toast('Custom range cannot exceed 90 days.', 'warn'); return; }
+    setApplied({ from: customFrom, to: customTo });
   };
 
   const refresh = () => {
@@ -212,7 +241,11 @@ export default function TeamWorkLogPage() {
       <div className="ph">
         <div className="ph-left">
           <div className="ph-title">Team Work Logs</div>
-          <div className="ph-sub">{range.label} — {activeCount}/{roster.length} members active</div>
+          <div className="ph-sub">
+            {view === 'date'
+              ? `${range.label} — ${byDateEntryCount} entr${byDateEntryCount === 1 ? 'y' : 'ies'} across ${byDateGroups.length} day${byDateGroups.length === 1 ? '' : 's'}`
+              : `${range.label} — ${activeCount}/${roster.length} members active`}
+          </div>
         </div>
       </div>
 
@@ -259,8 +292,7 @@ export default function TeamWorkLogPage() {
             To
             <input type="date" className="fc" style={{ width: 170 }} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
           </label>
-          <button className="btn btn-primary btn-sm" disabled={!canApply} onClick={applyCustom}>Apply</button>
-          {customError && <span style={{ fontSize: 12, color: 'var(--danger)', alignSelf: 'center' }}>{customError}</span>}
+          <button className="btn btn-primary btn-sm" onClick={applyCustom}>Apply</button>
         </div>
       )}
 
@@ -290,7 +322,17 @@ export default function TeamWorkLogPage() {
             renderCard={(m) => {
               const row = (overview ?? []).find((r) => r.empId === m.empId);
               if (!row) return null;
-              return <MonthMemberCard key={m.empId} row={row} team={m.team} onClick={() => openMember(m)} />;
+              return <MonthMemberCard key={m.empId} row={row} team={m.team} periodDays={periodDays} onClick={() => openMember(m)} />;
+            }}
+          />
+        ) : period === 'custom' ? (
+          <MemberGrid
+            admin={admin}
+            members={roster}
+            renderCard={(m) => {
+              const row = customOverview.find((r) => r.empId === m.empId);
+              if (!row) return null;
+              return <MonthMemberCard key={m.empId} row={row} team={m.team} periodDays={periodDays} onClick={() => openMember(m)} />;
             }}
           />
         ) : period === 'week' ? (
@@ -304,6 +346,8 @@ export default function TeamWorkLogPage() {
                 name={m.name}
                 team={m.team}
                 week={weekEntries(range.start, logsByMember.get(m.empId))}
+                weekDates={Array.from({ length: 7 }, (_, i) => addDays(range.start, i))}
+                holidays={holidaySet}
                 onClick={() => openMember(m)}
               />
             )}
@@ -333,15 +377,16 @@ export default function TeamWorkLogPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {byDateGroups.map(({ date, entries }) => (
             <div key={date}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+              <div className="team-log-day" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
                 {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-                <span style={{ color: 'var(--muted)', fontWeight: 600, marginLeft: 6 }}>· {entries.length}</span>
+                <span style={{ color: 'var(--muted)', fontWeight: 600, marginLeft: 6 }}>— {entries.length} submission{entries.length === 1 ? '' : 's'}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                 {entries.map((e) => {
                   const info = roster.find((r) => r.empId === e.empId) ?? { empId: e.empId, name: e.empId, team: 'Unassigned' };
+                  // By-Date is read-only (Part 37) — no onClick, so it never opens the member modal.
                   return (
-                    <DayMemberCard key={`${date}:${e.empId}`} empId={info.empId} name={info.name} team={info.team} entry={e} onClick={() => openMember(info)} />
+                    <DayMemberCard key={`${date}:${e.empId}`} empId={info.empId} name={info.name} team={info.team} entry={e} />
                   );
                 })}
               </div>
@@ -350,7 +395,17 @@ export default function TeamWorkLogPage() {
         </div>
       )}
 
-      {member && <MemberLogModal empId={member.empId} empName={member.name} onClose={() => setMember(null)} />}
+      {member && (
+        <MemberLogModal
+          empId={member.empId}
+          empName={member.name}
+          onClose={() => setMember(null)}
+          teamPeriod={period}
+          teamAnchor={anchor}
+          teamRangeStart={range.start}
+          teamRangeEnd={range.end}
+        />
+      )}
     </div>
   );
 }

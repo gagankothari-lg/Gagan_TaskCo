@@ -158,6 +158,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   sort: ArrowUpDown,
   arrow_forward: ArrowRight,
   refresh: RefreshCw,
+  sync: RefreshCw, // Work Log row save-state "Saving…" glyph (was falling back to the ? default)
   menu: Menu,
   add: Plus,
   edit: Pencil,

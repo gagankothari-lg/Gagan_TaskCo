@@ -1,13 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { isManager as isMgr } from '../../../lib/auth';
 import { useMyWorkLogs, useSubmitWorkLog } from '../../../lib/api/workLog';
-import { WorkRow } from '../../../components/modules/work-log/work-row';
+import { useHolidays } from '../../../lib/api/leaves';
+import { WorkRow, type WorkRowHandle } from '../../../components/modules/work-log/work-row';
 import { WeeklySummaryModal } from '../../../components/modules/weekly-summary/weekly-summary-modal';
 import { Icon } from '../../../components/ui/icon';
 import { fmtDateRange, hms } from '../../../lib/utils';
+import { isoDate as iso } from '../../../lib/attendance';
 import type { WorkLogEntry, WorkLogInput } from '../../../lib/types';
 
 function mondayOf(d: Date): Date {
@@ -16,9 +18,16 @@ function mondayOf(d: Date): Date {
   return x;
 }
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const iso = (d: Date) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); };
 
 type Mode = 'week' | 'month';
+
+// Part 16 "Date range / lazy load": ±8-week window around the anchor. Navigating
+// within this window renders from the already-fetched cache (same TanStack Query
+// key => no network call); navigating outside it re-centres the window and re-fetches.
+const WINDOW_WEEKS = 8;
+function windowFor(anchor: Date): { start: Date; end: Date } {
+  return { start: mondayOf(addDays(anchor, -WINDOW_WEEKS * 7)), end: addDays(mondayOf(addDays(anchor, WINDOW_WEEKS * 7)), 6) };
+}
 
 export default function WorkLogPage() {
   const { currentUser, tasks, projects } = useAuth();
@@ -26,9 +35,11 @@ export default function WorkLogPage() {
   const [anchor, setAnchor] = useState(() => new Date());
   const [summaryOpen, setSummaryOpen] = useState(false);
   const submit = useSubmitWorkLog();
+  const { data: holidays, isLoading: holidaysLoading } = useHolidays();
 
   const isIntern = currentUser?.role === 'Intern';
   const isManager = currentUser ? isMgr(currentUser.role) : false;
+  const empId = currentUser?.empId ?? '';
 
   const { rangeStart, days } = useMemo(() => {
     if (mode === 'week') {
@@ -42,13 +53,28 @@ export default function WorkLogPage() {
   }, [mode, anchor]);
 
   const rangeEnd = days[days.length - 1];
-  const { data: logs, isLoading } = useMyWorkLogs(iso(rangeStart), iso(rangeEnd));
+
+  // ±8-week loaded window (Part 16 lazy-load). Re-centres only when the visible
+  // range falls outside it — this is what makes the query key (and therefore the
+  // network call) stay the same across in-window navigation.
+  const [loadedWindow, setLoadedWindow] = useState(() => windowFor(anchor));
+  useEffect(() => {
+    if (rangeStart.getTime() < loadedWindow.start.getTime() || rangeEnd.getTime() > loadedWindow.end.getTime()) {
+      setLoadedWindow(windowFor(anchor));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeStart, rangeEnd]);
+
+  const { data: logs, isLoading: logsLoading, refetch } = useMyWorkLogs(iso(loadedWindow.start), iso(loadedWindow.end));
+  const isLoading = logsLoading || holidaysLoading;
 
   const byDate = useMemo(() => {
     const m = new Map<string, WorkLogEntry>();
     (logs ?? []).forEach((l) => m.set(l.date.slice(0, 10), l));
     return m;
   }, [logs]);
+
+  const holidaySet = useMemo(() => new Set((holidays ?? []).map((h) => h.date.slice(0, 10))), [holidays]);
 
   const pickerItems = useMemo(
     () => [
@@ -60,8 +86,18 @@ export default function WorkLogPage() {
 
   const save = (input: WorkLogInput) => submit.mutateAsync({ ...input, intern: isIntern });
 
-  const shift = (delta: number) => setAnchor((a) => (mode === 'week' ? addDays(a, delta * 7) : new Date(a.getFullYear(), a.getMonth() + delta, 1)));
-  const today = () => setAnchor(new Date());
+  // Flush any pending row edits (uncommitted textarea drafts, in-flight debounce)
+  // before a navigation unmounts the currently-visible rows (Part 16 "_wlCommitAllTextareas").
+  const rowRefs = useRef(new Map<string, WorkRowHandle>());
+  const registerRow = (key: string, el: WorkRowHandle | null) => {
+    if (el) rowRefs.current.set(key, el);
+    else rowRefs.current.delete(key);
+  };
+  const flushAll = () => rowRefs.current.forEach((r) => r.flush());
+
+  const shift = (delta: number) => { flushAll(); setAnchor((a) => (mode === 'week' ? addDays(a, delta * 7) : new Date(a.getFullYear(), a.getMonth() + delta, 1))); };
+  const goToday = () => { flushAll(); setAnchor(new Date()); };
+  const changeMode = (m: Mode) => { flushAll(); setMode(m); };
 
   const label = mode === 'week'
     ? fmtDateRange(rangeStart, rangeEnd)
@@ -76,12 +112,13 @@ export default function WorkLogPage() {
         </div>
         <div className="ph-actions">
           <div className="tl-tabs">
-            <button className={`tl-tab${mode === 'week' ? ' active' : ''}`} onClick={() => setMode('week')}>Week</button>
-            <button className={`tl-tab${mode === 'month' ? ' active' : ''}`} onClick={() => setMode('month')}>Month</button>
+            <button className={`tl-tab${mode === 'week' ? ' active' : ''}`} onClick={() => changeMode('week')}>Week</button>
+            <button className={`tl-tab${mode === 'month' ? ' active' : ''}`} onClick={() => changeMode('month')}>Month</button>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={() => shift(-1)} aria-label="Previous"><Icon name="chevron_left" size={16} /></button>
-          <button className="btn btn-ghost btn-sm" onClick={today}>Today</button>
+          <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
           <button className="btn btn-ghost btn-sm" onClick={() => shift(1)} aria-label="Next"><Icon name="chevron_right" size={16} /></button>
+          <button className="btn btn-ghost btn-sm" aria-label="Refresh" onClick={() => void refetch()}><Icon name="refresh" size={16} /></button>
           <button className="btn btn-ghost btn-sm" onClick={() => setSummaryOpen(true)}>
             <Icon name="summarize" size={16} /> Weekly Summary
           </button>
@@ -110,16 +147,20 @@ export default function WorkLogPage() {
             </thead>
             <tbody>
               {days.map((d) => {
-                const entry = byDate.get(iso(d));
-                const locked = !isManager && iso(d) > iso(new Date());
+                const key = iso(d);
+                const entry = byDate.get(key);
+                const locked = !isManager && key > iso(new Date());
                 return (
                   <WorkRow
-                    key={iso(d)}
+                    key={key}
+                    ref={(el) => registerRow(key, el)}
                     date={d}
                     entry={entry}
+                    empId={empId}
                     isIntern={isIntern}
                     isManager={isManager}
                     locked={locked}
+                    isHoliday={holidaySet.has(key)}
                     durationHms={entry?.workDuration != null ? hms(entry.workDuration * 60) : ''}
                     pickerItems={pickerItems}
                     onSave={save}
