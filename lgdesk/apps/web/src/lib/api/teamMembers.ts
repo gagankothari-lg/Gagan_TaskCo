@@ -41,17 +41,19 @@ export function useOrgTree() {
   });
 }
 
-export function useRegistrations() {
+export function useRegistrations(enabled = true) {
   return useQuery({
     queryKey: ['registrations'],
     queryFn: () => apiFetch<RegistrationRequest[]>('/users/registrations'),
+    enabled,
   });
 }
 
-export function useProfileRequests() {
+export function useProfileRequests(enabled = true) {
   return useQuery({
     queryKey: ['profile-requests'],
     queryFn: () => apiFetch<ProfileUpdateRequest[]>('/users/profile-requests'),
+    enabled,
   });
 }
 

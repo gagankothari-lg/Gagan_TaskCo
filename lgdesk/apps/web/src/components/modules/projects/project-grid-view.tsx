@@ -13,28 +13,67 @@ import { ProjectDetailModal } from './project-detail-modal';
 import type { Project } from '../../../lib/types';
 
 type OwnershipTab = 'All' | 'To Me' | 'By Me';
+type TeamTab = 'All' | 'To Team' | 'By Team';
 
-export function ProjectGridView({ scope, title, subtitle }: { scope?: ProjectScope; title: string; subtitle?: string }) {
-  const { currentUser } = useAuth();
+interface ProjectGridViewProps {
+  scope?: ProjectScope;
+  title: string;
+  subtitle?: string;
+  // Team Projects (Master Reference Part 24): "All"/"To Team"/"By Team" tabs
+  // instead of My Projects'/All Projects' "All"/"To Me"/"By Me".
+  showTeamTabs?: boolean;
+  // Team/All Projects header difference vs My Projects: a live search box
+  // filtering by Name OR Description.
+  showSearch?: boolean;
+}
+
+export function ProjectGridView({ scope, title, subtitle, showTeamTabs, showSearch }: ProjectGridViewProps) {
+  const { currentUser, employees } = useAuth();
   const { data: projects, isLoading, error } = useProjects(scope);
   const [tab, setTab] = useState<OwnershipTab>('All');
+  const [teamTab, setTeamTab] = useState<TeamTab>('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
+  const teamOf = (empId?: string | null) => (empId ? employees.find((e) => e.empId === empId)?.team : undefined);
+
   // Part 37: "Tabs All / To Me / By Me toggle the grid" — mirrors My Tasks' ownership
   // tabs (assignee-or-owner vs. assigner), applied on top of the scope already
-  // returned by the server (`_applyAsgnProjFilter`).
+  // returned by the server (`_applyAsgnProjFilter`). Team Projects instead uses the
+  // "All / To Team / By Team" set (showTeamTabs).
   const byOwnership = useMemo(() => {
     const list = projects ?? [];
     if (!currentUser) return list;
+    if (showTeamTabs) {
+      const myTeam = currentUser.team;
+      if (!myTeam) return list;
+      if (teamTab === 'To Team') {
+        return list.filter(
+          (p) =>
+            p.assignedTeams.includes(myTeam) ||
+            p.ownerIds.some((o) => teamOf(o) === myTeam) ||
+            p.assigneeIds.some((a) => teamOf(a) === myTeam),
+        );
+      }
+      if (teamTab === 'By Team') return list.filter((p) => teamOf(p.assignerId) === myTeam);
+      return list;
+    }
     if (tab === 'To Me') return list.filter((p) => p.assigneeIds.includes(currentUser.empId) || p.ownerIds.includes(currentUser.empId));
     if (tab === 'By Me') return list.filter((p) => p.assignerId === currentUser.empId);
     return list;
-  }, [projects, tab, currentUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, tab, showTeamTabs, teamTab, currentUser, employees]);
 
-  const statuses = useMemo(() => ['All', ...Array.from(new Set(byOwnership.map((p) => p.status)))], [byOwnership]);
-  const filtered = byOwnership.filter((p) => statusFilter === 'All' || p.status === statusFilter);
+  const bySearch = useMemo(() => {
+    if (!showSearch || !search.trim()) return byOwnership;
+    const q = search.trim().toLowerCase();
+    return byOwnership.filter((p) => p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q));
+  }, [byOwnership, showSearch, search]);
+
+  const statuses = useMemo(() => ['All', ...Array.from(new Set(bySearch.map((p) => p.status)))], [bySearch]);
+  const filtered = bySearch.filter((p) => statusFilter === 'All' || p.status === statusFilter);
   const canCreate = canCreateProject(currentUser);
 
   // Group standalone projects vs. parent+sub-project blocks (Part 37: "_projGroupBlock
@@ -45,22 +84,41 @@ export function ProjectGridView({ scope, title, subtitle }: { scope?: ProjectSco
 
   return (
     <div className="p-6">
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-text">{title}</h1>
           {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
         </div>
-        {canCreate && (
-          <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
-            <Icon name="add" size={15} /> New Project
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {showSearch && (
+            <div className="relative">
+              <Icon name="search" size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                id="tp-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search projects…"
+                className="fc"
+                style={{ paddingLeft: 30, width: 200 }}
+              />
+            </div>
+          )}
+          {canCreate && (
+            <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
+              <Icon name="add" size={15} /> New Project
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="tl-tabs mb-3">
-        {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
-          <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
-        ))}
+        {showTeamTabs
+          ? (['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
+              <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
+            ))
+          : (['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
+              <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+            ))}
       </div>
 
       <div className="mb-4 flex items-center gap-1.5 overflow-x-auto pb-1">

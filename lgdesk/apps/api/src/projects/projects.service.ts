@@ -37,7 +37,10 @@ export class ProjectsService {
 
     let visible: ProjectRow[];
     if (effective === 'all') {
-      visible = all;
+      // Admin/SA get the org-wide view; TC/TF can reach this same 'all' branch
+      // (the "All Projects" nav item is shown to every manager) but must stay
+      // team-scoped, same as the 'team' branch below.
+      visible = isAdmin(caller.role) ? all : all.filter((p) => this.visibleToManager(p, caller));
     } else if (effective === 'team') {
       visible = all.filter((p) => this.visibleToManager(p, caller));
     } else {

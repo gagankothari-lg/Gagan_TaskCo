@@ -95,7 +95,11 @@ export class DdrService {
   }
 
   async getPendingDdrCount(callerEmpId: string) {
+    const caller = await this.getCaller(callerEmpId);
     const ddrs = await this.prisma.dueDateRequest.findMany({ where: { status: 'Pending' } });
+    // Mirror getDdrs: Admin/SA see the org-wide pending total, not just the
+    // subset where they personally happen to be the entity's assigner.
+    if (isAdmin(caller.role)) return { count: ddrs.length };
     let count = 0;
     for (const d of ddrs) {
       const assignerId = await this.getEntityAssigner(d.entityType as EntityType, d.entityId);

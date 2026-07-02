@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { useTeamDirectory, useCompanyDirectory, type DirectoryUser } from '../../../lib/api/directory';
 import { Icon } from '../../../components/ui/icon';
+import { Command, CommandInput } from '../../../components/ui/command';
 import { avatarColor, initials, rolePillClass } from '../../../lib/utils';
 
 type Tab = 'team' | 'company';
@@ -45,10 +46,13 @@ export default function DirectoryPage() {
   const company = useCompanyDirectory();
 
   const active = tab === 'team' ? team : company;
-  const matches = (u: DirectoryUser) =>
-    `${u.firstName} ${u.lastName} ${u.role} ${u.team ?? ''} ${u.subDepartment ?? ''} ${u.designation ?? ''}`.toLowerCase().includes(q.trim().toLowerCase());
 
-  const list = useMemo(() => (active.data ?? []).filter(matches), [active.data, q]);
+  const list = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    const matches = (u: DirectoryUser) =>
+      `${u.firstName} ${u.lastName} ${u.role} ${u.team ?? ''} ${u.subDepartment ?? ''} ${u.designation ?? ''}`.toLowerCase().includes(query);
+    return (active.data ?? []).filter(matches);
+  }, [active.data, q]);
 
   // Company tab groups by team.
   const grouped = useMemo(() => {
@@ -72,10 +76,9 @@ export default function DirectoryPage() {
             <button className={`tl-tab${tab === 'team' ? ' active' : ''}`} onClick={() => setTab('team')}>Team Directory</button>
             <button className={`tl-tab${tab === 'company' ? ' active' : ''}`} onClick={() => setTab('company')}>Company Directory</button>
           </div>
-          <div style={{ position: 'relative' }}>
-            <Icon name="search" size={16} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
-            <input className="fc" placeholder="Search people…" value={q} onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 30, width: 220 }} />
-          </div>
+          <Command shouldFilter={false} className="w-[240px] border border-border">
+            <CommandInput value={q} onValueChange={setQ} placeholder="Search people…" />
+          </Command>
         </div>
       </div>
 

@@ -93,10 +93,15 @@ export default function TeamWorkLogPage() {
 
   const logs = useMemo(() => teamData?.logs ?? [], [teamData]);
 
-  // ── Member roster (everyone we know about), with team + display name ──
+  // ── Member roster, with team + display name ──
+  // TC/TF must only see their own team's roster here (Admin/SA see everyone) —
+  // `employees` from useAuth() is the full org list, so non-admins get filtered
+  // down to their own team before anything else folds in.
   const roster = useMemo<MemberInfo[]>(() => {
+    const admin = currentUser ? isAdmin(currentUser.role) : false;
+    const scoped = admin ? employees : employees.filter((e) => e.team === currentUser?.team);
     const map = new Map<string, MemberInfo>();
-    employees.forEach((e) => {
+    scoped.forEach((e) => {
       const name = e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.empId;
       map.set(e.empId, { empId: e.empId, name, team: e.team || 'Unassigned' });
     });
@@ -109,7 +114,7 @@ export default function TeamWorkLogPage() {
       else if (map.get(r.empId)!.name === r.empId) map.get(r.empId)!.name = r.name;
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [employees, logs, overview]);
+  }, [employees, logs, overview, currentUser]);
 
   const teamName = useMemo(() => {
     const m = new Map<string, string>();

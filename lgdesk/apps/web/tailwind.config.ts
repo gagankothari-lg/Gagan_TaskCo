@@ -19,7 +19,10 @@ const config: Config = {
         surface: 'var(--surface)',
         border:  'var(--border)',
         text:    'var(--text)',
-        muted:   'var(--muted)',
+        muted:   {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
         muted2:  'var(--muted2)',
         hover:   'var(--hover)',
 

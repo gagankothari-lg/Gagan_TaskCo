@@ -24,6 +24,7 @@
   --text:    #212121;   /* primary body text */
   --muted:   #757575;   /* secondary / label / subtitle text */
   --muted2:  #9e9e9e;   /* tertiary text — IDs, faint labels */
+  --muted-foreground: var(--muted); /* shadcn alias so text-muted-foreground resolves (was a no-op) */
 
   --sidebar-width:     230px; /* default sidebar width (drag-resize 180-400px deferred to a later phase) */
   --sidebar-collapsed: 54px;  /* collapsed sidebar width */
