@@ -93,6 +93,7 @@ model Task {
 
   project         Project?       @relation(fields: [projId], references: [projId])
   function        WorkFunction?  @relation("FunctionTasks", fields: [functionId], references: [functionId])
+  subFunction     WorkFunction?  @relation("SubFunctionTasks", fields: [subFnId], references: [functionId], onDelete: SetNull)
   progressUpdates ProgressUpdate[]
   attachments     Attachment[]
 
@@ -150,10 +151,11 @@ model WorkFunction {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  parent   WorkFunction?  @relation("SubFunctions", fields: [parentFnId], references: [functionId])
-  children WorkFunction[] @relation("SubFunctions")
-  project  Project?       @relation(fields: [projId], references: [projId])
-  tasks    Task[]         @relation("FunctionTasks")
+  parent     WorkFunction?  @relation("SubFunctions", fields: [parentFnId], references: [functionId])
+  children   WorkFunction[] @relation("SubFunctions")
+  project    Project?       @relation(fields: [projId], references: [projId])
+  tasks      Task[]         @relation("FunctionTasks")
+  subFnTasks Task[]         @relation("SubFunctionTasks")
 
   @@map("work_functions")
 }
@@ -445,7 +447,10 @@ model RegistrationRequest {
   regId         String   @unique
   firstName     String
   lastName      String
-  email         String   @unique
+  // NOT @unique: a Rejected request must not permanently block re-registration.
+  // Duplicate PENDING requests are prevented at the app level (see
+  // UsersService.submitRegistration, which findFirst-checks status: 'Pending').
+  email         String
   passwordHash  String
   designation   String?
   team          String?

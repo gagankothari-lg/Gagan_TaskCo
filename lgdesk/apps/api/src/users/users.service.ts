@@ -133,8 +133,11 @@ export class UsersService {
     });
     if (existingUser) throw new ConflictException('Email already registered');
 
+    // Only a still-PENDING request blocks a new submission. A prior Approved
+    // request means the user already exists (caught above); a prior Rejected
+    // request must NOT permanently lock the applicant out of re-registering.
     const existingReq = await this.prisma.registrationRequest.findFirst({
-      where: { email: { equals: dto.email, mode: 'insensitive' } },
+      where: { email: { equals: dto.email, mode: 'insensitive' }, status: 'Pending' },
     });
     if (existingReq) throw new ConflictException('A registration request for this email already exists');
 
@@ -361,10 +364,18 @@ export class UsersService {
     const target = await this.prisma.user.findUnique({ where: { empId: targetEmpId } });
     if (!target) throw new NotFoundException('Employee not found');
 
+    // No one may change their own role through this endpoint (applies to every
+    // role, Super Admin included) — checked before any role-specific branching.
+    if (callerEmpId === targetEmpId) {
+      throw new ForbiddenException('You cannot change your own role.');
+    }
+
     if (isAdmin(caller.role)) {
-      // Hierarchy: an Admin may neither grant Super Admin nor modify an existing one.
-      if (caller.role === 'Admin' && target.role === 'Super Admin') {
-        throw new ForbiddenException('Cannot modify a Super Admin');
+      // Hierarchy: an Admin may not modify another admin-level account (Admin or
+      // Super Admin) — only a Super Admin can touch admin accounts — and an
+      // Admin may never grant the Super Admin role.
+      if (caller.role === 'Admin' && isAdmin(target.role)) {
+        throw new ForbiddenException('Only a Super Admin can change an admin account\'s role');
       }
       if (caller.role === 'Admin' && newRole === 'Super Admin') {
         throw new ForbiddenException('Cannot assign Super Admin role');

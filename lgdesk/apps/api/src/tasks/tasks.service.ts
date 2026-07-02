@@ -34,6 +34,13 @@ export class TasksService {
     private readonly calendar: CalendarService,
   ) {}
 
+  // Rule #22 (mirrors FunctionsService.isTmSelfAssign): a TM/Intern may only
+  // create/update a task whose assignees are empty or exactly themselves.
+  isTmSelfAssign(assigneeIds: string[], callerEmpId: string): boolean {
+    if (assigneeIds.length === 0) return true;
+    return assigneeIds.length === 1 && assigneeIds[0] === callerEmpId;
+  }
+
   // ─────────────────────────────────────────────── reads
   async getAuthorizedTasks(callerEmpId: string, scope?: Scope): Promise<Task[]> {
     const caller = await this.getCaller(callerEmpId);
@@ -93,6 +100,15 @@ export class TasksService {
 
   // ─────────────────────────────────────────────── mutations
   async createTask(dto: CreateTaskDto, callerEmpId: string): Promise<Task> {
+    const caller = await this.getCaller(callerEmpId);
+    // Rule #22: a TM/Intern may only self-assign — never another employee or a
+    // team. Managers (Admin/SA/TC/TF) are unrestricted here.
+    if (
+      !isManager(caller.role) &&
+      (!this.isTmSelfAssign(dto.assigneeIds ?? [], callerEmpId) || (dto.assignedTeams?.length ?? 0) > 0)
+    ) {
+      throw new ForbiddenException('You may only assign tasks to yourself');
+    }
     const assigneeSet = new Set(dto.assigneeIds ?? []);
     if (dto.assignedTeams?.length) {
       for (const id of await this.resolveTeamToEmpIds(dto.assignedTeams)) assigneeSet.add(id);
@@ -159,6 +175,14 @@ export class TasksService {
 
     // Reassignment → recompute lists and APPEND to assignmentHistory (never replace).
     if (dto.assigneeIds !== undefined || dto.assignedTeams !== undefined) {
+      // Rule #22: a TM re-assigning must stay self-only — never another employee
+      // or a team. Managers are unrestricted. (Interns already blocked above.)
+      if (
+        !isManager(caller.role) &&
+        (!this.isTmSelfAssign(dto.assigneeIds ?? [], callerEmpId) || (dto.assignedTeams?.length ?? 0) > 0)
+      ) {
+        throw new ForbiddenException('You may only assign tasks to yourself');
+      }
       const set = new Set(dto.assigneeIds ?? parseIds(task.assigneeIds));
       const teams = dto.assignedTeams ?? parseIds(task.assignedTeams);
       if (dto.assignedTeams?.length) {

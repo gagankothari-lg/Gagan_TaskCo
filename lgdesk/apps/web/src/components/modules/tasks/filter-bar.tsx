@@ -107,7 +107,8 @@ export function applyColFilters(tasks: Task[], f: ColFilter): Task[] {
     if (f.recurring === 'no' && t.recurring) return false;
     if (f.adateFrom && new Date(t.createdAt) < new Date(f.adateFrom)) return false;
     if (f.adateTo && new Date(t.createdAt) > new Date(`${f.adateTo}T23:59:59`)) return false;
-    if (f.due && t.dueDate && new Date(t.dueDate) > new Date(`${f.due}T23:59:59`)) return false;
+    // A "due by" filter excludes tasks with no due date at all, not just those due later.
+    if (f.due && (!t.dueDate || new Date(t.dueDate) > new Date(`${f.due}T23:59:59`))) return false;
     return true;
   });
 }

@@ -8,6 +8,7 @@ import { isManager } from '../../lib/auth';
 import { Icon } from '../../components/ui/icon';
 import { toast } from '../../lib/toast';
 import { ImportModal } from '../../components/modules/import/import-modal';
+import { ProfileModal } from '../../components/modules/users/profile-modal';
 import { ClockWidget } from '../../components/modules/work-duration/clock-widget';
 import { WeekGlanceWidget } from '../../components/modules/work-log/week-glance-widget';
 import { useRegistrations, useProfileRequests } from '../../lib/api/teamMembers';
@@ -49,6 +50,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [pres, setPres] = useState<PresKey>('online');
   const [refreshing, setRefreshing] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const presWrap = useRef<HTMLDivElement>(null);
 
   // Protect: bounce unauthenticated users to /login once bootstrap settles.
@@ -262,7 +264,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               ))}
               <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
               <div
-                onClick={() => { setPresOpen(false); toast('Profile editing coming soon', 'info'); }}
+                onClick={() => { setPresOpen(false); setProfileOpen(true); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--p3)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -363,6 +365,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           2026-06-30, see PROJECT_CONTEXT.md §2.3) — the modal must not be
           manager-gated, only the button's visibility mattered historically. */}
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
+
+      {/* My Profile — slide-over with profile-update + change-password forms. */}
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

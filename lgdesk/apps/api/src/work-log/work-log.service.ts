@@ -125,7 +125,12 @@ export class WorkLogService {
 
   // ─────────────────────────────────────────────── manager status/comment
   async setWorkLogStatus(empId: string, date: string, status: string, callerEmpId: string) {
-    await this.requireManager(callerEmpId);
+    const caller = await this.requireManager(callerEmpId);
+    // Team clamp (same pattern as getMemberWorkLogs / adminSubmitWorkLog): a
+    // TC/TF may only touch logs for members of their own team; Admin/SA unclamped.
+    const target = await this.prisma.user.findUnique({ where: { empId }, select: { team: true } });
+    if (!target) throw new NotFoundException('Employee not found');
+    if (!isAdmin(caller.role) && target.team !== caller.team) throw new ForbiddenException();
     const d = this.normalizeDate(date);
     const log = await this.prisma.workLog.findUnique({ where: { empId_date: { empId, date: d } } });
     if (!log) throw new NotFoundException('Work log not found');
@@ -135,7 +140,12 @@ export class WorkLogService {
   }
 
   async setWorkLogComment(empId: string, date: string, comment: string, callerEmpId: string) {
-    await this.requireManager(callerEmpId);
+    const caller = await this.requireManager(callerEmpId);
+    // Team clamp (same pattern as getMemberWorkLogs / adminSubmitWorkLog): a
+    // TC/TF may only touch logs for members of their own team; Admin/SA unclamped.
+    const target = await this.prisma.user.findUnique({ where: { empId }, select: { team: true } });
+    if (!target) throw new NotFoundException('Employee not found');
+    if (!isAdmin(caller.role) && target.team !== caller.team) throw new ForbiddenException();
     const d = this.normalizeDate(date);
     const log = await this.prisma.workLog.findUnique({ where: { empId_date: { empId, date: d } } });
     if (!log) throw new NotFoundException('Work log not found');

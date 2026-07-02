@@ -30,7 +30,7 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        'fixed inset-0 z-[200] bg-black/50 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
+        'fixed inset-0 z-[200] bg-black/50 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
         className,
       )}
       {...props}
@@ -55,7 +55,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed left-1/2 top-1/2 z-[200] grid w-[calc(100%-32px)] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 gap-0 overflow-y-auto rounded-[var(--r)] bg-card text-card-foreground shadow-[0_8px_32px_rgba(0,0,0,0.18)] duration-150 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+          'fixed left-1/2 top-1/2 z-[200] grid w-[calc(100%-32px)] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 gap-0 overflow-y-auto rounded-[var(--r)] bg-card text-card-foreground shadow-[0_8px_32px_rgba(0,0,0,0.18)] duration-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           maxWidth,
           className,
         )}

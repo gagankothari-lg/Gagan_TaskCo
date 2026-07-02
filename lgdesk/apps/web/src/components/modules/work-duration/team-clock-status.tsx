@@ -65,7 +65,12 @@ export function TeamClockStatus() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
         {rows.map((r) => {
           const badge = statusBadge(r.status);
-          const live = r.status === 'ACTIVE' && r.clockInTs ? hmsFromMs(now - new Date(r.clockInTs).getTime()) : null;
+          // Net elapsed = gross since clock-in − cumulative break (Rule #8). Ticks
+          // live for both ACTIVE and ON_BREAK members; clamped at 0.
+          const live =
+            (r.status === 'ACTIVE' || r.status === 'ON_BREAK') && r.clockInTs
+              ? hmsFromMs(Math.max(0, now - new Date(r.clockInTs).getTime() - r.totalBreakMins * 60000))
+              : null;
           const completed = (r.status === 'COMPLETED' || r.status === 'AUTO_CLOSED') && r.netWorkMins > 0 ? hmsFromMin(r.netWorkMins) : null;
           const value = live ?? completed ?? '—';
           const active = !!live;
