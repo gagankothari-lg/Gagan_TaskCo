@@ -1,6 +1,8 @@
 // One 28px attendance dot for the week-member card.
 // Colours are the GAS WL week-strip palette (distinct from the work-row editor swatches).
 
+import { defaultAttendanceFor } from '../../../../lib/attendance';
+
 interface DotStyle {
   abbr: string;
   bg: string;
@@ -19,14 +21,20 @@ const DOT_STYLES: Record<string, DotStyle> = {
   Holiday: { abbr: 'H', bg: '#bbdefb', fg: '#0d47a1' },
 };
 
-const EMPTY: DotStyle = { abbr: '·', bg: '#f5f5f5', fg: '#bdbdbd' };
+const EMPTY: DotStyle = { abbr: '–', bg: '#f5f5f5', fg: '#bdbdbd' };
 
-/** Render a single week-strip dot from an attendance string (empty/unknown → grey). */
-export function AttendanceDot({ attendance }: { attendance?: string | null }) {
-  const s = (attendance && DOT_STYLES[attendance]) || EMPTY;
+/**
+ * Render a single week-strip dot from an attendance string. When there is no saved log
+ * for `date`, infer the same Part 29 default (Sunday -> W, alt-Saturday -> AW, holiday ->
+ * H) instead of always showing a blank/grey dot — a genuinely missing weekday still falls
+ * through to the grey "–" dot.
+ */
+export function AttendanceDot({ attendance, date, isHoliday }: { attendance?: string | null; date?: Date; isHoliday?: boolean }) {
+  const effective = attendance || (date ? defaultAttendanceFor(date, !!isHoliday) : '');
+  const s = (effective && DOT_STYLES[effective]) || EMPTY;
   return (
     <span
-      title={attendance || 'No log'}
+      title={effective || 'No log'}
       style={{
         width: 28,
         height: 28,

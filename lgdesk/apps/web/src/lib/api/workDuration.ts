@@ -28,22 +28,25 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['work-logs'] });
 }
 
+// The clock-action endpoints all return the same ClockStatus envelope as GET /status
+// (each backend method ends with `return this.getStatus(empId)`), so callers can read
+// e.g. the just-closed session's netMinutes straight off the mutation result.
 export function useClockIn() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: () => apiFetch<void>('/work-duration/clock-in', { method: 'POST' }), onSuccess: () => invalidate(qc) });
+  return useMutation({ mutationFn: () => apiFetch<ClockStatus>('/work-duration/clock-in', { method: 'POST' }), onSuccess: () => invalidate(qc) });
 }
 export function useStartBreak() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: () => apiFetch<void>('/work-duration/break/start', { method: 'POST' }), onSuccess: () => invalidate(qc) });
+  return useMutation({ mutationFn: () => apiFetch<ClockStatus>('/work-duration/break/start', { method: 'POST' }), onSuccess: () => invalidate(qc) });
 }
 export function useEndBreak() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: () => apiFetch<void>('/work-duration/break/end', { method: 'POST' }), onSuccess: () => invalidate(qc) });
+  return useMutation({ mutationFn: () => apiFetch<ClockStatus>('/work-duration/break/end', { method: 'POST' }), onSuccess: () => invalidate(qc) });
 }
 export function useClockOut() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto?: { customTime?: string; reason?: string }) => apiFetch<void>('/work-duration/clock-out', { method: 'POST', body: dto ?? {} }),
+    mutationFn: (dto?: { customTime?: string; reason?: string }) => apiFetch<ClockStatus>('/work-duration/clock-out', { method: 'POST', body: dto ?? {} }),
     onSuccess: () => invalidate(qc),
   });
 }

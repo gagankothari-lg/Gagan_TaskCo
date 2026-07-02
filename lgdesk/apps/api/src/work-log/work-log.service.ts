@@ -1,11 +1,12 @@
 import {
+  BadRequestException,
   Injectable,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
-import { isAdmin, isManager } from '../common/constants';
+import { ATTENDANCE_TYPES, isAdmin, isManager } from '../common/constants';
 import { CreateWorkLogDto } from './dto/create-work-log.dto';
 import { UpdateWorkLogDto } from './dto/update-work-log.dto';
 import { CreateInternLogDto } from './dto/create-intern-log.dto';
@@ -213,6 +214,12 @@ export class WorkLogService {
       );
       await this.audit(callerEmpId, 'WORKLOG_ADMIN', log.logId);
       return { logId: log.logId };
+    }
+
+    // Non-Intern targets use the fixed 8-value attendance set (AdminCreateLogDto can't
+    // enforce this itself — it doesn't know the target's role until this lookup above).
+    if (dto.attendance && !(ATTENDANCE_TYPES as readonly string[]).includes(dto.attendance)) {
+      throw new BadRequestException('Invalid attendance type');
     }
 
     const data = {

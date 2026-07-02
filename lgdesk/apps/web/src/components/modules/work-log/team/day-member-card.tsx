@@ -27,7 +27,8 @@ export interface DayMemberCardProps {
   name: string;
   team: string;
   entry?: WorkLogEntry;
-  onClick: () => void;
+  /** Omit for the By-Date view — those entries are read-only (Part 37: "clicking an entry does NOT open the member modal"). */
+  onClick?: () => void;
 }
 
 export function DayMemberCard({ empId, name, team, entry, onClick }: DayMemberCardProps) {
@@ -36,7 +37,7 @@ export function DayMemberCard({ empId, name, team, entry, onClick }: DayMemberCa
   const work = entry ? snippet(entry) : '';
 
   return (
-    <div className={`tlm-card${done ? '' : ' missing'}`} onClick={onClick}>
+    <div className={`tlm-card${done ? '' : ' missing'}`} onClick={onClick} style={onClick ? undefined : { cursor: 'default' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <span className="tlm-avatar" style={{ background: avatarColor(empId) }}>{initials(name)}</span>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -49,6 +50,9 @@ export function DayMemberCard({ empId, name, team, entry, onClick }: DayMemberCa
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#fce8e8', color: '#c62828', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, flexShrink: 0 }}>
             <Icon name="close" size={11} /> Missing
           </span>
+        )}
+        {entry?.status === 'Tentative' && (
+          <span style={{ background: 'var(--p3)', color: 'var(--p)', border: '1px dashed var(--p)', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, flexShrink: 0 }}>Tentative</span>
         )}
       </div>
 

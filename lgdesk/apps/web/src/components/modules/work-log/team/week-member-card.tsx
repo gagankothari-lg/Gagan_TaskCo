@@ -1,6 +1,7 @@
 'use client';
 
 import { avatarColor, initials } from '../../../../lib/utils';
+import { isoDate } from '../../../../lib/attendance';
 import { AttendanceDot } from './attendance-dot';
 import type { WorkLogEntry } from '../../../../lib/types';
 
@@ -22,10 +23,13 @@ export interface WeekMemberCardProps {
   team: string;
   /** Exactly 7 entries (Mon→Sun); undefined for an un-logged day. */
   week: (WorkLogEntry | undefined)[];
+  /** Same 7 dates (Mon→Sun) as `week`, for default-attendance inference on missing days. */
+  weekDates: Date[];
+  holidays: Set<string>;
   onClick: () => void;
 }
 
-export function WeekMemberCard({ empId, name, team, week, onClick }: WeekMemberCardProps) {
+export function WeekMemberCard({ empId, name, team, week, weekDates, holidays, onClick }: WeekMemberCardProps) {
   let hrs = 0;
   let logged = 0;
   week.forEach((e) => {
@@ -50,7 +54,7 @@ export function WeekMemberCard({ empId, name, team, week, onClick }: WeekMemberC
         {DAY_LABELS.map((lbl, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>{lbl}</span>
-            <AttendanceDot attendance={week[i]?.attendance} />
+            <AttendanceDot attendance={week[i]?.attendance} date={weekDates[i]} isHoliday={weekDates[i] ? holidays.has(isoDate(weekDates[i])) : false} />
           </div>
         ))}
       </div>

@@ -14,6 +14,8 @@ import { z } from 'zod';
 export const workRowSchema = z.object({
   attendance: z.string().optional(),
   internText: z.string().optional(),
+  purpose: z.string().optional(),
+  leaveRequested: z.string().optional(),
   extraHours: z.coerce.number().min(0, 'Extra hours cannot be negative.').max(12, 'Extra hours must be 12 or fewer.'),
   remark: z.string().optional(),
   status: z.string().optional(),
