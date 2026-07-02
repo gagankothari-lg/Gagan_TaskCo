@@ -262,7 +262,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                       <input
                         type="password"
                         autoComplete="new-password"
-                        placeholder="New password (min 8 chars)"
+                        placeholder="New password (min 6 chars)"
                         className={inputClass}
                         {...field}
                       />

@@ -258,11 +258,16 @@ export class WorkDurationService {
     return notes ? `${notes}\n${line}` : line;
   }
 
-  // Keep the date of `base`, set its UTC time to HH:MM.
+  // Keep the date of `base`, set its UTC time to HH:MM. Rejects malformed input rather
+  // than silently coercing it to 00:00 (which would corrupt the stored clock time).
   private applyTime(base: Date, hhmm: string): Date {
-    const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10));
+    const match = /^(\d{1,2}):(\d{2})$/.exec((hhmm ?? '').trim());
+    if (!match) throw new BadRequestException(`Invalid time format "${hhmm}" — expected HH:MM`);
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    if (h > 23 || m > 59) throw new BadRequestException(`Invalid time "${hhmm}" — hours 0-23, minutes 0-59`);
     const d = new Date(base);
-    d.setUTCHours(Number.isNaN(h) ? 0 : h, Number.isNaN(m) ? 0 : m, 0, 0);
+    d.setUTCHours(h, m, 0, 0);
     return d;
   }
 

@@ -61,7 +61,7 @@ export function useProfileRequests(enabled = true) {
 export function useApproveRegistration() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (reqId: string) => apiFetch<void>(`/users/registrations/${reqId}/approve`, { method: 'PATCH' }),
+    mutationFn: (reqId: string) => apiFetch<{ empId: string }>(`/users/registrations/${reqId}/approve`, { method: 'PATCH' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['registrations'] });
       qc.invalidateQueries({ queryKey: ['users'] });

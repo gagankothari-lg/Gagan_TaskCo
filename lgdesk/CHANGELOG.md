@@ -2,6 +2,65 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-07-02 — Verification round 2 (4-way audit: doc-accuracy, regression-check, deep re-audit, build-safety)
+
+A follow-up verification round after the initial rebuild+verification pass. Ran a 4-way parallel audit —
+doc-accuracy, regression-check, deep re-audit, and build-safety — which **confirmed zero regressions** in
+every fix from the prior round, surfaced a handful of additional confirmed bugs, and corrected several
+documentation inaccuracies.
+
+### Fixed
+
+- **Profile Change-Password minLength mismatch (real client/server inconsistency).** The Profile modal's
+  Zod schema enforced `min(8)` while the backend `change-password.dto.ts` enforces `@MinLength(6)`, so the
+  form needlessly rejected valid 6–7 character passwords. Aligned the schema to `min(6)`, fixed the
+  placeholder ("min 6 chars"), and corrected the two cross-referencing comments that each falsely described
+  the other's minimum. (`profile-modal.schema.ts`, `profile-modal.tsx`, `change-password.dto.ts`)
+- **Meetings Google Calendar / Meet-link integration wired to the real credentials.** It was a disconnected
+  stub gated on an unused `GOOGLE_CALENDAR_CREDENTIALS` env var (present in no `.env*` file). Rewrote
+  `meetings/google-calendar.service.ts` to reuse `calendar/calendar.service.ts`'s authenticated JWT-client
+  pattern and the real `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID` vars,
+  creating an event with attendees and a Google Meet link via `conferenceData.createRequest`. Still
+  non-functional until real Google credentials are provisioned (same as the rest of the Google
+  integration), but no longer silently mis-wired; the graceful no-op-when-unconfigured behavior and the
+  fire-and-forget calendar-sync wrapper in `meetings.service.ts` are preserved.
+- **Toast/confirm feedback added to 3 approval-flow pages.** Leave-Approvals, Registrations, and
+  Profile-Requests now emit success toasts (and confirm steps on the two Approve actions that lacked one);
+  the Registrations approve toast surfaces the newly assigned Employee ID.
+- **Stale members roster after Change-Role / registration approval.** Corrected root cause: the mutation
+  hooks *do* invalidate the `['users']` query, but `MembersView` reads from `AuthContext.payload` (a
+  one-shot boot state outside TanStack Query), so invalidation had nothing subscribed. Now calls
+  `AuthContext.refresh()` in the Change-Role and registration-approval success paths.
+- **Weekly-summary MIS error masking.** `getMisSummaries` threw a raw `Error('FORBIDDEN')` that the
+  controller remapped to `ForbiddenException` for *any* error, hiding real DB/runtime failures behind a
+  403. Now throws `ForbiddenException` directly for the permission case; the controller no longer
+  catch-and-remaps, so genuine errors propagate as real 500s.
+- **Work-duration malformed-time coercion.** `applyTime` silently coerced malformed `HH:MM` input to
+  `00:00`; it now validates format + range and throws `BadRequestException` on bad input.
+
+### Documentation corrected
+
+- `CLAUDE.md` — added `profile-modal.schema.ts` to the password-min-6 sync list; corrected the `(auth)/`
+  route diagram (only `login/` is a real route; forgot-password is an in-page mode, registration is a
+  modal); updated the Meetings google-calendar bullet to reflect the new credential wiring.
+- `README.md` — added the `FROM_EMAIL` env var row; corrected the Meetings Google-calendar env-var docs
+  (now uses the shared `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID` vars, not
+  the retired `GOOGLE_CALENDAR_CREDENTIALS`).
+- `apps/api/.env.production.example` — corrected the stale `FROM_EMAIL` comment (it *is* read via
+  `ConfigService` in `email.service.ts`, not "hardcoded in auth.service.ts").
+- `DEPLOY.md` — "Scheduled jobs" now lists all four `@Cron` jobs (added `dailyCalendarSync` and
+  `generateWeeklySummaries`).
+- `LGDesk_Verification_Report.md` — corrected the Stale-UI root cause and marked it fixed; recategorized
+  the Meetings gap; fixed the `window.confirm()` count (8→9); added the Team Tasks vs Projects
+  visibility-scope asymmetry note, the Attachments object-storage nuance, the two Group-2 minor fixes, and
+  the `forms/page.tsx` coming-soon placeholder.
+
+### Verification
+
+- Zero regressions found in any fix from the prior round.
+- `npm run build --workspace=apps/api`, `npm run build --workspace=apps/web`, and `npx tsc --noEmit` in
+  both workspaces all pass clean.
+
 ## 2026-07-02 — Full stack rebuild + verification pass
 
 ### Summary

@@ -7,6 +7,7 @@ import { isAdmin, isManager } from '../../../../lib/auth';
 import { usePendingLeaves, useReviewLeave } from '../../../../lib/api/leaves';
 import { HolidayModal } from '../../../../components/modules/leaves/holiday-modal';
 import { apiErrorMessage } from '../../../../lib/api/client';
+import { toast } from '../../../../lib/toast';
 import { Spinner } from '../../../../components/ui/spinner';
 import { pillClass } from '../../../../lib/utils';
 
@@ -36,13 +37,14 @@ export default function LeaveApprovalsPage() {
   }
 
   async function approve(leaveId: string) {
+    if (!confirm('Approve this leave request?')) return;
     setError(null);
-    try { await review.mutateAsync({ leaveId, status: 'Approved' }); } catch (e) { setError(apiErrorMessage(e, 'Unable to approve')); }
+    try { await review.mutateAsync({ leaveId, status: 'Approved' }); toast('Leave request approved', 'success'); } catch (e) { setError(apiErrorMessage(e, 'Unable to approve')); }
   }
   async function confirmReject() {
     if (!rejecting) return;
     setError(null);
-    try { await review.mutateAsync({ leaveId: rejecting.leaveId, status: 'Rejected', notes: notes || undefined }); setRejecting(null); setNotes(''); }
+    try { await review.mutateAsync({ leaveId: rejecting.leaveId, status: 'Rejected', notes: notes || undefined }); setRejecting(null); setNotes(''); toast('Leave request rejected', 'success'); }
     catch (e) { setError(apiErrorMessage(e, 'Unable to reject')); }
   }
 

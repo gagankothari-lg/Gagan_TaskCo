@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,7 +56,7 @@ export class WeeklySummaryService {
   // Caller must have a row in MisAccess table.
   async getMisSummaries(callerEmpId: string, weekStartStr: string) {
     const hasAccess = await this.prisma.misAccess.findUnique({ where: { empId: callerEmpId } });
-    if (!hasAccess) throw new Error('FORBIDDEN');
+    if (!hasAccess) throw new ForbiddenException('MIS access required');
 
     const weekStart = this.mondayUtc(weekStartStr);
     const weekEnd = new Date(weekStart.getTime());

@@ -8,6 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Spinner } from '../../ui/spinner';
 import { rolePillClass } from '../../../lib/utils';
 import { apiErrorMessage } from '../../../lib/api/client';
+import { useAuth } from '../../../hooks/use-auth';
 import { useChangeRole } from '../../../lib/api/teamMembers';
 import { allowedNewRoles } from '../../../lib/rbac';
 import { toast } from '../../../lib/toast';
@@ -34,6 +35,7 @@ const selectClass =
  */
 export function ChangeRoleModal({ member, actorRole, onClose }: ChangeRoleModalProps) {
   const changeRole = useChangeRole();
+  const { refresh } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const options = member ? allowedNewRoles(actorRole, member.role) : [];
 
@@ -55,6 +57,11 @@ export function ChangeRoleModal({ member, actorRole, onClose }: ChangeRoleModalP
     setError(null);
     try {
       await changeRole.mutateAsync({ empId: member.empId, newRole: values.newRole });
+      // MembersView renders from AuthContext.payload (one-shot boot state, outside
+      // TanStack Query's cache), so the ['users'] invalidation in useChangeRole can't
+      // refresh it — refresh() re-fetches the boot payload so the new role shows without
+      // a manual page reload.
+      await refresh();
       toast(`Role updated to ${values.newRole}.`, 'success');
       onClose();
     } catch (err) {

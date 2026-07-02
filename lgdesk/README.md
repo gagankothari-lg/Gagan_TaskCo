@@ -79,9 +79,9 @@ cp apps/web/.env.local.example apps/web/.env.local
 | `PORT` | No | Injected by Railway; falls back to `3001` locally — don't set manually in production |
 | `NODE_ENV` | No | Read by `/api/health` only; not otherwise load-bearing |
 | `RESEND_API_KEY` | No | Password-reset OTP email; email send silently no-ops (logs a warning) if unset |
+| `FROM_EMAIL` | No | From-address for all outbound email; read via `ConfigService.get('FROM_EMAIL')` in `email/email.service.ts`, defaults to `LG Desk <noreply@leveragedgrowth.co>` if unset |
 | `GEMINI_API_KEY` | No | Weekly-summary generation; `/weekly-summary/generate` throws 400 if unset |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` | No | Read by `calendar/calendar.service.ts` (task/project/leave/holiday → Google Calendar sync). Not configured anywhere yet — feature no-ops without them |
-| `GOOGLE_CALENDAR_CREDENTIALS` | No | Read by `meetings/google-calendar.service.ts` (meeting invite + Meet-link stub). Not wired up yet — always returns `null` until this and real `googleapis` calls are implemented |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` | No | Read by both `calendar/calendar.service.ts` (task/project/leave/holiday → Google Calendar sync) and `meetings/google-calendar.service.ts` (meeting invite + Meet-link via `conferenceData.createRequest`). Not configured anywhere yet — both features no-op / return `null` without them |
 | `GOOGLE_DRIVE_FOLDER_ID` | No | Documented for parity only — the attachments backend module (Drive upload) doesn't exist yet; not read by any code |
 
 **`apps/web/.env.local`**:

@@ -133,7 +133,13 @@ for i in $(seq 1 8); do curl -s -o /dev/null -w "%{http_code} " -X POST $API/api
 Browser: open `$APP`, log in, dashboard renders, Network tab shows calls to the Railway origin.
 
 ## 8. Scheduled jobs — automatic
-In-process `@nestjs/schedule` crons (no Railway scheduler): hourly auto clock-out (`work-duration.service.ts`), daily token cleanup (`auth.service.ts`). Keep the API at **1 replica** (in-memory throttler + crons fire per replica).
+In-process `@nestjs/schedule` crons (no Railway scheduler), four in total:
+- **`autoClockOut`** — hourly (`0 * * * *`), `work-duration.service.ts` — closes still-open sessions past the midnight-UTC day boundary.
+- **`dailyCalendarSync`** — daily 00:30 UTC / 06:00 IST (`30 0 * * *`), `work-duration.service.ts` — pushes tasks/projects/leaves/holidays to Google Calendar (no-op without Google creds).
+- **`cleanupExpiredTokens`** — daily 03:00 UTC (`0 3 * * *`), `auth.service.ts` — purges expired revoked tokens + used/expired password-reset OTPs.
+- **`generateWeeklySummaries`** — Mondays 00:00 UTC (`0 0 * * 1`), `weekly-summary.service.ts` — batch-generates the prior week's MIS summaries via Gemini (no-op without `GEMINI_API_KEY`).
+
+Keep the API at **1 replica** (in-memory throttler + crons fire per replica).
 
 ---
 

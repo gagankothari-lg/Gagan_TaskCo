@@ -6,11 +6,12 @@ import { useAuth } from '../../../hooks/use-auth';
 import { useRegistrations, useApproveRegistration, useRejectRegistration } from '../../../lib/api/teamMembers';
 import { isManager } from '../../../lib/auth';
 import { apiErrorMessage } from '../../../lib/api/client';
+import { toast } from '../../../lib/toast';
 import { Spinner } from '../../../components/ui/spinner';
 import { RoleBadge } from '../../../components/ui/role-badge';
 
 export default function RegistrationsPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, refresh } = useAuth();
   const { data: rows, isLoading, error } = useRegistrations();
   const approve = useApproveRegistration();
   const reject = useRejectRegistration();
@@ -34,9 +35,15 @@ export default function RegistrationsPage() {
   const pending = (rows ?? []).filter((r) => r.status === 'Pending');
 
   async function onApprove(reqId: string) {
+    if (!confirm('Approve this registration and create the employee account?')) return;
     setActionError(null);
     try {
-      await approve.mutateAsync(reqId);
+      const { empId } = await approve.mutateAsync(reqId);
+      // MembersView sources its roster from AuthContext.payload (one-shot boot state,
+      // outside TanStack Query), so refresh() re-fetches the boot payload to reflect the
+      // newly created employee without a manual page reload.
+      await refresh();
+      toast(`Approved — Employee ID ${empId}`, 'success');
     } catch (err) {
       setActionError(apiErrorMessage(err, 'Unable to approve'));
     }
@@ -49,6 +56,7 @@ export default function RegistrationsPage() {
       await reject.mutateAsync({ reqId: rejecting.reqId, notes: notes || undefined });
       setRejecting(null);
       setNotes('');
+      toast('Registration rejected', 'success');
     } catch (err) {
       setActionError(apiErrorMessage(err, 'Unable to reject'));
     }

@@ -58,7 +58,9 @@ lgdesk/
 │   └── web/                     # Next.js — port 3000
 │       └── src/
 │           ├── app/
-│           │   ├── (auth)/      # login, forgot-password, registration
+│           │   ├── (auth)/      # only login/ is a real route; forgot-password is an in-page
+│           │   │                #   `mode` state in login/page.tsx, registration is a modal
+│           │   │                #   (components/modules/users/registration-modal.tsx)
 │           │   └── (dashboard)/ # every authenticated module/page
 │           ├── components/
 │           │   ├── ui/          # shadcn/ui primitives — see "shadcn/ui primitives" below
@@ -194,9 +196,11 @@ Google service account, no OAuth2 client): Drive Attachments, Chat Spaces, Forms
 Treat these as a known TODO, not something to build out further this phase:
 - `apps/api/src/calendar/calendar.service.ts` (task/project/leave/holiday → Google Calendar sync) reads
   `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` and no-ops without them.
-- `apps/api/src/meetings/google-calendar.service.ts` (meeting invites / Meet links) reads
-  `GOOGLE_CALENDAR_CREDENTIALS`, is an intentional stub (`createCalendarEvent` always returns `null`),
-  and is wrapped so a Calendar failure never affects the API response — the DB is the source of truth,
+- `apps/api/src/meetings/google-calendar.service.ts` (meeting invites / Meet links) now reuses the same
+  authenticated-client pattern as `calendar.service.ts` — it reads `GOOGLE_SERVICE_ACCOUNT_EMAIL` /
+  `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` and mints a Meet link via `conferenceData.createRequest`.
+  Still non-functional until those credentials exist (no-ops / returns `null` without them), and is
+  wrapped so a Calendar failure never affects the API response — the DB is the source of truth,
   Calendar is invite-layer-only.
 - Attachments: the Prisma model exists; there is no controller/service yet.
 
@@ -230,7 +234,7 @@ Treat these as a known TODO, not something to build out further this phase:
 ## Quick-reference gotchas
 
 - **Import Tasks has no RBAC gate.** `apps/api/src/import/import.controller.ts` — only `JwtAuthGuard` (must be logged in); no `@Roles`/`RolesGuard`. This is intentional — see GAP RBAC-B in `LGDesk_Verification_Report.md` (product owner confirmed 2026-06-30: friction outweighs risk at current org scale). **Do not add a role gate here without re-confirming with product.**
-- **Registration password minimum is 6 characters** (Master Reference spec), **not 8**. If touching registration/password-change/reset flows, verify all three stay in sync: `apps/api/src/auth/dto/{register-request,change-password,reset-password-confirm}.dto.ts` (`@MinLength(6, …)`), the Zod schemas (`apps/web/src/app/(auth)/login/login-page.schema.ts`, `apps/web/src/components/modules/users/registration-modal.schema.ts` — `z.string().min(6, …)`), and the placeholder text ("Min 6 characters").
+- **Registration password minimum is 6 characters** (Master Reference spec), **not 8**. If touching registration/password-change/reset flows, verify all of these stay in sync: the 3 backend DTOs `apps/api/src/auth/dto/{register-request,change-password,reset-password-confirm}.dto.ts` (`@MinLength(6, …)`), the 3 Zod schemas (`apps/web/src/app/(auth)/login/login-page.schema.ts`, `apps/web/src/components/modules/users/registration-modal.schema.ts`, and `apps/web/src/components/modules/users/profile-modal.schema.ts` — `z.string().min(6, …)`), and the placeholder text ("Min 6 characters" / "min 6 chars").
 - **Team Facilitator (TF) can never change any employee's role.** No code branch should ever exist for this on either backend (`users.service.ts` `changeRole`) or frontend (`rbac.ts` `allowedNewRoles`) — TF simply falls through to the empty-array/no-capability case.
 - **Team Captain (TC) can only change Team Member/Intern roles, and only within their own team.** `users.service.ts` `changeRole` gates on `target.role !== 'Team Member' && target.role !== 'Intern'` → reject, plus the caller/target team match; `rbac.ts` `canChangeRole` mirrors both checks.
 - **`GET /directory/org-chart` (`DirectoryController.orgChart` → `DirectoryService.getOrgChartData`) has no role-based RBAC guard** — it sits behind the controller-level `JwtAuthGuard` (must be authenticated) but there is no `@Roles`/`RolesGuard` on top, so any authenticated employee of any role can view the full org chart. This is intentional per spec — **do not add a role restriction without re-confirming with product.**

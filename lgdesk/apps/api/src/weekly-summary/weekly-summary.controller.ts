@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { WeeklySummaryService } from './weekly-summary.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -30,11 +30,9 @@ export class WeeklySummaryController {
   }
 
   @Get('mis')
-  async getMis(@CurrentUser() user: AuthedUser, @Query('weekStart') weekStart: string) {
-    try {
-      return await this.summaries.getMisSummaries(user.empId, weekStart);
-    } catch {
-      throw new ForbiddenException('MIS access required');
-    }
+  getMis(@CurrentUser() user: AuthedUser, @Query('weekStart') weekStart: string) {
+    // The service throws ForbiddenException('MIS access required') for the permission case;
+    // any other failure (DB/runtime) propagates as a real 500 rather than being masked as a 403.
+    return this.summaries.getMisSummaries(user.empId, weekStart);
   }
 }

@@ -11,6 +11,7 @@ import {
 } from '../../../lib/api/teamMembers';
 import { isManager } from '../../../lib/auth';
 import { apiErrorMessage } from '../../../lib/api/client';
+import { toast } from '../../../lib/toast';
 import { Spinner } from '../../../components/ui/spinner';
 
 const FIELD_LABELS: Record<string, string> = {
@@ -68,6 +69,7 @@ export default function ProfileRequestsPage() {
     setActionError(null);
     try {
       await approve.mutateAsync(reqId);
+      toast('Profile change approved', 'success');
     } catch (err) {
       setActionError(apiErrorMessage(err, 'Unable to approve'));
     }
@@ -80,6 +82,7 @@ export default function ProfileRequestsPage() {
       await reject.mutateAsync({ reqId: rejecting.reqId, notes: notes || undefined });
       setRejecting(null);
       setNotes('');
+      toast('Profile change rejected', 'success');
     } catch (err) {
       setActionError(apiErrorMessage(err, 'Unable to reject'));
     }
