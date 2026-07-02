@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ADMIN_ROLES, MANAGER_ROLES } from '../common/constants';
+import { MANAGER_ROLES } from '../common/constants';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 
@@ -34,7 +34,10 @@ export class ProjectsController {
     return this.projects.getAuthorizedProjects(user.empId, 'team');
   }
 
-  @Roles(...ADMIN_ROLES)
+  // 'all' is Admin/SA org-wide by default, but TC/TF may reach this route too
+  // (nav shows "All Projects" to every manager) — ProjectsService.getAuthorizedProjects
+  // team-scopes the 'all' branch for non-admin callers, mirroring TasksService.
+  @Roles(...MANAGER_ROLES)
   @Get('all')
   getAllScope(@CurrentUser() user: AuthedUser) {
     return this.projects.getAuthorizedProjects(user.empId, 'all');

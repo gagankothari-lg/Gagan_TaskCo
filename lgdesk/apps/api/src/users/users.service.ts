@@ -176,9 +176,17 @@ export class UsersService {
 
   async getRegistrationRequests(callerEmpId: string) {
     const caller = await this.getCaller(callerEmpId);
-    const where = isAdmin(caller.role) ? {} : { managerId: callerEmpId };
+    if (isAdmin(caller.role)) {
+      return this.prisma.registrationRequest.findMany({
+        select: REG_REQUEST_SELECT,
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+    // Additive-OR (same pattern as LeavesService.getApprovableEmpIds): a TC/TF
+    // sees requests where they're the designated manager OR the request's team
+    // matches their own — either condition independently grants visibility.
     return this.prisma.registrationRequest.findMany({
-      where,
+      where: { OR: this.approvableRequestFilter(caller) },
       select: REG_REQUEST_SELECT,
       orderBy: { createdAt: 'desc' },
     });
@@ -187,6 +195,10 @@ export class UsersService {
   async approveRegistration(reqId: string, callerEmpId: string) {
     const req = await this.prisma.registrationRequest.findUnique({ where: { regId: reqId } });
     if (!req) throw new NotFoundException('Registration request not found');
+    const caller = await this.getCaller(callerEmpId);
+    if (!isAdmin(caller.role) && !this.canReviewRegistration(req, caller)) {
+      throw new ForbiddenException('Not authorized to approve this request.');
+    }
     if (req.status !== 'Pending') throw new BadRequestException('Registration request already processed');
 
     const existing = await this.prisma.user.findFirst({
@@ -233,6 +245,10 @@ export class UsersService {
   async rejectRegistration(reqId: string, callerEmpId: string, notes?: string) {
     const req = await this.prisma.registrationRequest.findUnique({ where: { regId: reqId } });
     if (!req) throw new NotFoundException('Registration request not found');
+    const caller = await this.getCaller(callerEmpId);
+    if (!isAdmin(caller.role) && !this.canReviewRegistration(req, caller)) {
+      throw new ForbiddenException('Not authorized to reject this request.');
+    }
     await this.prisma.registrationRequest.update({
       where: { id: req.id },
       data: { status: 'Rejected', reviewedBy: callerEmpId, notes },
@@ -282,9 +298,9 @@ export class UsersService {
         orderBy: { createdAt: 'desc' },
       });
     }
-    const teamMemberIds = await this.getTeamMemberIds(caller.team);
+    const memberIds = await this.getApprovableEmpIds(caller);
     return this.prisma.profileUpdateRequest.findMany({
-      where: { status: 'Pending', empId: { in: teamMemberIds } },
+      where: { status: 'Pending', empId: { in: memberIds } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -292,6 +308,10 @@ export class UsersService {
   async approveProfileUpdate(reqId: string, callerEmpId: string) {
     const req = await this.prisma.profileUpdateRequest.findUnique({ where: { reqId } });
     if (!req) throw new NotFoundException('Profile request not found');
+    const caller = await this.getCaller(callerEmpId);
+    if (!isAdmin(caller.role) && !(await this.canReviewProfileRequest(req.empId, caller))) {
+      throw new ForbiddenException('Not authorized to approve this request.');
+    }
     if (req.status !== 'Pending') throw new BadRequestException('Profile request already processed');
 
     const changes = this.parseChanges(req.changes);
@@ -323,6 +343,10 @@ export class UsersService {
   async rejectProfileUpdate(reqId: string, callerEmpId: string, notes?: string) {
     const req = await this.prisma.profileUpdateRequest.findUnique({ where: { reqId } });
     if (!req) throw new NotFoundException('Profile request not found');
+    const caller = await this.getCaller(callerEmpId);
+    if (!isAdmin(caller.role) && !(await this.canReviewProfileRequest(req.empId, caller))) {
+      throw new ForbiddenException('Not authorized to reject this request.');
+    }
     await this.prisma.profileUpdateRequest.update({
       where: { id: req.id },
       data: { status: 'Rejected', reviewedBy: callerEmpId, notes },
@@ -423,10 +447,38 @@ export class UsersService {
     return caller;
   }
 
-  private async getTeamMemberIds(team: string | null): Promise<string[]> {
-    if (!team) return [];
-    const members = await this.prisma.user.findMany({ where: { team }, select: { empId: true } });
-    return members.map((m) => m.empId);
+  // Additive-OR (mirrors LeavesService.getApprovableEmpIds): a manager may
+  // review anyone who is either their direct designated report (managerId
+  // match) OR on their same team — either condition independently qualifies.
+  // Shared by profile-update requests here; registration requests reuse the
+  // same shape via approvableRequestFilter since the request itself already
+  // carries managerId/team (no join needed).
+  private async getApprovableEmpIds(caller: { empId: string; team: string | null }): Promise<string[]> {
+    const or: Array<{ managerId: string } | { team: string }> = [{ managerId: caller.empId }];
+    if (caller.team) or.push({ team: caller.team });
+    const users = await this.prisma.user.findMany({ where: { OR: or }, select: { empId: true } });
+    return users.map((u) => u.empId);
+  }
+
+  private approvableRequestFilter(caller: { empId: string; team: string | null }): Array<{ managerId: string } | { team: string }> {
+    const or: Array<{ managerId: string } | { team: string }> = [{ managerId: caller.empId }];
+    if (caller.team) or.push({ team: caller.team });
+    return or;
+  }
+
+  private canReviewRegistration(
+    req: { managerId: string | null; team: string | null },
+    caller: { empId: string; team: string | null },
+  ): boolean {
+    if (req.managerId === caller.empId) return true;
+    return !!caller.team && !!req.team && req.team === caller.team;
+  }
+
+  private async canReviewProfileRequest(targetEmpId: string, caller: { empId: string; team: string | null }): Promise<boolean> {
+    const target = await this.prisma.user.findUnique({ where: { empId: targetEmpId }, select: { managerId: true, team: true } });
+    if (!target) return false;
+    if (target.managerId === caller.empId) return true;
+    return !!caller.team && !!target.team && target.team === caller.team;
   }
 
   private buildOrgTree(users: Array<{ empId: string; managerId: string | null } & Record<string, unknown>>): OrgNode[] {

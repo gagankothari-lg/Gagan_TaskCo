@@ -1,13 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { useDdrs, useApproveDdr, useRejectDdr } from '../../../lib/api/dueDateRequests';
-import { isManager } from '../../../lib/auth';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { avatarColor, initials, fmtDate, rolePillClass } from '../../../lib/utils';
+import { canChangeRole } from '../../../lib/rbac';
 import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
+import { Avatar, AvatarFallback } from '../../ui/avatar';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../ui/table';
+import { ChangeRoleModal } from './change-role-modal';
 import type { User, DueDateRequest } from '../../../lib/types';
 
 interface MembersViewProps {
@@ -23,25 +26,12 @@ function nameFor(empId: string, employees: User[]): string {
   return u ? `${u.firstName} ${u.lastName}`.trim() : empId;
 }
 
-function Avatar({ id, name, size = 28 }: { id: string; name: string; size?: number }) {
+/** Employee chip: shadcn Avatar with a per-person hashed colour (avatarColor). */
+function MemberAvatar({ id, name }: { id: string; name: string }) {
   return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        background: avatarColor(id),
-        color: '#fff',
-        fontWeight: 700,
-        fontSize: size * 0.4,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      {initials(name)}
-    </div>
+    <Avatar>
+      <AvatarFallback style={{ backgroundColor: avatarColor(id), color: '#fff' }}>{initials(name)}</AvatarFallback>
+    </Avatar>
   );
 }
 
@@ -123,8 +113,7 @@ function DdrSection({ employees }: { employees: User[] }) {
 // ─── Member table ─────────────────────────────────────────────────
 export function MembersView({ title, subtitle, scope }: MembersViewProps) {
   const { currentUser, employees, tasks } = useAuth();
-
-  const canChangeRole = currentUser ? isManager(currentUser.role) : false;
+  const [roleTarget, setRoleTarget] = useState<User | null>(null);
 
   // Open-task counts per assignee (excludes Done/Cancelled).
   const openTaskCount = useMemo(() => {
@@ -159,69 +148,66 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
       {members.length === 0 ? (
         <div className="empty-state">
           <Icon name="groups" size={40} className="ei" />
-          <p>No members to show</p>
+          <p>{scope === 'team' ? 'No members found for your team' : 'No members to show'}</p>
         </div>
       ) : (
-        <div className="tbl-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>EMPLOYEE</th>
-                <th>ROLE</th>
-                <th>TEAM</th>
-                <th>REPORTS TO</th>
-                <th>OPEN TASKS</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => {
-                const name = `${m.firstName} ${m.lastName}`.trim();
-                const open = openTaskCount.get(m.empId) ?? 0;
-                return (
-                  <tr key={m.empId}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Avatar id={m.empId} name={name} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{m.email}</div>
-                        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Team</TableHead>
+              <TableHead>Reports To</TableHead>
+              <TableHead>Open Tasks</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {members.map((m) => {
+              const name = `${m.firstName} ${m.lastName}`.trim();
+              const open = openTaskCount.get(m.empId) ?? 0;
+              const showChangeRole = currentUser ? canChangeRole(currentUser, m) : false;
+              return (
+                <TableRow key={m.empId}>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <MemberAvatar id={m.empId} name={name} />
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold text-text">{name}</div>
+                        <div className="text-[11px] text-muted">{m.email}</div>
                       </div>
-                    </td>
-                    <td>
-                      <span className={rolePillClass(m.role)}>{m.role}</span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 13, color: 'var(--text)' }}>{m.team ?? '—'}</div>
-                      {m.subDepartment && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{m.subDepartment}</div>}
-                    </td>
-                    <td style={{ fontSize: 13, color: 'var(--text)' }}>
-                      {m.managerId ? nameFor(m.managerId, employees) : '—'}
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: open > 0 ? 700 : 400, color: open > 0 ? 'var(--p)' : 'var(--muted)' }}>{open}</span>
-                    </td>
-                    <td>
-                      {canChangeRole ? (
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => toast('Role change coming soon', 'info')}
-                        >
-                          Change Role
-                        </button>
-                      ) : (
-                        <span style={{ color: 'var(--muted)' }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className={rolePillClass(m.role)}>{m.role}</span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-[13px] text-text">{m.team ?? '—'}</div>
+                    {m.subDepartment && <div className="text-[11px] text-muted">{m.subDepartment}</div>}
+                  </TableCell>
+                  <TableCell className="text-[13px] text-text">
+                    {m.managerId ? nameFor(m.managerId, employees) : '—'}
+                  </TableCell>
+                  <TableCell>
+                    <span className={open > 0 ? 'font-bold text-p' : 'text-muted'}>{open}</span>
+                  </TableCell>
+                  <TableCell>
+                    {showChangeRole ? (
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRoleTarget(m)}>
+                        Change Role
+                      </button>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       )}
+
+      <ChangeRoleModal member={roleTarget} actorRole={currentUser?.role ?? ''} onClose={() => setRoleTarget(null)} />
     </div>
   );
 }

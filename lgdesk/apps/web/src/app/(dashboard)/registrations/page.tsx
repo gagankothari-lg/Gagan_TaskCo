@@ -150,27 +150,27 @@ export default function RegistrationsPage() {
       {/* Reject reason modal */}
       {rejecting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-[400px] rounded-[10px] border border-[#30363D] bg-[#161B22] p-5">
-            <h3 className="mb-1 text-sm font-semibold text-[#E6EDF3]">Reject {rejecting.name}?</h3>
-            <p className="mb-3 text-xs text-[#8B949E]">Optionally add a reason for the rejection.</p>
+          <div className="w-full max-w-[400px] rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-5">
+            <h3 className="mb-1 text-sm font-semibold text-[var(--text)]">Reject {rejecting.name}?</h3>
+            <p className="mb-3 text-xs text-[var(--muted)]">Optionally add a reason for the rejection.</p>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Reason (optional)"
-              className="w-full resize-none rounded-[6px] border border-[#30363D] bg-[#0D1117] px-3 py-2 text-sm text-[#E6EDF3] placeholder:text-[#8B949E] focus:border-[#58A6FF] focus:outline-none"
+              className="w-full resize-none rounded-[6px] border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--p2)] focus:outline-none"
             />
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => { setRejecting(null); setNotes(''); }}
-                className="rounded-[6px] border border-[#30363D] px-3 py-1.5 text-sm text-[#E6EDF3] hover:bg-[#21262D]"
+                className="rounded-[6px] border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)] hover:bg-[var(--hover)]"
               >
                 Cancel
               </button>
               <button
                 onClick={onConfirmReject}
                 disabled={reject.isPending}
-                className="inline-flex items-center gap-2 rounded-[6px] bg-[#F85149] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#ff6a61] disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-[6px] bg-[var(--danger)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
                 {reject.isPending && <Spinner size={14} />}
                 Reject

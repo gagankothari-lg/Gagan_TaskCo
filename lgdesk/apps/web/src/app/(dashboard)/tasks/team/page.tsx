@@ -16,5 +16,5 @@ export default function TeamTasksPage() {
       </div>
     );
   }
-  return <TaskListView scope="team" title="Team Tasks" subtitle="Tasks across your team" showTeamSelector />;
+  return <TaskListView scope="team" title="Team Tasks" subtitle="Tasks across your team" showTeamSelector showTeamTabs />;
 }

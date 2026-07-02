@@ -14,5 +14,5 @@ export default function TeamProjectsPage() {
       </div>
     );
   }
-  return <ProjectGridView scope="team" title="Team Projects" subtitle="Projects across your team" />;
+  return <ProjectGridView scope="team" title="Team Projects" subtitle="Projects across your team" showTeamTabs showSearch />;
 }

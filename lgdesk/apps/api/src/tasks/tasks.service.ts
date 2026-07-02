@@ -42,7 +42,12 @@ export class TasksService {
 
     if (effective === 'all') {
       const rows = await this.prisma.task.findMany({ orderBy: { createdAt: 'desc' } });
-      return rows.map((t) => this.mapTask(t));
+      // Admin/SA get the org-wide view; TC/TF can reach this same 'all' branch
+      // (the "All Tasks" nav item is shown to every manager) but must stay
+      // team-scoped, same as the 'team' branch below.
+      if (isAdmin(caller.role)) return rows.map((t) => this.mapTask(t));
+      const scopeIds = await this.managerScopeIds(caller);
+      return rows.filter((t) => this.visibleToManager(t, caller, scopeIds)).map((t) => this.mapTask(t));
     }
 
     if (effective === 'mine') {

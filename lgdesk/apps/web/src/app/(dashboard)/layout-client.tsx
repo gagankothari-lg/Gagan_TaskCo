@@ -10,6 +10,7 @@ import { toast } from '../../lib/toast';
 import { ImportModal } from '../../components/modules/import/import-modal';
 import { ClockWidget } from '../../components/modules/work-duration/clock-widget';
 import { WeekGlanceWidget } from '../../components/modules/work-log/week-glance-widget';
+import { useRegistrations, useProfileRequests } from '../../lib/api/teamMembers';
 
 type NavItem = { label: string; icon: string; href: string; badge?: number };
 
@@ -33,6 +34,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, isLoading, logout, refresh, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
+  const managerLoaded = !!user && isManager(user.role);
+  // Registrations/Profile Updates have no dedicated nav item otherwise (Master
+  // Reference Part 24: Team Members' 3 pending queues = Registrations, Profile
+  // Updates, Due-Date Requests) — badge counts mirror pendingLeaveCount/pendingDdrCount.
+  const { data: registrations } = useRegistrations(managerLoaded);
+  const { data: profileRequests } = useProfileRequests(managerLoaded);
+  const pendingRegCount = useMemo(() => (registrations ?? []).filter((r) => r.status === 'Pending').length, [registrations]);
+  const pendingProfileCount = useMemo(() => (profileRequests ?? []).filter((r) => r.status === 'Pending').length, [profileRequests]);
 
   const [mobNavOpen, setMobNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -92,6 +101,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       { label: 'Team Projects', icon: 'folder_special', href: '/projects/team' },
       { label: 'Team Work Logs', icon: 'monitoring', href: '/work-log/team' },
       { label: 'Team Members', icon: 'table_rows', href: '/team-members', badge: pendingDdrCount },
+      { label: 'Registrations', icon: 'person_add', href: '/registrations', badge: pendingRegCount },
+      { label: 'Profile Updates', icon: 'edit_note', href: '/profile-requests', badge: pendingProfileCount },
     ];
     const company: NavItem[] = [
       { label: 'All Tasks', icon: 'table_rows', href: '/tasks/all' },
@@ -103,7 +114,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     // isManager, so it is kept out of the `team` block on purpose.
     const misReport: NavItem = { label: 'MIS Report', icon: 'assessment', href: '/mis-report' };
     return { mySpace, team, company, misReport };
-  }, [openTaskCount, pendingLeaveCount, pendingDdrCount]);
+  }, [openTaskCount, pendingLeaveCount, pendingDdrCount, pendingRegCount, pendingProfileCount]);
 
   // Longest-prefix match so exactly one nav item is active (e.g. /tasks/team beats /tasks).
   const activeHref = useMemo(() => {

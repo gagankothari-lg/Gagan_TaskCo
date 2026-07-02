@@ -16,6 +16,7 @@ import { TaskEditModal } from './task-edit-modal';
 import type { Task } from '../../../lib/types';
 
 type OwnershipTab = 'To Me' | 'By Me' | 'All';
+type TeamTab = 'To Team' | 'By Team' | 'All';
 type GroupMode = 'function' | 'date' | 'week';
 
 interface TaskListViewProps {
@@ -24,6 +25,10 @@ interface TaskListViewProps {
   subtitle?: string;
   showOwnershipTabs?: boolean;
   showTeamSelector?: boolean;
+  // Team Tasks (Master Reference Part 24): tabs read "All"/"To Team"/"By Team"
+  // instead of My Tasks' "All"/"To Me"/"By Me" — mutually exclusive with
+  // showOwnershipTabs.
+  showTeamTabs?: boolean;
 }
 
 const COLS = ['Assigned date', 'Sub-function', 'Task', 'Assigned to', 'Assigned by', 'Recurring', 'Status', 'Priority', 'Due date', ''];
@@ -31,11 +36,12 @@ const COLS = ['Assigned date', 'Sub-function', 'Task', 'Assigned to', 'Assigned 
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function mondayOf(d: Date) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 
-export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTeamSelector }: TaskListViewProps) {
+export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTeamSelector, showTeamTabs }: TaskListViewProps) {
   const { currentUser, employees, functions, projects } = useAuth();
   const { data: tasks, isLoading, error } = useTasks(scope);
   const [filter, setFilter] = useState(DEFAULT_COL_FILTER);
   const [tab, setTab] = useState<OwnershipTab>('All');
+  const [teamTab, setTeamTab] = useState<TeamTab>('All');
   const [team, setTeam] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -64,6 +70,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   const teams = useMemo(() => Array.from(new Set(employees.map((e) => e.team).filter(Boolean))) as string[], [employees]);
   const fnName = (id?: string | null) => functions.find((f) => f.functionId === id)?.name ?? 'No Function';
   const empName = (id: string) => { const u = employees.find((e) => e.empId === id); return u ? `${u.firstName} ${u.lastName}` : id; };
+  const teamOf = (empId?: string | null) => (empId ? employees.find((e) => e.empId === empId)?.team : undefined);
 
   const filtered = useMemo(() => {
     let list = tasks ?? [];
@@ -71,17 +78,28 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
       if (tab === 'To Me') list = list.filter((t) => t.assigneeIds.includes(currentUser.empId));
       else if (tab === 'By Me') list = list.filter((t) => t.assignerId === currentUser.empId);
     }
+    if (showTeamTabs && currentUser?.team) {
+      const myTeam = currentUser.team;
+      if (teamTab === 'To Team') {
+        list = list.filter(
+          (t) => t.assignedTeams.includes(myTeam) || t.assigneeIds.some((a) => teamOf(a) === myTeam) || teamOf(t.assignerId) === myTeam,
+        );
+      } else if (teamTab === 'By Team') {
+        list = list.filter((t) => teamOf(t.assignerId) === myTeam);
+      }
+    }
     if (showTeamSelector && team) list = list.filter((t) => t.assignedTeams.includes(team));
     list = applyColFilters(list, filter);
     if (query) list = list.filter((t) => `${t.title} ${t.description ?? ''} ${t.taskId}`.toLowerCase().includes(query));
     return list;
-  }, [tasks, showOwnershipTabs, tab, team, showTeamSelector, currentUser, filter, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, showOwnershipTabs, tab, showTeamTabs, teamTab, team, showTeamSelector, currentUser, filter, query, employees]);
 
   // A change to any filter/tab/search/group re-pages from the top (Part 37:
   // "navigate away and back -> fresh first-page render", extended to cover any
   // re-filter within the same mount too, so a narrower result set never leaves stale
   // rows 81+ rendered from a previous, larger result set).
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [tab, team, filter, query, grp]);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [tab, teamTab, team, filter, query, grp]);
 
   // Scroll listener on the dashboard shell's #main container — appends 80 more rows
   // when within 300px of the bottom; detaches once every row is already rendered.
@@ -232,6 +250,14 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
         <div className="tl-tabs" style={{ marginBottom: 12 }}>
           {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
             <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+          ))}
+        </div>
+      )}
+
+      {showTeamTabs && (
+        <div className="tl-tabs" style={{ marginBottom: 12 }}>
+          {(['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
+            <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
           ))}
         </div>
       )}

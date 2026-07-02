@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ADMIN_ROLES, MANAGER_ROLES } from '../common/constants';
+import { MANAGER_ROLES } from '../common/constants';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { CreateProgressDto } from './dto/create-progress.dto';
@@ -37,7 +37,11 @@ export class TasksController {
     return this.tasks.getAuthorizedTasks(user.empId, 'team');
   }
 
-  @Roles(...ADMIN_ROLES)
+  // 'all' is Admin/SA org-wide by default, but TC/TF may reach this route too
+  // (nav shows "All Tasks" to every manager) — TasksService.getAuthorizedTasks
+  // team-scopes the 'all' branch for non-admin callers so they never see other
+  // teams' tasks despite hitting the same endpoint Admin/SA use.
+  @Roles(...MANAGER_ROLES)
   @Get('all')
   getAllScope(@CurrentUser() user: AuthedUser) {
     return this.tasks.getAuthorizedTasks(user.empId, 'all');

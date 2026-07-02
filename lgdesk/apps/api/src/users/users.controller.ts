@@ -49,13 +49,17 @@ export class UsersController {
     return this.users.getRegistrationRequests(user.empId);
   }
 
-  @Roles(...ADMIN_ROLES)
+  // Route-level gate is MANAGER_ROLES (not ADMIN_ROLES) so TC/TF can approve
+  // within their own scope — UsersService.approveRegistration enforces the
+  // additive-OR per-request check (designated manager OR same-team), mirroring
+  // the leave-approval pattern (LeavesService.getApprovableEmpIds).
+  @Roles(...MANAGER_ROLES)
   @Patch('registrations/:reqId/approve')
   approveRegistration(@Param('reqId') reqId: string, @CurrentUser() user: AuthedUser) {
     return this.users.approveRegistration(reqId, user.empId);
   }
 
-  @Roles(...ADMIN_ROLES)
+  @Roles(...MANAGER_ROLES)
   @Patch('registrations/:reqId/reject')
   rejectRegistration(
     @Param('reqId') reqId: string,

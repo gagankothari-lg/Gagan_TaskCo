@@ -95,3 +95,50 @@ export function canDeleteFunction(user: Caller, fn: WorkFunction): boolean {
   if (isManager(user.role) && user.team && fn.assignedTeams.includes(user.team)) return true;
   return false;
 }
+
+// ─── Role change ("Change Role") ────────────────────────────────────────────
+// Mirrors apps/api/src/users/users.service.ts `changeRole` exactly:
+//   - Super Admin: no restriction — every role, on any target.
+//   - Admin: any role except Super Admin, and never on a Super Admin target
+//     (also never shown for a peer Admin target — the legacy `_allowedNewRoles`
+//     matrix this is ported from never exposes the button between same-tier
+//     admins, even though the backend itself only hard-blocks the SA case).
+//   - Team Captain: own-team Team Member / Intern targets ONLY, and only into
+//     Team Member / Intern / Team Facilitator / Team Captain (never Admin/SA).
+//   - Team Facilitator (and everyone else): no capability at all — no branch.
+export type RoleName = 'Super Admin' | 'Admin' | 'Team Captain' | 'Team Facilitator' | 'Team Member' | 'Intern';
+
+// Display order used everywhere a role <select> is populated (lowest to highest rank).
+export const ROLE_OPTIONS_ORDER: RoleName[] = [
+  'Team Member',
+  'Intern',
+  'Team Facilitator',
+  'Team Captain',
+  'Admin',
+  'Super Admin',
+];
+
+/** The set of roles `actorRole` may assign to a target currently holding `targetRole`. Empty = no button. */
+export function allowedNewRoles(actorRole: string, targetRole: string): RoleName[] {
+  if (actorRole === 'Super Admin') return ROLE_OPTIONS_ORDER;
+  if (actorRole === 'Admin') {
+    if (targetRole === 'Admin' || targetRole === 'Super Admin') return [];
+    return ROLE_OPTIONS_ORDER.filter((r) => r !== 'Super Admin');
+  }
+  if (actorRole === 'Team Captain') {
+    if (targetRole !== 'Team Member' && targetRole !== 'Intern') return [];
+    return ROLE_OPTIONS_ORDER.filter((r) => r !== 'Admin' && r !== 'Super Admin');
+  }
+  return []; // Team Facilitator and non-managers: never.
+}
+
+/** Whether the "Change Role" button/action should even be offered for this actor/target pair. */
+export function canChangeRole(
+  actor: Caller,
+  target: { empId: string; role: string; team?: string | null },
+): boolean {
+  if (!actor) return false;
+  if (actor.empId === target.empId) return false; // never on yourself
+  if (actor.role === 'Team Captain' && actor.team !== target.team) return false; // TC: own team only
+  return allowedNewRoles(actor.role, target.role).length > 0;
+}
