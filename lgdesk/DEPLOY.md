@@ -2,6 +2,14 @@
 
 > Stack: **Vercel** (Next.js web) · **Railway** (NestJS API, Docker) · **Neon** (PostgreSQL).
 
+> **2026-07-02 addendum:** production was redeployed on 2026-07-02 with the full ground-up rebuild
+> described in [`CHANGELOG.md`](./CHANGELOG.md) ("Full stack rebuild + verification pass" and the
+> follow-up "Verification round 2" entries, both dated 2026-07-02) — pushed to `main` and auto-deployed
+> via the existing Vercel/Railway GitHub integration (confirmed via `git log` and the resulting
+> Railway/Vercel deployment IDs changing). The banner below still shows the original 2026-06-28 deploy
+> details (URLs, login, verification checks), which remain accurate for the topology/credentials — but
+> the code running at those URLs is the 2026-07-02 rebuild, not the pre-rebuild snapshot.
+
 ## ✅ LIVE (deployed 2026-06-28, via CLI)
 | | |
 |---|---|
@@ -45,7 +53,7 @@ npm run build:web      # next build → exit 0
 ```
 
 ## 2. Database (Neon) — done
-Live, pushed + seeded. Production login is **`gagankothari.lg@gmail.com` / `Admin@1234`** on EMP-00001 (not the seed email). To re-point: set `DATABASE_URL` (incl. `?sslmode=require`), then `npx prisma db push && pnpm seed`.
+Live, pushed + seeded. Production login is **`gagankothari.lg@gmail.com` / `Admin@1234`** on EMP-00001 (not the seed email). To re-point: set `DATABASE_URL` (incl. `?sslmode=require`), then `npx prisma db push && npm run seed --workspace=apps/api`.
 
 ## 3. JWT secret
 ```bash
@@ -75,6 +83,7 @@ railway domain                        # generate the public URL
 - `PORT` is injected by Railway — do **not** set it (`main.ts` reads it).
 - `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile` tells Railway to build the Dockerfile with the workspace root as context.
 - `RESEND_API_KEY` optional (password-reset email no-ops without it). `GEMINI_API_KEY` optional (weekly summaries).
+- Also optional, currently unset in production: `FROM_EMAIL` (outbound email sender override; defaults to `LG Desk <noreply@leveragedgrowth.co>` if unset) and `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` (Google Calendar sync + meeting invites/Meet links — both no-op without them; blocked pending a real Google service account). See the README env-var table for the full list rather than duplicating it here.
 - **Dashboard equivalent:** New Project → from GitHub `Gagan_TaskCo` → Settings: Root Directory `lgdesk`, Dockerfile Path `apps/api/Dockerfile`, then add the vars.
 
 ### Verify

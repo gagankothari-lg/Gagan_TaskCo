@@ -1,24 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is the [Next.js](https://nextjs.org) app for LG Desk, part of the `lgdesk` npm workspaces monorepo (see the root [`README.md`](../../README.md) and [`DEPLOY.md`](../../DEPLOY.md)). This repo uses **npm workspaces only** — no pnpm, yarn, or bun.
 
 ## Getting Started
 
-First, run the development server:
+From the `lgdesk/` monorepo root, run both apps:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+
+Or run just this app:
+
+```bash
+npm run dev --workspace=apps/web
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to load **Montserrat** (see `CLAUDE.md`'s Design System section) — not the `create-next-app` default Geist font.
 
 ## Learn More
 

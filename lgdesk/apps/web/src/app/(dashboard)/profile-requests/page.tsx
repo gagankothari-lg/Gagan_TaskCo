@@ -66,6 +66,7 @@ export default function ProfileRequestsPage() {
   const pending = (rows ?? []).filter((r) => r.status === 'Pending');
 
   async function onApprove(reqId: string) {
+    if (!confirm('Approve this profile change request?')) return;
     setActionError(null);
     try {
       await approve.mutateAsync(reqId);

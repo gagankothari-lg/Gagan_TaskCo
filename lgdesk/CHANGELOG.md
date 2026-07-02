@@ -25,8 +25,10 @@ documentation inaccuracies.
   integration), but no longer silently mis-wired; the graceful no-op-when-unconfigured behavior and the
   fire-and-forget calendar-sync wrapper in `meetings.service.ts` are preserved.
 - **Toast/confirm feedback added to 3 approval-flow pages.** Leave-Approvals, Registrations, and
-  Profile-Requests now emit success toasts (and confirm steps on the two Approve actions that lacked one);
-  the Registrations approve toast surfaces the newly assigned Employee ID.
+  Profile-Requests now emit success toasts; the two Approve actions that lacked a confirm step
+  (Leave-Approvals, Registrations) gained one this round, and Profile-Requests' Approve gained the same
+  `confirm()` guard in a subsequent parity fix, so all three Approve actions now confirm before firing.
+  The Registrations approve toast surfaces the newly assigned Employee ID.
 - **Stale members roster after Change-Role / registration approval.** Corrected root cause: the mutation
   hooks *do* invalidate the `['users']` query, but `MembersView` reads from `AuthContext.payload` (a
   one-shot boot state outside TanStack Query), so invalidation had nothing subscribed. Now calls
@@ -52,8 +54,11 @@ documentation inaccuracies.
   `generateWeeklySummaries`).
 - `LGDesk_Verification_Report.md` — corrected the Stale-UI root cause and marked it fixed; recategorized
   the Meetings gap; fixed the `window.confirm()` count (8→9); added the Team Tasks vs Projects
-  visibility-scope asymmetry note, the Attachments object-storage nuance, the two Group-2 minor fixes, and
-  the `forms/page.tsx` coming-soon placeholder.
+  visibility-scope asymmetry note, the Attachments object-storage nuance, the weekly-summary MIS
+  `ForbiddenException`-masking fix and the work-duration `applyTime` time-validation fix (the two minor
+  fixes appended to the "Verification Round 2" table — not to be confused with "Group 2" earlier in the
+  same report, which refers to the unrelated registration-duplicate-email bug), and the
+  `forms/page.tsx` coming-soon placeholder.
 
 ### Verification
 
