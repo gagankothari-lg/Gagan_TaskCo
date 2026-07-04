@@ -157,6 +157,31 @@ export class TasksService {
     return this.mapTask(created);
   }
 
+  // Inline batch-add panel (task-list-view.tsx "Add Tasks" row). Each row goes
+  // through the exact same createTask logic (defaults, ID generation, self-assign
+  // rule #22, calendar side-effect) — no duplicated business logic here. Rows are
+  // processed SEQUENTIALLY (for...of + await, never Promise.all) because taskId
+  // generation is a find-last-then-increment helper (IdUtilsService.generateId)
+  // that would race and mint duplicate/incorrect IDs under concurrent creates.
+  // One row's failure (e.g. bad FK on projId/functionId/subFnId) never aborts the
+  // batch — the caller needs a per-row partial-success report.
+  async createBulk(
+    callerEmpId: string,
+    dtos: CreateTaskDto[],
+  ): Promise<Array<{ success: true; task: Task } | { success: false; error: string; index: number }>> {
+    const results: Array<{ success: true; task: Task } | { success: false; error: string; index: number }> = [];
+    for (let index = 0; index < dtos.length; index++) {
+      try {
+        const task = await this.createTask(dtos[index], callerEmpId);
+        results.push({ success: true, task });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to create task';
+        results.push({ success: false, error: message, index });
+      }
+    }
+    return results;
+  }
+
   async updateTask(taskId: string, dto: UpdateTaskDto, callerEmpId: string): Promise<Task> {
     const task = await this.requireTask(taskId);
     const caller = await this.getCaller(callerEmpId);

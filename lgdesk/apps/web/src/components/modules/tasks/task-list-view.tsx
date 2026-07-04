@@ -5,8 +5,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '../../../hooks/use-auth';
-import { useTasks, useCreateTask, type TaskScope } from '../../../lib/api/tasks';
-import { isManager } from '../../../lib/auth';
+import { useTasks, useCreateTasksBulk, type TaskScope, type BulkTaskResult } from '../../../lib/api/tasks';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
@@ -14,8 +13,9 @@ import { Badge } from '../../ui/badge';
 import { pillClass, badgeClass, fmtDate, isClosedTaskStatus } from '../../../lib/utils';
 import { TaskRow, isTaskOverdue, COL_HIDE, stickyActionsStyle } from './task-row';
 import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
-import { createTaskSchema, TASK_STATUSES, TASK_PRIORITIES, type CreateTaskFormValues } from './create-task-modal.schema';
-import { CreateTaskModal } from './create-task-modal';
+import { createTaskSchema, TASK_STATUSES, TASK_PRIORITIES } from './create-task-modal.schema';
+import { CompactMultiSelect } from './compact-multi-select';
+import { CreateFunctionModal } from '../functions/create-function-modal';
 import { TaskDetailModal } from './task-detail-modal';
 import { TaskEditModal } from './task-edit-modal';
 import type { Task, WorkFunction, Project, User } from '../../../lib/types';
@@ -75,7 +75,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   const [tab, setTab] = useState<OwnershipTab>('All');
   const [teamTab, setTeamTab] = useState<TeamTab>('All');
   const [team, setTeam] = useState('');
-  const [createOpen, setCreateOpen] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -109,7 +108,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   // Debounced search (~220ms).
   useEffect(() => { const t = setTimeout(() => setQuery(rawQuery.trim().toLowerCase()), 220); return () => clearTimeout(t); }, [rawQuery]);
 
-  const manager = currentUser ? isManager(currentUser.role) : false;
   const teams = useMemo(() => Array.from(new Set(employees.map((e) => e.team).filter(Boolean))) as string[], [employees]);
   const fnName = (id?: string | null) => functions.find((f) => f.functionId === id)?.name ?? 'No Function';
   const empName = (id: string) => { const u = employees.find((e) => e.empId === id); return u ? `${u.firstName} ${u.lastName}` : id; };
@@ -303,7 +301,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
               {teams.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           )}
-          <button className="btn btn-primary btn-sm" onClick={() => setCreateOpen(true)}><Icon name="add" size={16} /> {manager ? 'New Task' : 'Self-assign'}</button>
         </div>
       </div>
 
@@ -464,8 +461,10 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                 <FunctionGroup key={fid} name={fnName(fid === '__none' ? undefined : fid)} list={list} onOpen={setDetailId} onEdit={setEditId} />
               ))}
               {/* Inline batch "Add Tasks" row pinned at the bottom of the table
-                  (reference: tr.ts-foot-trig / tr.ts-add-row) — wired to the existing
-                  useCreateTask mutation + createTaskSchema, one row per task. */}
+                  (reference: tr.ts-foot-trig / tr.ts-add-row) — wired to the bulk
+                  useCreateTasksBulk mutation (one POST /tasks/bulk call for every row,
+                  not one call per row) + the local batchRowSchema superset of
+                  createTaskSchema. */}
               <TaskBatchAddRow
                 open={batchOpen}
                 onOpenChange={setBatchOpen}
@@ -473,6 +472,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                 projects={projects}
                 employees={employees}
                 currentUserName={currentUser?.name ?? ''}
+                currentUserEmpId={currentUser?.empId ?? ''}
               />
             </tbody>
           </table>
@@ -495,7 +495,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
         </div>
       )}
 
-      <CreateTaskModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <TaskDetailModal taskId={detailId} onClose={() => setDetailId(null)} />
       <TaskEditModal taskId={editId} onClose={() => setEditId(null)} />
     </div>
@@ -523,49 +522,114 @@ function FunctionGroup({ name, list, onOpen, onEdit }: { name: string; list: Tas
 // A top-level component (not a closure defined inside TaskListView) so its identity is
 // stable across parent re-renders — an inline component using useForm/useFieldArray would
 // otherwise remount (and lose in-progress input) on every keystroke elsewhere in the view.
-const defaultBatchRow = (): CreateTaskFormValues => ({
-  title: '', description: '', projId: '', functionId: '', subFnId: '', assigneeIds: [],
-  team: '', status: 'Not Started', priority: 'Medium', dueDate: '', estimatedHours: '',
+//
+// Local superset of createTaskSchema/CreateTaskFormValues: batch rows also carry a
+// newline-delimited `links` textarea value that the single-task schema doesn't have (the
+// backend DTO's `links` is string[]; the textarea is split into that array only at submit
+// time, in onSubmit below).
+const batchRowSchema = createTaskSchema.extend({ links: z.string().optional() });
+type BatchRowValues = z.infer<typeof batchRowSchema>;
+
+const defaultBatchRow = (currentUserEmpId?: string): BatchRowValues => ({
+  title: '', description: '', projId: '', functionId: '', subFnId: '',
+  assigneeIds: currentUserEmpId ? [currentUserEmpId] : [],
+  team: '', status: 'Not Started', priority: 'Medium', dueDate: '', estimatedHours: '', links: '',
 });
 
-function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, currentUserName }: {
+// True when a row is still exactly at its freshly-appended default — used by Cancel's
+// discard-confirmation so the default-assignee pre-fill doesn't itself count as "the user
+// typed something".
+function isRowUntouched(row: BatchRowValues, defaults: BatchRowValues): boolean {
+  return (
+    row.title.trim() === '' &&
+    !(row.description ?? '').trim() &&
+    !(row.links ?? '').trim() &&
+    row.projId === defaults.projId &&
+    row.functionId === defaults.functionId &&
+    row.subFnId === defaults.subFnId &&
+    row.team === defaults.team &&
+    row.assigneeIds.length === defaults.assigneeIds.length &&
+    row.assigneeIds.every((id) => defaults.assigneeIds.includes(id)) &&
+    row.status === defaults.status &&
+    row.priority === defaults.priority &&
+    !row.dueDate &&
+    !row.estimatedHours
+  );
+}
+
+function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, currentUserName, currentUserEmpId }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   functions: WorkFunction[];
   projects: Project[];
   employees: User[];
   currentUserName: string;
+  currentUserEmpId: string;
 }) {
-  const create = useCreateTask();
-  const form = useForm<{ rows: CreateTaskFormValues[] }>({
-    resolver: zodResolver(z.object({ rows: z.array(createTaskSchema).min(1) })),
-    defaultValues: { rows: [defaultBatchRow()] },
+  const { refresh } = useAuth();
+  const bulkCreate = useCreateTasksBulk();
+  const form = useForm<{ rows: BatchRowValues[] }>({
+    resolver: zodResolver(z.object({ rows: z.array(batchRowSchema).min(1) })),
+    defaultValues: { rows: [defaultBatchRow(currentUserEmpId)] },
   });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'rows' });
+  // Per-row error text, keyed by the field array's own stable `field.id` (NOT array
+  // index) — indices shift once succeeded rows are spliced out on a partial failure, but
+  // field.id stays attached to the same row so its error message survives the reindex.
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  // Row index whose Function/Sub-Function "+" quick-add modal is currently open.
+  const [fnModalRow, setFnModalRow] = useState<number | null>(null);
+  const [subFnModalRow, setSubFnModalRow] = useState<number | null>(null);
 
-  const close = () => { onOpenChange(false); form.reset({ rows: [defaultBatchRow()] }); };
+  const close = () => {
+    onOpenChange(false);
+    form.reset({ rows: [defaultBatchRow(currentUserEmpId)] });
+    setRowErrors({});
+  };
+
+  const handleCancel = () => {
+    const defaults = defaultBatchRow(currentUserEmpId);
+    const untouched = form.getValues('rows').every((row) => isRowUntouched(row, defaults));
+    if (!untouched && !window.confirm('Discard these unsaved tasks?')) return;
+    close();
+  };
 
   const onSubmit = form.handleSubmit(async (values) => {
+    const rowIds = fields.map((f) => f.id); // snapshot — index-aligned with values.rows/the request array
     try {
-      for (const row of values.rows) {
-        // eslint-disable-next-line no-await-in-loop -- batch rows must land as distinct
-        // tasks in submission order, not raced in parallel.
-        await create.mutateAsync({
-          title: row.title,
-          description: row.description || undefined,
-          projId: row.projId || undefined,
-          functionId: row.functionId || undefined,
-          subFnId: row.subFnId || undefined,
-          assigneeIds: row.assigneeIds,
-          status: row.status,
-          priority: row.priority,
-          dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : undefined,
-        });
+      const payload = values.rows.map((row) => ({
+        title: row.title,
+        description: row.description || undefined,
+        projId: row.projId || undefined,
+        functionId: row.functionId || undefined,
+        subFnId: row.subFnId || undefined,
+        assigneeIds: row.assigneeIds,
+        status: row.status,
+        priority: row.priority,
+        dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : undefined,
+        links: row.links ? row.links.split('\n').map((l) => l.trim()).filter(Boolean) : undefined,
+      }));
+      const results: BulkTaskResult[] = await bulkCreate.mutateAsync(payload);
+      const succeededIdx = new Set<number>();
+      const newErrors: Record<string, string> = {};
+      results.forEach((r, idx) => {
+        if (r.success) succeededIdx.add(idx);
+        else newErrors[rowIds[idx]] = r.error;
+      });
+      const failedCount = results.length - succeededIdx.size;
+      if (failedCount === 0) {
+        toast(`${results.length} task${results.length > 1 ? 's' : ''} added`, 'success');
+        close();
+      } else {
+        if (succeededIdx.size > 0) remove(Array.from(succeededIdx));
+        setRowErrors(newErrors);
+        toast(
+          `${succeededIdx.size} of ${results.length} task${results.length > 1 ? 's' : ''} added — ${failedCount} failed, see below`,
+          succeededIdx.size > 0 ? 'warn' : 'error',
+        );
       }
-      toast(`${values.rows.length} task${values.rows.length > 1 ? 's' : ''} added`, 'success');
-      close();
     } catch (err) {
-      toast(apiErrorMessage(err, 'Could not save one or more tasks'), 'error');
+      toast(apiErrorMessage(err, 'Could not save tasks'), 'error');
     }
   });
 
@@ -590,7 +654,7 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, c
         <div style={{ background: 'var(--bg)', borderTop: '2px solid var(--p)', padding: '8px 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--p)', flex: 1 }}>Add Tasks</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => append(defaultBatchRow())}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => append(defaultBatchRow(currentUserEmpId))}>
               <Icon name="add" size={13} /> Row
             </button>
           </div>
@@ -598,62 +662,114 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, c
             {fields.map((field, i) => {
               const rowFunctionId = form.watch(`rows.${i}.functionId`);
               const subFnOpts = functions.filter((f) => f.parentFnId === rowFunctionId);
+              const rowError = rowErrors[field.id];
               return (
-                <div
-                  key={field.id}
-                  style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.6fr 1fr 0.9fr 1fr 0.9fr 0.9fr 0.9fr auto', gap: 6, alignItems: 'center' }}
-                >
-                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.functionId` as const)}>
-                    <option value="">Function</option>
-                    {functions.filter((f) => !f.parentFnId).map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
-                  </select>
-                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.subFnId` as const)}>
-                    <option value="">Sub-Function</option>
-                    {subFnOpts.map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
-                  </select>
-                  <input className="fc" style={{ fontSize: 12 }} placeholder="Task title *" {...form.register(`rows.${i}.title` as const)} />
-                  <select
-                    className="fc" style={{ fontSize: 12 }}
-                    value={form.watch(`rows.${i}.assigneeIds`)?.[0] ?? ''}
-                    onChange={(e) => form.setValue(`rows.${i}.assigneeIds`, e.target.value ? [e.target.value] : [])}
+                <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div
+                    style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 2fr 1.15fr 0.9fr 1fr 0.9fr 0.9fr 0.9fr auto', gap: 6, alignItems: 'start' }}
                   >
-                    <option value="">Assigned To</option>
-                    {employees.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
-                  </select>
-                  <span
-                    style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                    title="Assigned by (you)"
-                  >
-                    {currentUserName}
-                  </span>
-                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.projId` as const)}>
-                    <option value="">Project</option>
-                    {projects.map((p) => <option key={p.projId} value={p.projId}>{p.name}</option>)}
-                  </select>
-                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.status` as const)}>
-                    {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.priority` as const)}>
-                    {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <input type="date" className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.dueDate` as const)} />
-                  <button
-                    type="button" className="wl-save-btn" title="Remove row"
-                    onClick={() => fields.length > 1 && remove(i)} disabled={fields.length <= 1}
-                  >
-                    <Icon name="delete" size={14} />
-                  </button>
+                    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                      <select className="fc" style={{ fontSize: 12, flex: 1, minWidth: 0 }} {...form.register(`rows.${i}.functionId` as const)}>
+                        <option value="">Function</option>
+                        {functions.filter((f) => !f.parentFnId).map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
+                      </select>
+                      <button type="button" className="wl-save-btn" title="New function" onClick={() => setFnModalRow(i)}>
+                        <Icon name="add" size={12} />
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                      <select className="fc" style={{ fontSize: 12, flex: 1, minWidth: 0 }} {...form.register(`rows.${i}.subFnId` as const)}>
+                        <option value="">Sub-Function</option>
+                        {subFnOpts.map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
+                      </select>
+                      <button
+                        type="button" className="wl-save-btn"
+                        title={rowFunctionId ? 'New sub-function' : 'Select a function first'}
+                        disabled={!rowFunctionId}
+                        onClick={() => setSubFnModalRow(i)}
+                      >
+                        <Icon name="add" size={12} />
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <input className="fc" style={{ fontSize: 12 }} placeholder="Task title *" {...form.register(`rows.${i}.title` as const)} />
+                      <textarea rows={1} className="fc" style={{ fontSize: 11, resize: 'vertical' }} placeholder="Description" {...form.register(`rows.${i}.description` as const)} />
+                      <textarea rows={1} className="fc" style={{ fontSize: 11, resize: 'vertical' }} placeholder="Links (one per line)" {...form.register(`rows.${i}.links` as const)} />
+                    </div>
+                    <CompactMultiSelect
+                      options={employees.map((e) => ({ id: e.empId, label: `${e.firstName} ${e.lastName}` }))}
+                      selectedIds={form.watch(`rows.${i}.assigneeIds`) ?? []}
+                      onChange={(ids) => form.setValue(`rows.${i}.assigneeIds`, ids)}
+                      placeholder="Assigned To"
+                    />
+                    <span
+                      style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      title="Assigned by (you)"
+                    >
+                      {currentUserName}
+                    </span>
+                    <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.projId` as const)}>
+                      <option value="">Project</option>
+                      {projects.map((p) => <option key={p.projId} value={p.projId}>{p.name}</option>)}
+                    </select>
+                    <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.status` as const)}>
+                      {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.priority` as const)}>
+                      {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <input type="date" className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.dueDate` as const)} />
+                    <button
+                      type="button" className="wl-save-btn" title="Remove row"
+                      onClick={() => fields.length > 1 && remove(i)} disabled={fields.length <= 1}
+                    >
+                      <Icon name="delete" size={14} />
+                    </button>
+                  </div>
+                  {rowError && (
+                    <div style={{ fontSize: 11, color: 'var(--danger)', paddingLeft: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <Icon name="warning" size={11} />
+                      {rowError}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={close}>Cancel</button>
-            <button type="button" className="btn btn-primary btn-sm" disabled={create.isPending} onClick={onSubmit}>
-              {create.isPending ? 'Saving…' : 'Save All'}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={handleCancel}>Cancel</button>
+            <button type="button" className="btn btn-primary btn-sm" disabled={bulkCreate.isPending} onClick={onSubmit}>
+              {bulkCreate.isPending ? 'Saving…' : 'Save All'}
             </button>
           </div>
         </div>
+        {/* Function/Sub-Function quick-add — one shared modal instance per kind, targeted
+            at whichever row's "+" was last clicked (fnModalRow/subFnModalRow). Creating
+            AuthContext's `functions` list comes from the one-shot initial-payload fetch
+            (not the useFunctions() TanStack Query cache that CreateFunctionModal's own
+            mutation invalidates), so the new option is picked up via refresh() —
+            re-fetching that payload — rather than query invalidation. */}
+        <CreateFunctionModal
+          open={fnModalRow !== null}
+          onClose={() => setFnModalRow(null)}
+          onCreated={async (fn) => {
+            const idx = fnModalRow;
+            await refresh();
+            if (idx !== null) form.setValue(`rows.${idx}.functionId`, fn.functionId);
+            setFnModalRow(null);
+          }}
+        />
+        <CreateFunctionModal
+          open={subFnModalRow !== null}
+          onClose={() => setSubFnModalRow(null)}
+          defaultParentFnId={subFnModalRow !== null ? form.watch(`rows.${subFnModalRow}.functionId`) : undefined}
+          onCreated={async (fn) => {
+            const idx = subFnModalRow;
+            await refresh();
+            if (idx !== null) form.setValue(`rows.${idx}.subFnId`, fn.functionId);
+            setSubFnModalRow(null);
+          }}
+        />
       </td>
     </tr>
   );

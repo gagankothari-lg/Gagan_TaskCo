@@ -15,15 +15,19 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/fo
 import { EmployeeMultiSelect, fieldClass, TASK_PRIORITIES } from '../tasks/create-task-modal';
 import { PROJECT_STATUSES } from '../projects/create-project-modal';
 import { createFunctionSchema, type CreateFunctionFormValues } from './create-function-modal.schema';
+import type { WorkFunction } from '../../../lib/types';
 
 interface CreateFunctionModalProps {
   open: boolean;
   onClose: () => void;
   defaultProjId?: string;
   defaultParentFnId?: string;
+  /** Fired with the newly-created function/sub-function right before onClose — lets a
+   * caller (e.g. the task-sheet's inline batch "Add Tasks" row) auto-select it. */
+  onCreated?: (fn: WorkFunction) => void;
 }
 
-export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParentFnId }: CreateFunctionModalProps) {
+export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParentFnId, onCreated }: CreateFunctionModalProps) {
   const { currentUser } = useAuth();
   const create = useCreateFunction();
   const { data: functions } = useFunctions(defaultProjId);
@@ -59,7 +63,7 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
     setError(null);
     const finalAssignees = manager ? values.assigneeIds : currentUser ? [currentUser.empId] : [];
     try {
-      await create.mutateAsync({
+      const created = await create.mutateAsync({
         name: values.name,
         description: values.description || undefined,
         projId: values.projId || undefined,
@@ -69,6 +73,7 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
         priority: values.priority,
         deadline: values.deadline ? new Date(values.deadline).toISOString() : undefined,
       });
+      onCreated?.(created);
       onClose();
     } catch (err) {
       setError(apiErrorMessage(err, 'Unable to create function'));

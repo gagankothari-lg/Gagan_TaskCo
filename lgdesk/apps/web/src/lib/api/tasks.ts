@@ -53,6 +53,19 @@ export function useCreateTask() {
   });
 }
 
+// Index-aligned with the request array — POST /tasks/bulk is a partial-success
+// endpoint (some rows can fail while others succeed), so each result carries its
+// own success flag rather than the call rejecting/resolving as a single unit.
+export type BulkTaskResult = { success: true; task: Task } | { success: false; error: string; index: number };
+
+export function useCreateTasksBulk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tasks: CreateTaskInput[]) => apiFetch<BulkTaskResult[]>('/tasks/bulk', { method: 'POST', body: { tasks } }),
+    onSuccess: () => invalidateTasks(qc),
+  });
+}
+
 export function useUpdateTask() {
   const qc = useQueryClient();
   return useMutation({

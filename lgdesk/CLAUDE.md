@@ -231,6 +231,54 @@ GAS source's task-sheet markup — this is a deliberate, real loss of at-a-glanc
 attributes (still viewable via task detail), done because the reference is authoritative here. If this
 turns out to matter to users in practice, it's a candidate to revisit, not an oversight.
 
+## Task creation — inline batch add, not a modal
+
+My Tasks / Team Tasks / All Tasks (all three share `task-list-view.tsx` + `task-row.tsx`) create tasks
+via an **inline batch-add panel** pinned at the bottom of the task-sheet table (`TaskBatchAddRow` in
+`task-list-view.tsx`), not a modal. This replaced the old single-task `CreateTaskModal` component (2026-
+07-05), matching the real production GAS app: a trigger row (`+ Add Tasks`) expands into a panel with one
+or more entry rows (`+ Row` adds another), each independently configurable, submitted together via
+`Save All` (one API call, not N sequential calls) or discarded via `Cancel`.
+
+- **Backend**: `POST /api/tasks/bulk` (`tasks.controller.ts`/`tasks.service.ts`) accepts
+  `{ tasks: CreateTaskDto[] }` and returns a **partial-success** result array, index-aligned with the
+  request — `{ success: true, task }` or `{ success: false, error, index }` per row. Rows are created
+  **sequentially** (not `Promise.all`), because task-ID generation (`generateId` — find the last
+  `TSK-XXXXX`, increment) would race under parallel writes. A failing row does not roll back or block the
+  others.
+- **Frontend partial-failure handling**: succeeded rows are removed from the panel; failed rows stay
+  visible with their typed data intact and an inline error message, so a partial failure never silently
+  discards what the user typed. Row-to-result matching is keyed by React Hook Form's stable `field.id`,
+  not array index (indices shift once succeeded rows are spliced out).
+- **Multi-assignee**: `Task.assigneeIds` was already a multi-value field before this change (the app's
+  established comma-separated-string array pattern — see "Array Fields — Storage Pattern" above), so no
+  schema migration was needed to support assigning a task to multiple people. The batch row uses
+  `compact-multi-select.tsx`'s `CompactMultiSelect` (a `.ts-ims-*`-styled chip+checkbox dropdown, sized for
+  a narrow table cell — distinct from the roomier `.ms-wrap`/`.ms-chip` widget used in Meetings/full-size
+  modals) for the Assigned To column; new rows default to the current user as a pre-selected chip.
+- **Function/Sub-Function quick-add**: the row's Function and Sub-Function dropdowns each have a "+"
+  button that opens `CreateFunctionModal` inline (it already existed and already accepted
+  `defaultParentFnId`). `CreateFunctionModal` gained a new optional `onCreated` prop so the batch row can
+  auto-select the newly created function/sub-function. Note: the new option becomes visible via
+  `useAuth().refresh()` (refetching the initial-payload), **not** `useFunctions()`'s TanStack Query
+  invalidation — `task-list-view.tsx`'s `functions` prop comes from that one-shot initial payload, a
+  separate cache from the `['functions']` query key.
+- **Deliberately deferred, not built** (both would need a schema change, and neither was confirmed before
+  building — revisit as a dedicated follow-up, don't silently add later without re-checking this note):
+  - **Recurring cadence.** The real app's "Recurring" field is a 10-option dropdown (One Time / Daily /
+    Weekly / Alternate Week / Bi Weekly / Monthly / Bi Monthly / Quarterly / Bi Yearly / Yearly — confirmed
+    from the reference's standalone New Task modal markup), but `Task.recurring` in the schema is a plain
+    boolean. The batch row has no Recurring field at all right now (rather than build a boolean toggle
+    that doesn't match the real cadence options, or guess at a migration).
+  - **Assigned Date.** The reference shows an editable "Assigned Date" input (defaults to today) distinct
+    from the task's creation timestamp, but there's no backing schema field for a user-settable date
+    separate from `createdAt`. Omitted from the batch row for the same reason.
+- `create-task-modal.tsx` (the file) is **not deleted** despite its `CreateTaskModal` component being
+  retired — it still hosts `EmployeeMultiSelect`/`fieldClass`/`TASK_STATUSES`/`TASK_PRIORITIES` re-exports
+  that 8+ other modals depend on (`create-function-modal`, `create-project-modal`,
+  `function-detail-modal`, `project-detail-modal`, `task-edit-modal`, `task-detail-modal`,
+  `holiday-modal`, `submit-leave-modal`). Only the dead component/Dialog markup was stripped.
+
 ## Google Integrations — blocked, do not implement
 
 Four integrations are planned but **blocked pending credentials that don't exist yet on Railway** (no

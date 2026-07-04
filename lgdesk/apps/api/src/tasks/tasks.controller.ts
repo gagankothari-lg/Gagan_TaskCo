@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MANAGER_ROLES } from '../common/constants';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { BulkCreateTaskDto } from './dto/bulk-create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { CreateProgressDto } from './dto/create-progress.dto';
 
@@ -55,6 +56,13 @@ export class TasksController {
   @Post()
   create(@CurrentUser() user: AuthedUser, @Body() dto: CreateTaskDto) {
     return this.tasks.createTask(dto, user.empId);
+  }
+
+  // Inline batch-add panel (task-list-view.tsx): each row is attempted
+  // independently and partial success is reported — see TasksService.createBulk.
+  @Post('bulk')
+  createBulk(@CurrentUser() user: AuthedUser, @Body() dto: BulkCreateTaskDto) {
+    return this.tasks.createBulk(user.empId, dto.tasks);
   }
 
   // ── dynamic routes ──
