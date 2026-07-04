@@ -231,6 +231,29 @@ GAS source's task-sheet markup — this is a deliberate, real loss of at-a-glanc
 attributes (still viewable via task detail), done because the reference is authoritative here. If this
 turns out to matter to users in practice, it's a candidate to revisit, not an oversight.
 
+## Table chrome renders unconditionally — never gate it on data state
+
+`task-list-view.tsx` (My/Team/All Tasks) used to have a bug where `filtered.length === 0` short-
+circuited BEFORE the `grp === 'function'` branch — meaning whenever zero tasks matched the current
+filters, the entire `<table>` (headers, the 4px priority-bar column, the per-column filter row, sort
+indicators, AND the inline "+ Add Tasks" batch-add trigger, which lives inside `<tbody>`) disappeared
+together, replaced by a single "No tasks match these filters" message. A new user, an empty team, or
+anyone applying a filter combination matching nothing saw a completely bare page with no columns and no
+way to even find the Add Tasks button (fixed 2026-07-05).
+
+**The rule going forward: table chrome (`<thead>` — headers, filter row, sort indicators — and any
+persistent action row like the batch-add trigger) renders unconditionally once past loading/error state.
+Only `<tbody>`'s row content should reflect data state** — swap between real rows and a single
+`<tr><td colSpan={N}><EmptyState/></td></tr>` row, never conditionally render the table itself. The
+Next.js-only `grp === 'date'`/`'week'` grouping modes (card/bucket layouts with no table shell, no
+reference equivalent) still show a plain empty-state message when there's no data, evaluated locally
+within each of those branches — they just don't have shell chrome to preserve.
+
+The header's week-glance widget (`week-glance-widget.tsx`, rendered in `layout-client.tsx` between the
+mobile hamburger and `ClockWidget`) was a static visual placeholder (hardcoded day-letters, no real
+hours) since the original UI-shell phase — it's now wired to real data via the existing `useMyWorkLogs`
+hook (no new endpoint needed), showing real per-day attendance colors and a real "`<n>`h this week" total.
+
 ## Task creation — inline batch add, not a modal
 
 My Tasks / Team Tasks / All Tasks (all three share `task-list-view.tsx` + `task-row.tsx`) create tasks

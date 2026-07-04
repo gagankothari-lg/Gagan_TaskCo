@@ -326,8 +326,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
         <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
       ) : error ? (
         <div style={{ color: 'var(--danger)', fontSize: 13 }}>{apiErrorMessage(error, 'Failed to load tasks')}</div>
-      ) : filtered.length === 0 ? (
-        <div className="empty-state"><Icon name="checklist" size={40} className="ei" /><p>No tasks match these filters</p></div>
       ) : grp === 'function' ? (
         <div className="tbl-wrap">
           <table>
@@ -457,9 +455,17 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
               </tr>
             </thead>
             <tbody>
-              {pagedFunctionGroups.map(([fid, list]) => (
-                <FunctionGroup key={fid} name={fnName(fid === '__none' ? undefined : fid)} list={list} onOpen={setDetailId} onEdit={setEditId} />
-              ))}
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={TOTAL_COLS}>
+                    <div className="empty-state"><Icon name="checklist" size={40} className="ei" /><p>No tasks match these filters</p></div>
+                  </td>
+                </tr>
+              ) : (
+                pagedFunctionGroups.map(([fid, list]) => (
+                  <FunctionGroup key={fid} name={fnName(fid === '__none' ? undefined : fid)} list={list} onOpen={setDetailId} onEdit={setEditId} />
+                ))
+              )}
               {/* Inline batch "Add Tasks" row pinned at the bottom of the table
                   (reference: tr.ts-foot-trig / tr.ts-add-row) — wired to the bulk
                   useCreateTasksBulk mutation (one POST /tasks/bulk call for every row,
@@ -478,21 +484,29 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
           </table>
         </div>
       ) : grp === 'date' ? (
-        <div>
-          <Bucket icon="warning" color="var(--danger)" label="Overdue" list={buckets.overdue} />
-          <Bucket icon="today" color="var(--warn)" label="Today" list={buckets.today} />
-          <Bucket icon="date_range" color="#1565c0" label="This week" list={buckets.thisWeek} />
-          <Bucket icon="calendar_month" color="var(--muted)" label="Next week" list={buckets.nextWeek} />
-          <Bucket icon="schedule" color="var(--muted)" label="Later" list={buckets.later} />
-          <Bucket icon="calendar_off" color="var(--muted2)" label="No due date" list={buckets.noDue} />
-        </div>
+        filtered.length === 0 ? (
+          <div className="empty-state"><Icon name="checklist" size={40} className="ei" /><p>No tasks match these filters</p></div>
+        ) : (
+          <div>
+            <Bucket icon="warning" color="var(--danger)" label="Overdue" list={buckets.overdue} />
+            <Bucket icon="today" color="var(--warn)" label="Today" list={buckets.today} />
+            <Bucket icon="date_range" color="#1565c0" label="This week" list={buckets.thisWeek} />
+            <Bucket icon="calendar_month" color="var(--muted)" label="Next week" list={buckets.nextWeek} />
+            <Bucket icon="schedule" color="var(--muted)" label="Later" list={buckets.later} />
+            <Bucket icon="calendar_off" color="var(--muted2)" label="No due date" list={buckets.noDue} />
+          </div>
+        )
       ) : (
-        <div>
-          <Bucket icon="warning" color="var(--danger)" label="Overdue" list={weekGroups.overdue} />
-          {weekGroups.weeks.map((w) => (
-            <Bucket key={w.ts} icon="date_range" color={w.ts === weekGroups.thisWeekTs ? 'var(--p)' : 'var(--muted)'} label={w.ts === weekGroups.thisWeekTs ? `${w.label} (this week)` : w.label} list={w.list} />
-          ))}
-        </div>
+        filtered.length === 0 ? (
+          <div className="empty-state"><Icon name="checklist" size={40} className="ei" /><p>No tasks match these filters</p></div>
+        ) : (
+          <div>
+            <Bucket icon="warning" color="var(--danger)" label="Overdue" list={weekGroups.overdue} />
+            {weekGroups.weeks.map((w) => (
+              <Bucket key={w.ts} icon="date_range" color={w.ts === weekGroups.thisWeekTs ? 'var(--p)' : 'var(--muted)'} label={w.ts === weekGroups.thisWeekTs ? `${w.label} (this week)` : w.label} list={w.list} />
+            ))}
+          </div>
+        )
       )}
 
       <TaskDetailModal taskId={detailId} onClose={() => setDetailId(null)} />
