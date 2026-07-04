@@ -43,7 +43,7 @@ const TYPE_PILL: Record<ImportRow['type'], { bg: string; color: string }> = {
 
 const PRIORITY_COLOR: Record<string, string> = {
   High: '#e65100',
-  Medium: '#1a237e',
+  Medium: '#3949ab',
   Critical: '#c62828',
   Low: '#757575',
 };

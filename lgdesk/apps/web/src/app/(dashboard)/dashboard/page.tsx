@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '../../../components/ui/icon';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { useAuth } from '../../../hooks/use-auth';
@@ -40,28 +39,32 @@ const priBorder = (p: string) => (p === 'Critical' ? '#c62828' : p === 'High' ? 
 const priBadgeStyle = (p: string) =>
   p === 'Critical' ? { bg: '#fce8e8', c: '#c62828' } : p === 'High' ? { bg: '#fff3e0', c: '#e65100' } : p === 'Medium' ? { bg: '#e8eaf6', c: '#1a237e' } : { bg: '#f5f5f5', c: '#757575' };
 
+// Reference `.stat-card` (globals.css) already provides surface bg, shadow and the
+// indigo `border-top:3px solid var(--p)` accent — just use it directly instead of
+// wrapping in the generic shadcn Card, which has no such accent.
 function StatCard({ label, value, sub }: { label: string; value: number | string; sub: string }) {
   return (
-    <Card>
-      <CardContent className="pt-4 pb-4">
-        <div className="stat-label">{label}</div>
-        <div className="stat-val" style={{ fontSize: 32, margin: '6px 0' }}>{value}</div>
-        <div className="stat-sub">{sub}</div>
-      </CardContent>
-    </Card>
+    <div className="stat-card">
+      <div className="stat-label">{label}</div>
+      <div className="stat-val" style={{ fontSize: 32, margin: '6px 0' }}>{value}</div>
+      <div className="stat-sub">{sub}</div>
+    </div>
   );
 }
 
-/** Card header row with an icon + title on the left and optional action on the right —
- * plain flex (rather than the shadcn CardHeader's default grid) since these headers are
- * simple icon/title/action rows, not the title+description stack shadcn's grid targets. */
-function PanelHeader({ icon, title, action }: { icon: string; title: string; action?: React.ReactNode }) {
+/** Section header for the dashboard's plain (unboxed) panels — mirrors the reference's
+ * `.section-title` (font-size:15px;font-weight:600;color:var(--p);margin-bottom:14px,
+ * no border/divider) rather than shadcn's boxed CardHeader. The reference reserves
+ * bordered/shadowed card treatment only for the project-hierarchy detail column. */
+function SectionTitle({ icon, title, action }: { icon: string; title: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <CardHeader className="flex flex-row items-center gap-2 border-b border-border pb-4">
-      <Icon name={icon} size={18} style={{ color: 'var(--muted)' }} />
-      <CardTitle className="flex-1">{title}</CardTitle>
+    <div className="mb-3.5 flex flex-row items-center gap-2">
+      <div className="flex flex-1 items-center gap-1.5 text-[15px] font-semibold" style={{ color: 'var(--p)' }}>
+        <Icon name={icon} size={15} />
+        <span>{title}</span>
+      </div>
       {action}
-    </CardHeader>
+    </div>
   );
 }
 
@@ -209,14 +212,28 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Greeting */}
-      <div id="dash-greeting">
-        <div style={{ fontSize: 22, fontWeight: 700 }}>{greeting()}, {currentUser?.firstName}!</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)' }}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+      {/* Page header — greeting + date, plus the reference's manager-only "Forms" and
+          "Log Today's Work" actions (reference lines 1949-1958). */}
+      <div className="ph">
+        <div className="ph-left">
+          <div className="ph-title" id="dash-greeting">{greeting()}, {currentUser?.firstName}!</div>
+          <div className="ph-sub" id="dash-date">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        </div>
+        <div className="ph-actions">
+          {manager && (
+            <button className="btn btn-outline" onClick={() => router.push('/forms')}>
+              <Icon name="description" size={15} /> Forms
+            </button>
+          )}
+          <button className="btn btn-accent" onClick={() => router.push('/work-log')}>
+            <Icon name="edit_note" size={15} /> Log Today&apos;s Work
+          </button>
+        </div>
       </div>
 
-      {/* 6 stat cards — hidden on mobile (<=768px) per Part 12's component table */}
-      <div id="dash-stats" className="hidden gap-4 md:grid md:grid-cols-3 lg:grid-cols-6">
+      {/* 6 stat cards — the reference's `.stats-grid` only ever reflows to 2 columns on
+          small screens (lines 1440/1482/1619), it never hides the cards entirely. */}
+      <div id="dash-stats" className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <StatCard label="My Tasks" value={stats.total} sub="total assigned" />
         <StatCard label="Open" value={stats.open} sub="pending" />
         <StatCard label="In Progress" value={stats.inProgress} sub="active now" />
@@ -225,11 +242,11 @@ export default function DashboardPage() {
         <StatCard label="Projects" value={stats.projects} sub="involved in" />
       </div>
 
-      {/* Notice board + On leave */}
+      {/* Notice board + On leave — plain sections, no card border/shadow (reference lines 1962-2076) */}
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-        <Card id="dash-noticeboard">
-          <PanelHeader
-            icon="notifications_none"
+        <div id="dash-noticeboard">
+          <SectionTitle
+            icon="campaign"
             title="Notice Board"
             action={admin ? (
               <Button id="btn-nb-post" size="sm" onClick={() => setPostOpen((o) => !o)}>
@@ -237,7 +254,7 @@ export default function DashboardPage() {
               </Button>
             ) : undefined}
           />
-          <CardContent className="flex flex-col gap-3 pb-5 pt-4">
+          <div className="flex flex-col gap-3">
             {isLoading ? (
               <p className="text-sm text-muted">Loading…</p>
             ) : notices.length === 0 ? (
@@ -302,47 +319,46 @@ export default function DashboardPage() {
                 })}
               </div>
             )}
-            {admin && postOpen && <AnnouncementForm onPosted={() => setPostOpen(false)} />}
-          </CardContent>
-        </Card>
+            {admin && postOpen && <AnnouncementForm onPosted={() => setPostOpen(false)} onCancel={() => setPostOpen(false)} />}
+          </div>
+        </div>
 
-        <Card id="dash-on-leave">
-          <PanelHeader icon="event_available" title="On Leave Today" />
-          <CardContent className="pb-5 pt-4">
-            {data && data.onLeaveToday.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                {data.onLeaveToday.map((l) => {
-                  const team = employees.find((e) => e.empId === l.empId)?.team;
-                  return (
-                    <div key={l.empId} className="flex items-center gap-2">
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: avatarColor(l.empId), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{initials(l.name)}</div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-text">{l.name}</div>
-                        <div className="text-xs text-muted">{l.leaveType}{team ? ` · ${team}` : ''}</div>
-                      </div>
+        <div id="dash-on-leave">
+          <SectionTitle icon="event_busy" title="On Leave Today" />
+          {data && data.onLeaveToday.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {data.onLeaveToday.map((l) => {
+                const team = employees.find((e) => e.empId === l.empId)?.team;
+                return (
+                  <div key={l.empId} className="flex items-center gap-2">
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: avatarColor(l.empId), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{initials(l.name)}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-text">{l.name}</div>
+                      <div className="text-xs text-muted">{l.leaveType}{team ? ` · ${team}` : ''}</div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-1.5 py-5 text-muted2">
-                <Icon name="groups" size={32} />
-                <div className="text-sm italic">Everyone is in today!</div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-1.5 py-5 text-muted2">
+              <Icon name="groups" size={32} />
+              <div className="text-sm italic">Everyone is in today!</div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* My Projects */}
-      <Card id="dash-proj-wrap">
-        <PanelHeader icon="folder_open" title="My Projects" />
-        <CardContent className="pb-5 pt-4"><MyProjects /></CardContent>
-      </Card>
+      {/* My Projects — plain section; card treatment stays scoped to MyProjects' own
+          hierarchy detail column (dash-proj-detail-col), owned by that component. */}
+      <div id="dash-proj-wrap">
+        <SectionTitle icon="folder_open" title="My Projects" />
+        <MyProjects />
+      </div>
 
       {/* Upcoming tasks */}
-      <Card id="dash-upcoming">
-        <PanelHeader
+      <div id="dash-upcoming">
+        <SectionTitle
           icon="task_alt"
           title="My Upcoming Tasks"
           action={(
@@ -352,7 +368,7 @@ export default function DashboardPage() {
             </div>
           )}
         />
-        <CardContent className="flex flex-col gap-3 pb-5 pt-4">
+        <div className="flex flex-col gap-3">
           {upcomingBuckets.map((b) => {
             const isCollapsed = collapsed[b.key] ?? b.defaultCollapsed;
             return (
@@ -399,77 +415,75 @@ export default function DashboardPage() {
             <span>{totalOpen} open</span>
             {totalOverdue > 0 && <span className="font-semibold text-danger">{totalOverdue} overdue</span>}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Scoreboard — hidden on mobile (<=768px) */}
-      <Card id="dash-scoreboard-wrap" className="hidden md:flex">
-        <PanelHeader icon="leaderboard" title={scoreboardTitle} />
-        <CardContent className="pb-5 pt-4">
-          {isLoading || !data ? (
-            <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
-          ) : !manager && !admin ? (
-            // Team Member: single-card personal view instead of a full table.
-            <div className="rounded-[var(--r)] border border-border p-4">
-              <div className="flex flex-wrap items-center gap-6">
-                <div>
-                  <div className="stat-label">Score</div>
-                  <div className="text-3xl font-bold text-p">{myScore?.score ?? 0}</div>
-                </div>
-                <div>
-                  <div className="stat-label">Tasks Done</div>
-                  <div className="text-xl font-semibold text-ok">{myScore?.done ?? 0}</div>
-                </div>
-                <div>
-                  <div className="stat-label">Overdue</div>
-                  <div className="text-xl font-semibold text-danger">{myScore?.overdue ?? 0}</div>
-                </div>
-                <div>
-                  <div className="stat-label">Logs This Month</div>
-                  <div className="text-xl font-semibold text-muted2">0</div>
-                </div>
+      <div id="dash-scoreboard-wrap" className="hidden md:block">
+        <SectionTitle icon="leaderboard" title={scoreboardTitle} />
+        {isLoading || !data ? (
+          <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
+        ) : !manager && !admin ? (
+          // Team Member: single-card personal view instead of a full table.
+          <div className="rounded-[var(--r)] border border-border p-4">
+            <div className="flex flex-wrap items-center gap-6">
+              <div>
+                <div className="stat-label">Score</div>
+                <div className="text-3xl font-bold text-p">{myScore?.score ?? 0}</div>
               </div>
-              <p className="mt-3 text-xs text-muted">Score = tasks done ×10 + in-progress ×3 − overdue ×5 (never below 0).</p>
+              <div>
+                <div className="stat-label">Tasks Done</div>
+                <div className="text-xl font-semibold text-ok">{myScore?.done ?? 0}</div>
+              </div>
+              <div>
+                <div className="stat-label">Overdue</div>
+                <div className="text-xl font-semibold text-danger">{myScore?.overdue ?? 0}</div>
+              </div>
+              <div>
+                <div className="stat-label">Logs This Month</div>
+                <div className="text-xl font-semibold text-muted2">0</div>
+              </div>
             </div>
-          ) : (
-            <div className="tbl-wrap" style={{ boxShadow: 'none' }}>
-              <table>
-                <thead><tr><th>#</th><th>Employee</th><th>Team</th><th>Score</th><th>Done</th><th>Overdue</th><th>Logs (mo.)</th></tr></thead>
-                <tbody>
-                  {(showAllScores ? data.scoreboard : data.scoreboard.slice(0, 10)).map((r) => (
-                    <tr key={r.empId}>
-                      <td>{r.rank <= 3 ? <Icon name="trophy" size={18} style={{ color: TROPHY[r.rank - 1] }} /> : <span style={{ color: 'var(--muted)' }}>{r.rank}</span>}</td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <span style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(r.empId), color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(r.name)}</span>
-                          <span style={{ fontWeight: 600 }}>{r.name}</span>
-                          {r.empId === currentUser?.empId && <Badge variant="secondary">you</Badge>}
-                        </div>
-                      </td>
-                      <td style={{ color: 'var(--muted)' }}>{employees.find((e) => e.empId === r.empId)?.team ?? '—'}</td>
-                      <td style={{ fontSize: 18, fontWeight: 700, color: 'var(--p)' }}>{r.score}</td>
-                      <td style={{ fontSize: 14, color: '#2e7d32', fontWeight: 600 }}>{r.done}</td>
-                      <td style={{ fontSize: 14, color: r.overdue ? '#c62828' : '#9e9e9e', fontWeight: 600 }}>{r.overdue}</td>
-                      <td style={{ color: 'var(--muted)', fontSize: 14 }}>0</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {data.scoreboard.length > 10 && (
-                <div onClick={() => setShowAllScores((s) => !s)} style={{ color: 'var(--p)', fontSize: 12, textAlign: 'center', padding: '10px 0', borderTop: '1px solid #f0f0f0', cursor: 'pointer' }}>{showAllScores ? 'Show Top 10' : `Show All ${data.scoreboard.length} Members`}</div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <p className="mt-3 text-xs text-muted">Score = tasks done ×10 + in-progress ×3 − overdue ×5 (never below 0).</p>
+          </div>
+        ) : (
+          <div className="tbl-wrap" style={{ boxShadow: 'none' }}>
+            <table>
+              <thead><tr><th>#</th><th>Employee</th><th>Team</th><th>Score</th><th>Done</th><th>Overdue</th><th>Logs (mo.)</th></tr></thead>
+              <tbody>
+                {(showAllScores ? data.scoreboard : data.scoreboard.slice(0, 10)).map((r) => (
+                  <tr key={r.empId}>
+                    <td>{r.rank <= 3 ? <Icon name="trophy" size={18} style={{ color: TROPHY[r.rank - 1] }} /> : <span style={{ color: 'var(--muted)' }}>{r.rank}</span>}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <span style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(r.empId), color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(r.name)}</span>
+                        <span style={{ fontWeight: 600 }}>{r.name}</span>
+                        {r.empId === currentUser?.empId && <Badge variant="secondary">you</Badge>}
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--muted)' }}>{employees.find((e) => e.empId === r.empId)?.team ?? '—'}</td>
+                    <td style={{ fontSize: 18, fontWeight: 700, color: 'var(--p)' }}>{r.score}</td>
+                    <td style={{ fontSize: 14, color: '#2e7d32', fontWeight: 600 }}>{r.done}</td>
+                    <td style={{ fontSize: 14, color: r.overdue ? '#c62828' : '#9e9e9e', fontWeight: 600 }}>{r.overdue}</td>
+                    <td style={{ color: 'var(--muted)', fontSize: 14 }}>0</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {data.scoreboard.length > 10 && (
+              <div onClick={() => setShowAllScores((s) => !s)} style={{ color: 'var(--p)', fontSize: 12, textAlign: 'center', padding: '10px 0', borderTop: '1px solid #f0f0f0', cursor: 'pointer' }}>{showAllScores ? 'Show Top 10' : `Show All ${data.scoreboard.length} Members`}</div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Team clock status — TC/TF/Admin only; internals owned by the Work Duration
-          module (out of scope for this pass), container restyled only. */}
+          module (out of scope for this pass), section header restyled only. */}
       {manager && (
-        <Card id="dash-team-clock">
-          <PanelHeader icon="schedule" title="Team Clock Status" />
-          <CardContent className="pb-5 pt-4"><TeamClockStatus /></CardContent>
-        </Card>
+        <div id="dash-team-clock">
+          <SectionTitle icon="groups" title="Team Clock Status" />
+          <TeamClockStatus />
+        </div>
       )}
 
       <TaskDetailModal taskId={detailId} onClose={() => setDetailId(null)} />

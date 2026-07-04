@@ -15,9 +15,12 @@ import { Spinner } from '../../../components/ui/spinner';
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--surface)',
-  borderRadius: 8,
-  boxShadow: 'var(--sh)',
-  padding: 20,
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  padding: '20px 20px 16px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
 };
 
 const sectionLabelStyle: React.CSSProperties = {
@@ -32,8 +35,18 @@ const sectionLabelStyle: React.CSSProperties = {
   margin: '28px 0 12px',
 };
 
+const upcomingHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  fontSize: 14,
+  fontWeight: 600,
+  color: 'var(--text)',
+  margin: '24px 0 12px',
+};
+
 const cardTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--p)' };
-const cardSubStyle: React.CSSProperties = { fontSize: 12, color: 'var(--muted)', marginTop: 2 };
+const cardSubStyle: React.CSSProperties = { fontSize: 12, color: 'var(--muted)' };
 
 export default function MeetingsPage() {
   return (
@@ -94,8 +107,8 @@ function MeetingsPageInner() {
           <div className="ph-sub">Start, join or schedule Google Meet calls</div>
         </div>
         <div className="ph-actions">
-          <button className="btn btn-ghost btn-sm" onClick={refresh}>
-            <Icon name="refresh" size={15} /> Refresh
+          <button className="btn btn-ghost btn-sm" onClick={refresh} title="Refresh" aria-label="Refresh">
+            <Icon name="refresh" size={15} />
           </button>
         </div>
       </div>
@@ -104,23 +117,20 @@ function MeetingsPageInner() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {/* Start Instant Meeting */}
         <div style={cardStyle}>
-          <Icon name="video_camera_front" size={28} style={{ color: '#00897b' }} />
-          <div style={{ ...cardTitleStyle, marginTop: 8 }}>Start Instant Meeting</div>
-          <div style={cardSubStyle}>Open a new Google Meet right now</div>
-          <button
-            onClick={() => window.open('https://meet.google.com/new', '_blank')}
-            style={{ marginTop: 14, width: '100%', background: '#00897b', color: '#fff', padding: 10, borderRadius: 8, fontWeight: 600, border: 'none', cursor: 'pointer' }}
-          >
+          <Icon name="video_call" size={32} style={{ color: 'var(--ok)' }} />
+          <div style={cardTitleStyle}>Start Instant Meeting</div>
+          <div style={{ ...cardSubStyle, flex: 1 }}>Open a new Google Meet right now</div>
+          <button className="btn btn-accent btn-full" onClick={() => window.open('https://meet.google.com/new', '_blank')}>
             Start Now
           </button>
         </div>
 
         {/* Join a Meeting */}
         <div style={cardStyle}>
-          <Icon name="login" size={28} style={{ color: 'var(--p)' }} />
-          <div style={{ ...cardTitleStyle, marginTop: 8 }}>Join a Meeting</div>
-          <div style={cardSubStyle}>Enter a meeting code or link</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <Icon name="meeting_room" size={32} style={{ color: 'var(--p)' }} />
+          <div style={cardTitleStyle}>Join a Meeting</div>
+          <div style={{ ...cardSubStyle, flex: 1 }}>Enter a meeting code or link</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
             <input
               className="fc"
               placeholder="abc-defg-hij or full link"
@@ -129,24 +139,16 @@ function MeetingsPageInner() {
               onKeyDown={(e) => e.key === 'Enter' && join()}
               style={{ flex: 1, minWidth: 0 }}
             />
-            <button
-              onClick={join}
-              style={{ background: 'var(--p)', color: '#fff', padding: '0 16px', borderRadius: 8, fontWeight: 600, border: 'none', cursor: 'pointer' }}
-            >
-              Join
-            </button>
+            <button className="btn btn-primary" onClick={join}>Join</button>
           </div>
         </div>
 
         {/* Custom Meeting */}
         <div style={cardStyle}>
-          <Icon name="event" size={28} style={{ color: '#e64d3d' }} />
-          <div style={{ ...cardTitleStyle, marginTop: 8 }}>Custom Meeting</div>
-          <div style={cardSubStyle}>Schedule a Google Meet with hand-picked invites</div>
-          <button
-            onClick={() => setModalType('custom')}
-            style={{ marginTop: 14, width: '100%', background: 'var(--p)', color: '#fff', padding: 10, borderRadius: 8, fontWeight: 600, border: 'none', cursor: 'pointer' }}
-          >
+          <Icon name="event" size={32} style={{ color: 'var(--warn)' }} />
+          <div style={cardTitleStyle}>Custom Meeting</div>
+          <div style={{ ...cardSubStyle, flex: 1 }}>Schedule a Google Meet with hand-picked invites</div>
+          <button className="btn btn-primary btn-full" onClick={() => setModalType('custom')}>
             Schedule
           </button>
         </div>
@@ -156,20 +158,20 @@ function MeetingsPageInner() {
       {(admin || manager) && (
         <>
           <div style={sectionLabelStyle}>
-            <Icon name="account_tree" size={15} /> MEETING TEMPLATES
+            <Icon name="auto_awesome" size={15} /> MEETING TEMPLATES
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: admin && manager ? 'repeat(2, 1fr)' : '1fr', gap: 16 }}>
             {admin && (
               <button
                 onClick={() => setModalType('company')}
-                style={{ textAlign: 'left', background: '#e3f2fd', borderRadius: 8, padding: 20, border: 'none', cursor: 'pointer' }}
+                style={{ textAlign: 'left', background: '#e3f2fd', border: '2px solid #90caf9', borderRadius: 12, padding: 20, cursor: 'pointer' }}
               >
-                <Icon name="corporate_fare" size={28} style={{ color: 'var(--accent)' }} />
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--p)', marginTop: 8 }}>Company Meeting</div>
+                <Icon name="corporate_fare" size={28} style={{ color: '#1565c0' }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#0d47a1', marginTop: 8 }}>Company Meeting</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                  Invite your entire company — all active employees are auto-added.
+                  Invite the entire company — all active employees are auto-added.
                 </div>
-                <span style={{ display: 'inline-block', marginTop: 12, background: 'var(--p)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999 }}>
+                <span style={{ display: 'inline-block', marginTop: 12, background: '#1565c0', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999 }}>
                   Admin &amp; Founders only
                 </span>
               </button>
@@ -178,12 +180,12 @@ function MeetingsPageInner() {
             {manager && (
               <button
                 onClick={() => setModalType('team')}
-                style={{ textAlign: 'left', background: '#e8f5e9', borderRadius: 8, padding: 20, border: 'none', cursor: 'pointer' }}
+                style={{ textAlign: 'left', background: '#e8f5e9', border: '2px solid #a5d6a7', borderRadius: 12, padding: 20, cursor: 'pointer' }}
               >
                 <Icon name="groups" size={28} style={{ color: 'var(--ok)' }} />
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--p)', marginTop: 8 }}>Team Meeting</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1b5e20', marginTop: 8 }}>Team Meeting</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                  Invite your team members for a focused sync.
+                  Invite your team members — select a team and all its members are auto-added.
                 </div>
                 <span style={{ display: 'inline-block', marginTop: 12, background: 'var(--ok)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999 }}>
                   Managers &amp; above
@@ -194,9 +196,17 @@ function MeetingsPageInner() {
         </>
       )}
 
+      {modalType && (
+        <ScheduleMeetingModal
+          key={modalType}
+          initialMeetType={modalType}
+          onClose={() => setModalType(null)}
+        />
+      )}
+
       {/* ── Upcoming meetings ──────────────────────────── */}
-      <div style={sectionLabelStyle}>
-        <Icon name="event" size={15} /> UPCOMING MEETINGS
+      <div style={upcomingHeaderStyle}>
+        <Icon name="upcoming" size={18} style={{ color: 'var(--p)' }} /> Upcoming Meetings
       </div>
       {isLoading ? (
         <div className="empty-state">
@@ -221,15 +231,6 @@ function MeetingsPageInner() {
             />
           ))}
         </div>
-      )}
-
-      {modalType && (
-        <ScheduleMeetingModal
-          key={modalType}
-          open
-          initialMeetType={modalType}
-          onClose={() => setModalType(null)}
-        />
       )}
     </div>
   );

@@ -232,8 +232,9 @@ export default function OrgChartPage() {
     // Re-attach once the wrapper actually mounts (it doesn't exist yet while isLoading).
   }, [isLoading]);
 
-  // A person card at the deepest (member-panel) level.
-  const PersonCard = ({ user, color }: { user: DirectoryUser; color: string }) => {
+  // A person card at the deepest (member-panel) level. Per `.oc-mav`, member
+  // avatars are a uniform indigo pair regardless of team — not the team brand hex.
+  const PersonCard = ({ user }: { user: DirectoryUser }) => {
     const isMe = user.empId === currentUser?.empId;
     const isHi = highlight === user.empId;
     return (
@@ -241,7 +242,7 @@ export default function OrgChartPage() {
         ref={(el) => { if (el) nodeRefs.current.set(user.empId, el); else nodeRefs.current.delete(user.empId); }}
         style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', outline: isHi ? '3px solid var(--p)' : isMe ? '2px solid var(--accent)' : 'none' }}
       >
-        <div style={{ width: 26, height: 26, borderRadius: '50%', background: color, color: '#fff', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(`${user.firstName} ${user.lastName}`)}</div>
+        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--p3)', color: 'var(--p2)', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(`${user.firstName} ${user.lastName}`)}</div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>{user.firstName} {user.lastName}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)' }}>{user.role}</div>
@@ -250,13 +251,13 @@ export default function OrgChartPage() {
     );
   };
 
-  const MemberPanel = ({ members, color }: { members: DirectoryUser[]; color: string }) => (
+  const MemberPanel = ({ members }: { members: DirectoryUser[] }) => (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--sh)', padding: 10, minWidth: 200 }}>
       {members.length === 0 ? (
         <div style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', padding: 4 }}>No members assigned yet</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {members.map((m) => <PersonCard key={m.empId} user={m} color={color} />)}
+          {members.map((m) => <PersonCard key={m.empId} user={m} />)}
         </div>
       )}
     </div>
@@ -281,7 +282,7 @@ export default function OrgChartPage() {
         {isOpen && (
           <>
             <div style={{ width: 2, height: 16, background: 'var(--border)' }} />
-            <MemberPanel members={sd.members} color={color} />
+            <MemberPanel members={sd.members} />
           </>
         )}
       </div>
@@ -289,6 +290,10 @@ export default function OrgChartPage() {
   };
 
   // A team card sitting between the root company and its sub-departments/people.
+  // Sizing/border/hover match `.oc-card` (min 200/max 230, hover shadow+border);
+  // head avatar matches `.oc-av` (36x36); body preview blocks match `.oc-es`/`.oc-el`/
+  // `.oc-ec` (employee count) and `.oc-ds`/`.oc-dr`/`.oc-dav`/`.oc-dn` (sub-dept
+  // preview rows, always visible — separate from the expand-gated member list below).
   const TeamCard = ({ group }: { group: TeamGroup }) => {
     const key = teamKey(group.name);
     const isOpen = expanded.has(key);
@@ -296,17 +301,35 @@ export default function OrgChartPage() {
     const hasSubDepts = group.subDepts.length > 0;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ width: 170, background: 'var(--surface)', borderRadius: 8, borderLeft: `4px solid ${group.color}`, padding: 12, boxShadow: 'var(--sh)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p)', marginBottom: 8 }}>{group.name}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', background: group.color, color: '#fff', fontWeight: 700, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{headName ? initials(headName) : '—'}</div>
+        <div
+          style={{ minWidth: 200, maxWidth: 230, background: 'var(--surface)', borderRadius: 10, border: '1.5px solid #e2e5ea', borderLeft: `4px solid ${group.color}`, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,.06)', transition: 'box-shadow .15s, border-color .15s' }}
+          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,.1)'; e.currentTarget.style.borderColor = '#b8bec8'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,.06)'; e.currentTarget.style.borderColor = '#e2e5ea'; }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p)', marginBottom: 10 }}>{group.name}</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: group.color, color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{headName ? initials(headName) : '—'}</div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headName ?? 'No head assigned'}</div>
-              {group.head && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{group.head.role}</div>}
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headName ?? 'No head assigned'}</div>
+              {group.head && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{group.head.role}</div>}
             </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{group.members.length} employee{group.members.length === 1 ? '' : 's'}</div>
-          <button onClick={() => toggle(key)} style={{ fontSize: 11, color: 'var(--p)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted2)', fontWeight: 500, marginBottom: 2 }}>Employees</div>
+            <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>{group.members.length}</div>
+          </div>
+          {hasSubDepts && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted2)', fontWeight: 500, marginBottom: 5 }}>Sub-departments</div>
+              {group.subDepts.map((sd) => (
+                <div key={sd.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f3f5', border: '1px solid #e2e5ea', color: '#6b7280', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(sd.name)}</div>
+                  <div style={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sd.name}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => toggle(key)} style={{ width: '100%', fontSize: 12, fontWeight: 500, color: 'var(--p)', background: 'none', border: 'none', borderTop: '1px solid #f0f0f0', padding: '8px 4px 10px', margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
             {hasSubDepts ? `${group.subDepts.length} sub-department${group.subDepts.length === 1 ? '' : 's'}` : 'View members'}
             <Icon name={isOpen ? 'expand_less' : 'expand_more'} size={14} />
           </button>
@@ -315,11 +338,15 @@ export default function OrgChartPage() {
           <>
             <div style={{ width: 2, height: 20, background: 'var(--border)' }} />
             {hasSubDepts ? (
-              <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-                {group.subDepts.map((sd) => <SubDeptCard key={sd.name} team={group.name} sd={sd} color={group.color} />)}
+              <div className="oc-row">
+                {group.subDepts.map((sd) => (
+                  <div className="oc-row-item" key={sd.name}>
+                    <SubDeptCard team={group.name} sd={sd} color={group.color} />
+                  </div>
+                ))}
               </div>
             ) : (
-              <MemberPanel members={group.members} color={group.color} />
+              <MemberPanel members={group.members} />
             )}
           </>
         )}
@@ -329,20 +356,33 @@ export default function OrgChartPage() {
 
   return (
     <div>
+      {/* Sibling-row connectors — reproduces reference's `.oc-flat-row`/`::before`
+          spanning horizontal bar + vertical drops (a pure-CSS trick using per-item
+          pseudo-elements, so it needs a real <style> block — inline `style` props
+          can't express `::before`). Scoped to this page via the oc-row* classes. */}
+      <style>{`
+        .oc-row{display:flex;justify-content:center;align-items:flex-start;padding:20px 0 0;margin:0;position:relative;min-width:max-content}
+        .oc-row::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);border-left:2px solid var(--border);height:20px}
+        .oc-row>.oc-row-item{display:flex;flex-direction:column;align-items:center;padding:0 12px;position:relative}
+        .oc-row>.oc-row-item::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--border)}
+        .oc-row>.oc-row-item:first-child::before{left:50%}
+        .oc-row>.oc-row-item:last-child::before{right:50%}
+        .oc-row>.oc-row-item:only-child::before{display:none}
+      `}</style>
       <div className="ph">
-        <div className="ph-left"><div className="ph-title">Org Chart</div><div className="ph-sub">Reporting structure across teams</div></div>
+        <div className="ph-left"><div className="ph-title">Org Chart</div><div className="ph-sub">Leveraged Growth — Company Structure</div></div>
         <div className="ph-actions">
-          <button className="btn btn-ghost btn-sm" onClick={expandAll}><Icon name="unfold_more" size={15} /> Expand All</button>
+          <button className="btn btn-ghost btn-sm" onClick={reloadAndReset}><Icon name="refresh" size={15} /> Reset</button>
+          <button className="btn btn-outline btn-sm" onClick={expandAll}><Icon name="unfold_more" size={15} /> Expand All</button>
           <button className="btn btn-ghost btn-sm" onClick={collapseAll}><Icon name="unfold_less" size={15} /> Collapse</button>
-          <button className="btn btn-ghost btn-sm" onClick={reloadAndReset}><Icon name="fit_screen" size={15} /> Reset</button>
         </div>
       </div>
 
-      {/* Team legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+      {/* Team legend — square dots (.oc-legend-dot: 10x10, radius 3) + #374151 text */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
         {teamGroups.map((g) => (
-          <span key={g.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)' }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: g.color }} /> {g.name}
+          <span key={g.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151' }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: g.color, flexShrink: 0 }} /> {g.name}
           </span>
         ))}
       </div>
@@ -359,28 +399,54 @@ export default function OrgChartPage() {
           >
             <div ref={contentRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0', padding: 40, display: 'inline-flex', gap: 40, alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {/* ROOT company card */}
-                <div style={{ width: 200, background: 'var(--surface)', borderRadius: 8, border: '2px solid #1a237e', padding: 14, textAlign: 'center', boxShadow: 'var(--sh)' }}>
+                {/* ROOT company card — `.oc-root-card` teal accent (border/left-border/bg) */}
+                <div style={{ width: 200, background: '#f0fdfc', borderRadius: 8, border: '1.5px solid #b2dfdb', borderLeft: '4px solid #26a69a', padding: 14, textAlign: 'center', boxShadow: 'var(--sh)' }}>
                   <Icon name="corporate_fare" size={28} style={{ color: 'var(--p)' }} />
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginTop: 4 }}>Leveraged Growth</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{allUsers.length} employee{allUsers.length === 1 ? '' : 's'}</div>
                   <div style={{ fontSize: 12, color: 'var(--p)', marginTop: 2 }}>{teamGroups.length} teams</div>
                 </div>
-                <div style={{ width: 2, height: 20, background: 'var(--border)' }} />
-                <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-                  {teamGroups.map((g) => <TeamCard key={g.name} group={g} />)}
+                <div className="oc-row">
+                  {teamGroups.map((g) => (
+                    <div className="oc-row-item" key={g.name}>
+                      <TeamCard group={g} />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Floating zoom bar */}
-          <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#fff', borderRadius: 20, boxShadow: '0 4px 12px rgba(0,0,0,.15)', padding: '6px 16px', display: 'flex', gap: 12, alignItems: 'center', zIndex: 50 }}>
-            <button onClick={findMe} title="Find me" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="my_location" size={18} /></button>
-            <button onClick={() => stepZoom(-0.15)} title="Zoom out" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="remove" size={18} /></button>
-            <span style={{ fontSize: 12, color: 'var(--muted)', minWidth: 40, textAlign: 'center' }}>{Math.round(zoom * 100)} %</span>
-            <button onClick={() => stepZoom(0.15)} title="Zoom in" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="add" size={18} /></button>
-            <button onClick={fitScreen} title="Fit screen" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Icon name="fit_screen" size={18} /></button>
+            {/* Floating zoom/action bar — confined inside the chart wrapper
+                (`#org-chart-wrap{position:relative}` + `.oc-zoom-bar{position:absolute}`) */}
+            <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 2, zIndex: 10, background: '#fff', borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,.12)', padding: '4px 6px' }}>
+              <button
+                onClick={findMe} title="Center on my team"
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              ><Icon name="my_location" size={18} /> Find me</button>
+              <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 2px' }} />
+              <button
+                onClick={() => stepZoom(-0.15)} title="Zoom out"
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              ><Icon name="remove" size={18} /></button>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', minWidth: 42, textAlign: 'center' }}>{Math.round(zoom * 100)} %</span>
+              <button
+                onClick={() => stepZoom(0.15)} title="Zoom in"
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              ><Icon name="add" size={18} /></button>
+              <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 2px' }} />
+              <button
+                onClick={fitScreen} title="Reset view"
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              ><Icon name="fit_screen" size={18} /></button>
+            </div>
           </div>
         </>
       )}

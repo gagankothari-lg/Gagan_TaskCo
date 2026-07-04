@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { isManager as isMgr } from '../../../lib/auth';
 import { useMyWorkLogs, useSubmitWorkLog } from '../../../lib/api/workLog';
@@ -20,6 +20,41 @@ function mondayOf(d: Date): Date {
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 type Mode = 'week' | 'month';
+
+// Compact "spreadsheet" header (reference .wl-week-table thead th): small uppercase
+// muted-gray text on a 2px bottom border, no fill — a deliberately different look
+// from the generic dark-indigo-filled table headers used elsewhere in the app.
+// Status/Comments are picked out in amber to flag them as manager-only columns
+// (reference .wl-week-table thead th.wl-status-cell/.wl-comments-cell).
+const thBase: CSSProperties = {
+  padding: '9px 7px',
+  textAlign: 'left',
+  fontSize: 10,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '.5px',
+  color: 'var(--muted)',
+  borderBottom: '2px solid var(--border)',
+  whiteSpace: 'nowrap',
+  background: 'transparent',
+};
+const thAmber: CSSProperties = { ...thBase, color: '#d97706' };
+
+// Compact square nav button (reference .tl-nav-btn) — distinct from the generic
+// btn/btn-ghost/btn-sm buttons used for Today/Refresh/Weekly Summary.
+const navBtnStyle: CSSProperties = {
+  width: 28,
+  height: 28,
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  background: 'none',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--text)',
+  flexShrink: 0,
+};
 
 // Part 16 "Date range / lazy load": ±8-week window around the anchor. Navigating
 // within this window renders from the already-fetched cache (same TanStack Query
@@ -110,18 +145,21 @@ export default function WorkLogPage() {
           <div className="ph-title">Work Log</div>
           <div className="ph-sub">{label}</div>
         </div>
-        <div className="ph-actions">
+        <div className="ph-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
           <div className="tl-tabs">
             <button className={`tl-tab${mode === 'week' ? ' active' : ''}`} onClick={() => changeMode('week')}>Week</button>
             <button className={`tl-tab${mode === 'month' ? ' active' : ''}`} onClick={() => changeMode('month')}>Month</button>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => shift(-1)} aria-label="Previous"><Icon name="chevron_left" size={16} /></button>
-          <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => shift(1)} aria-label="Next"><Icon name="chevron_right" size={16} /></button>
-          <button className="btn btn-ghost btn-sm" aria-label="Refresh" onClick={() => void refetch()}><Icon name="refresh" size={16} /></button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setSummaryOpen(true)}>
+          <div className="wl-nav" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button className="tl-nav-btn" style={navBtnStyle} onClick={() => shift(-1)} aria-label="Previous" title="Previous"><Icon name="chevron_left" size={16} /></button>
+            <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
+            <span className="wl-week-label" style={{ fontWeight: 600, minWidth: 220, textAlign: 'center', fontSize: 13 }}>{label}</span>
+            <button className="tl-nav-btn" style={navBtnStyle} onClick={() => shift(1)} aria-label="Next" title="Next"><Icon name="chevron_right" size={16} /></button>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSummaryOpen(true)} title="View AI-generated weekly summary for MIS">
             <Icon name="summarize" size={16} /> Weekly Summary
           </button>
+          <button className="btn btn-ghost btn-sm" aria-label="Refresh" title="Refresh" onClick={() => void refetch()}><Icon name="refresh" size={16} /></button>
         </div>
       </div>
 
@@ -134,15 +172,15 @@ export default function WorkLogPage() {
           <table className="wl-week-table">
             <thead>
               <tr>
-                <th>Day</th>
-                <th>Attendance</th>
-                <th>Work Update — 1st Half</th>
-                <th>Work Update — 2nd Half</th>
-                <th>Extra Hrs</th>
-                <th>Remark</th>
-                <th>Status</th>
-                <th>Comments</th>
-                <th aria-label="Save" />
+                <th className="wl-day-cell" style={{ ...thBase, width: 72 }}>Day</th>
+                <th className="wl-att-cell" style={{ ...thBase, width: 150 }}>Attendance</th>
+                <th className="wl-h1-cell" style={{ ...thBase, minWidth: 170 }}>Work Update — 1st Half</th>
+                <th className="wl-h2-cell" style={{ ...thBase, minWidth: 170 }}>Work Update — 2nd Half</th>
+                <th className="wl-extra-cell" style={{ ...thBase, width: 62 }}>Extra Hrs</th>
+                <th className="wl-remark-cell" style={{ ...thBase, width: 115 }}>Remark</th>
+                <th className="wl-status-cell" style={{ ...thAmber, width: 90 }}>Status</th>
+                <th className="wl-comments-cell" style={{ ...thAmber, width: 115 }}>Comments</th>
+                <th className="wl-save-cell" style={{ ...thBase, width: 40 }} aria-label="Save" />
               </tr>
             </thead>
             <tbody>

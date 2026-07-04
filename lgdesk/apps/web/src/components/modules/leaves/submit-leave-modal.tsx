@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
 import { fieldClass } from '../tasks/create-task-modal';
 import { LEAVE_TYPES } from '../../../lib/types';
+import { leaveTypeLabel } from './leave-type-pill';
 import { submitLeaveSchema, type SubmitLeaveFormValues } from './submit-leave-modal.schema';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -92,6 +93,7 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
                 name="leaveType"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-muted">Leave Type *</FormLabel>
                     <FormControl>
                       <select
                         className={fieldClass}
@@ -102,7 +104,7 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
                         onChange={(e) => onType(e.target.value)}
                       >
                         <option value="">— Select Type —</option>
-                        {LEAVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                        {LEAVE_TYPES.map((t) => <option key={t} value={t}>{leaveTypeLabel(t)}</option>)}
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -115,7 +117,7 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
                   name="startDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="mb-1 block text-xs text-muted">Start date</FormLabel>
+                      <FormLabel className="mb-1 block text-xs text-muted">Start Date *</FormLabel>
                       <FormControl>
                         <input
                           type="date"
@@ -136,7 +138,7 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
                   name="endDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="mb-1 block text-xs text-muted">End date</FormLabel>
+                      <FormLabel className="mb-1 block text-xs text-muted">End Date *</FormLabel>
                       <FormControl>
                         <input type="date" className={fieldClass} disabled={isHalf} {...field} />
                       </FormControl>
@@ -145,7 +147,7 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
                   )}
                 />
               </div>
-              <p className="text-sm text-muted">Days: <span className="font-medium text-text">{days} {days === 1 ? 'day' : 'days'}</span></p>
+              <p className="text-xs font-semibold text-p">Days: {days} {days === 1 ? 'day' : 'days'}</p>
               {endBeforeStart && (
                 <p className="text-sm text-danger">⚠ End date must be on or after start date</p>
               )}
@@ -154,8 +156,11 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
                 name="reason"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-muted">
+                      Reason <span className="font-normal">(optional)</span>
+                    </FormLabel>
                     <FormControl>
-                      <textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Reason (optional)" {...field} />
+                      <textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Briefly describe the reason for your leave..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -164,8 +169,8 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
               {error && <div className="rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
             </div>
             <DialogFooter>
-              <button type="submit" disabled={submit.isPending} className="btn btn-primary disabled:opacity-60">
-                {submit.isPending && <Spinner size={14} />} Submit request
+              <button type="submit" disabled={submit.isPending} className="btn btn-accent disabled:opacity-60">
+                {submit.isPending && <Spinner size={14} />} Submit Request
               </button>
             </DialogFooter>
           </form>

@@ -11,6 +11,7 @@ import { Icon } from '../../ui/icon';
 import { Avatar, AvatarFallback } from '../../ui/avatar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../ui/table';
 import { ChangeRoleModal } from './change-role-modal';
+import { PendingRegistrationsSection, PendingProfileUpdatesSection } from './pending-approvals';
 import type { User, DueDateRequest } from '../../../lib/types';
 
 interface MembersViewProps {
@@ -143,6 +144,10 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
         </div>
       </div>
 
+      {/* Reference (view-team-mgmt / view-org-page) order: pending registrations,
+          then pending profile updates, then pending DDRs — all above the table. */}
+      <PendingRegistrationsSection />
+      <PendingProfileUpdatesSection employees={employees} />
       <DdrSection employees={employees} />
 
       {members.length === 0 ? (
@@ -151,60 +156,62 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
           <p>{scope === 'team' ? 'No members found for your team' : 'No members to show'}</p>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Employee</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Team</TableHead>
-              <TableHead>Reports To</TableHead>
-              <TableHead>Open Tasks</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {members.map((m) => {
-              const name = `${m.firstName} ${m.lastName}`.trim();
-              const open = openTaskCount.get(m.empId) ?? 0;
-              const showChangeRole = currentUser ? canChangeRole(currentUser, m) : false;
-              return (
-                <TableRow key={m.empId}>
-                  <TableCell>
-                    <div className="flex items-center gap-2.5">
-                      <MemberAvatar id={m.empId} name={name} />
-                      <div className="min-w-0">
-                        <div className="text-[13px] font-semibold text-text">{name}</div>
-                        <div className="text-[11px] text-muted">{m.email}</div>
+        <div className="tbl-wrap">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Employee</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Team</TableHead>
+                <TableHead>Reports To</TableHead>
+                <TableHead>Open Tasks</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {members.map((m) => {
+                const name = `${m.firstName} ${m.lastName}`.trim();
+                const open = openTaskCount.get(m.empId) ?? 0;
+                const showChangeRole = currentUser ? canChangeRole(currentUser, m) : false;
+                return (
+                  <TableRow key={m.empId}>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <MemberAvatar id={m.empId} name={name} />
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-semibold text-text">{name}</div>
+                          <div className="text-[11px] text-muted">{m.email}</div>
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={rolePillClass(m.role)}>{m.role}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-[13px] text-text">{m.team ?? '—'}</div>
-                    {m.subDepartment && <div className="text-[11px] text-muted">{m.subDepartment}</div>}
-                  </TableCell>
-                  <TableCell className="text-[13px] text-text">
-                    {m.managerId ? nameFor(m.managerId, employees) : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <span className={open > 0 ? 'font-bold text-p' : 'text-muted'}>{open}</span>
-                  </TableCell>
-                  <TableCell>
-                    {showChangeRole ? (
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRoleTarget(m)}>
-                        Change Role
-                      </button>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                    </TableCell>
+                    <TableCell>
+                      <span className={rolePillClass(m.role)}>{m.role}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-[13px] text-text">{m.team ?? '—'}</div>
+                      {m.subDepartment && <div className="text-[11px] text-muted">{m.subDepartment}</div>}
+                    </TableCell>
+                    <TableCell className="text-[13px] text-text">
+                      {m.managerId ? nameFor(m.managerId, employees) : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <span className={open > 0 ? 'font-bold text-p' : 'text-muted'}>{open}</span>
+                    </TableCell>
+                    <TableCell>
+                      {showChangeRole ? (
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRoleTarget(m)}>
+                          Change Role
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       <ChangeRoleModal member={roleTarget} actorRole={currentUser?.role ?? ''} onClose={() => setRoleTarget(null)} />

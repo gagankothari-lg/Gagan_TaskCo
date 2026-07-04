@@ -13,9 +13,9 @@ export default function AllProjectsPage() {
   if (!isManager(currentUser.role)) {
     return (
       <div className="p-6">
-        <div className="rounded-[6px] border border-[#30363D] bg-[#21262D] p-6 text-sm text-[#8B949E]">You don&apos;t have access to this page.</div>
+        <div className="rounded-[8px] border border-border bg-surface p-6 text-sm text-muted">You don&apos;t have access to this page.</div>
       </div>
     );
   }
-  return <ProjectGridView scope="all" title="All Projects" subtitle="Company-wide projects" showSearch />;
+  return <ProjectGridView scope="all" title="All Projects" />;
 }

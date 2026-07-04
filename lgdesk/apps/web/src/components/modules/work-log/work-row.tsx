@@ -85,6 +85,14 @@ function hrsPreview(raw: string, isOff: boolean, attendance: string): string {
 
 type Chip = { type: 'task' | 'project' | 'custom' | 'meeting'; id: string; text: string };
 const CHIP_ICON: Record<Chip['type'], string> = { task: 'task_alt', project: 'folder_open', custom: 'edit_note', meeting: 'video_call' };
+// Per-type chip color coding (reference .wl-chip-meeting/.wl-chip-project/.wl-chip-task/.wl-chip-custom)
+// so task/project/meeting chips read as visually distinct from free-text custom notes.
+const CHIP_STYLE: Record<Chip['type'], { bg: string; fg: string }> = {
+  meeting: { bg: '#e3f2fd', fg: '#1565c0' },
+  project: { bg: '#e8f5e9', fg: '#1b5e20' },
+  task: { bg: '#e8eaf6', fg: '#283593' },
+  custom: { bg: '#fff3e0', fg: '#bf360c' },
+};
 
 function parseChips(saved?: string | null): Chip[] {
   if (!saved) return [];
@@ -335,7 +343,8 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
   return (
     <Form {...form}>
       <tr className={rowCls}>
-        {/* Day */}
+        {/* Day — background/highlight comes from the row's wl-row-today class, not a
+            per-cell override (that class also carries the today accent border). */}
         <td
           className="wl-day-cell"
           style={{
@@ -343,19 +352,17 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
             verticalAlign: 'top',
             fontSize: 13,
             fontWeight: 600,
-            color: '#424242',
-            background: isToday ? '#e8eaf6' : '#f8f9fa',
-            borderLeft: isToday ? '3px solid #1a237e' : undefined,
+            borderLeft: isToday ? '3px solid var(--p)' : undefined,
           }}
         >
           <div className="wl-day-name">{date.toLocaleDateString(undefined, { weekday: 'short' })} {date.getDate()}</div>
-          {isToday && <div style={{ marginTop: 2, display: 'inline-block', background: '#1a237e', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 3 }}>Today</div>}
+          {isToday && <div style={{ marginTop: 2, display: 'inline-block', background: 'var(--p)', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 3 }}>Today</div>}
           {locked && <div style={{ fontSize: 10, color: 'var(--muted2)' }}>Upcoming</div>}
           {showsOt && <span id={`wl-ot-badge-${dateIso}`} className="wl-ot-badge" style={{ marginTop: 4, display: 'inline-block' }}>+OT</span>}
         </td>
 
         {/* Attendance */}
-        <td className="wl-att-cell" style={{ minWidth: 150 }}>
+        <td className="wl-att-cell" style={{ width: 150 }}>
           {isIntern ? (
             <>
               <FormField
@@ -445,7 +452,7 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
         />
 
         {/* Extra Hrs */}
-        <td className="wl-extra-cell">
+        <td className="wl-extra-cell" style={{ width: 62 }}>
           <FormField
             control={form.control}
             name="extraHours"
@@ -464,7 +471,7 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
         </td>
 
         {/* Remark */}
-        <td className="wl-remark-cell">
+        <td className="wl-remark-cell" style={{ width: 115 }}>
           <FormField
             control={form.control}
             name="remark"
@@ -478,10 +485,14 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
           />
         </td>
 
-        {/* Status */}
-        <td className="wl-status-cell">
+        {/* Status — amber highlight (wl-status-sel) flags this as a manager-only control */}
+        <td className="wl-status-cell" style={{ width: 90 }}>
           {isManager ? (
-            <select id={`wl-st-${dateIso}`} className="wl-inp" value={status ?? ''} onChange={(e) => onStatusChange(e.target.value)}>
+            <select
+              id={`wl-st-${dateIso}`} className="wl-inp wl-status-sel"
+              style={{ borderColor: '#fed7aa', background: '#fffbeb' }}
+              value={status ?? ''} onChange={(e) => onStatusChange(e.target.value)}
+            >
               {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s || '—'}</option>)}
             </select>
           ) : (
@@ -489,8 +500,8 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
           )}
         </td>
 
-        {/* Comments + duration */}
-        <td className="wl-comments-cell">
+        {/* Comments + duration — amber highlight (wl-admin-inp) flags this as a manager-only control */}
+        <td className="wl-comments-cell" style={{ width: 115 }}>
           {isManager ? (
             <FormField
               control={form.control}
@@ -499,7 +510,9 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
                 <FormItem>
                   <FormControl>
                     <input
-                      id={`wl-ac-${dateIso}`} className="wl-inp" placeholder="Admin notes…" {...field}
+                      id={`wl-ac-${dateIso}`} className="wl-inp wl-admin-inp"
+                      style={{ borderColor: '#fed7aa', background: '#fffbeb' }}
+                      placeholder="Admin notes…" {...field}
                       onBlur={(e) => { field.onBlur(); onCommentsBlur(e.target.value); }}
                     />
                   </FormControl>
@@ -515,7 +528,7 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
         </td>
 
         {/* Save state */}
-        <td className="wl-save-cell" style={{ textAlign: 'center' }}>
+        <td className="wl-save-cell" style={{ textAlign: 'center', width: 40 }}>
           {isIntern ? (
             <Icon
               name={saveState === 'saving' ? 'sync' : saveState === 'saved' ? 'check' : saveState === 'error' ? 'error' : 'save'}
@@ -598,7 +611,7 @@ const HalfCell = forwardRef<HalfCellHandle, {
   const showChipUi = !leaveSelect?.replace;
 
   return (
-    <td className={`wl-h${half}-cell`} style={{ minWidth: 200 }}>
+    <td className={`wl-h${half}-cell`} style={{ minWidth: 170 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {leaveSelect?.show && (
           <select
@@ -653,16 +666,20 @@ const HalfCell = forwardRef<HalfCellHandle, {
         )}
         {showChipUi && (
           <div className="wl-upd-chips">
-            {chips.map((c) => (
-              <span
-                key={c.id}
-                style={{ background: '#fff3e0', border: '1px solid #ffe0b2', color: '#e65100', borderRadius: 4, padding: '3px 8px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, margin: '0 4px 3px 0' }}
-              >
-                <Icon name={CHIP_ICON[c.type]} size={12} />
-                <span style={{ cursor: !disabled && c.type === 'custom' ? 'pointer' : 'default' }} onClick={() => editChip(c)}>{c.text}</span>
-                {!disabled && <span style={{ color: '#e65100', cursor: 'pointer' }} onClick={() => onRemove(half, c.id)}>×</span>}
-              </span>
-            ))}
+            {chips.map((c) => {
+              const cs = CHIP_STYLE[c.type];
+              return (
+                <span
+                  key={c.id}
+                  className={`wl-chip wl-chip-${c.type}`}
+                  style={{ background: cs.bg, color: cs.fg, borderRadius: 4, padding: '3px 8px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, margin: '0 4px 3px 0' }}
+                >
+                  <Icon name={CHIP_ICON[c.type]} size={12} />
+                  <span style={{ cursor: !disabled && c.type === 'custom' ? 'pointer' : 'default' }} onClick={() => editChip(c)}>{c.text}</span>
+                  {!disabled && <span style={{ color: cs.fg, cursor: 'pointer' }} onClick={() => onRemove(half, c.id)}>×</span>}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>

@@ -4,30 +4,67 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { useTeamDirectory, useCompanyDirectory, type DirectoryUser } from '../../../lib/api/directory';
 import { Icon } from '../../../components/ui/icon';
-import { Command, CommandInput } from '../../../components/ui/command';
 import { avatarColor, initials, rolePillClass } from '../../../lib/utils';
 
 type Tab = 'team' | 'company';
 
+function DirTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      className={`dir-tab${active ? ' active' : ''}`}
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: 'none',
+        border: 'none',
+        borderBottom: active ? '2px solid var(--p)' : '2px solid transparent',
+        marginBottom: -2,
+        padding: '8px 20px',
+        fontSize: 13,
+        fontWeight: 600,
+        color: active ? 'var(--p)' : hover ? 'var(--text)' : 'var(--muted)',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        transition: 'color .15s, border-color .15s',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function DirCard({ u, isYou }: { u: DirectoryUser; isYou: boolean }) {
   const name = `${u.firstName} ${u.lastName}`;
+  const [hover, setHover] = useState(false);
   const openChat = () => { if (u.chatSpaceLink) window.open(u.chatSpaceLink, '_blank'); };
   return (
-    <div className="dir-card">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <div style={{ width: 60, height: 60, borderRadius: '50%', background: avatarColor(u.empId), color: '#fff', fontWeight: 700, fontSize: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(name)}</div>
-          <span className="pres-dot pres-online" style={{ position: 'absolute', bottom: 2, right: 2 }} />
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{name} {isYou && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>(You)</span>}</div>
-          <span className={rolePillClass(u.role)}>{u.role}</span>
-        </div>
+    <div
+      className="dir-card"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center',
+        gap: 5,
+        padding: '20px 16px',
+        transition: 'box-shadow .15s, transform .1s',
+        boxShadow: hover ? '0 4px 14px rgba(0,0,0,.14)' : undefined,
+        transform: hover ? 'translateY(-2px)' : undefined,
+      }}
+    >
+      <div style={{ position: 'relative', display: 'inline-flex', marginBottom: 6 }}>
+        <div style={{ width: 54, height: 54, borderRadius: '50%', background: avatarColor(u.empId), color: '#fff', fontWeight: 700, fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(name)}</div>
+        <span className="pres-dot pres-online" style={{ position: 'absolute', bottom: 1, right: 1, width: 12, height: 12, border: '2px solid var(--surface)' }} />
       </div>
-      {u.designation && <div style={{ fontSize: 12, color: '#424242' }}>{u.designation}</div>}
-      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{u.team}{u.subDepartment ? ` · ${u.subDepartment}` : ''}</div>
-      <div style={{ fontSize: 11, color: '#1565c0' }}>{u.email}</div>
-      {u.managerName && <div style={{ fontSize: 11, color: '#9e9e9e' }}>Reports to: {u.managerName}</div>}
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3 }}>{name} {isYou && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>(You)</span>}</div>
+      <span className={rolePillClass(u.role)}>{u.role}</span>
+      {u.designation && <div style={{ fontSize: 12, color: 'var(--text)', fontStyle: 'italic', marginTop: 3 }}>{u.designation}</div>}
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{u.team}{u.subDepartment ? ` · ${u.subDepartment}` : ''}</div>
+      <div style={{ fontSize: 11, color: 'var(--p2)', wordBreak: 'break-all', marginTop: 2 }}>{u.email}</div>
+      {u.managerName && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Reports to: {u.managerName}</div>}
       {!isYou && (
         <div className="dir-card-actions">
           <a className="btn btn-sm" href={`mailto:${u.email}`} style={{ background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon name="mail" size={15} /> Email</a>
@@ -70,16 +107,25 @@ export default function DirectoryPage() {
   return (
     <div>
       <div className="ph">
-        <div className="ph-left"><div className="ph-title">Directory</div><div className="ph-sub">Find people across Leveraged Growth</div></div>
-        <div className="ph-actions">
-          <div className="tl-tabs">
-            <button className={`tl-tab${tab === 'team' ? ' active' : ''}`} onClick={() => setTab('team')}>Team Directory</button>
-            <button className={`tl-tab${tab === 'company' ? ' active' : ''}`} onClick={() => setTab('company')}>Company Directory</button>
-          </div>
-          <Command shouldFilter={false} className="w-[240px] border border-border">
-            <CommandInput value={q} onValueChange={setQ} placeholder="Search people…" />
-          </Command>
+        <div className="ph-left">
+          <div className="ph-title">Directory</div>
+          <div className="ph-sub">{tab === 'team' ? 'Your team colleagues' : 'Everyone across Leveraged Growth'}</div>
         </div>
+        <div className="ph-actions">
+          <input
+            className="fc"
+            style={{ width: 220 }}
+            id="dir-search"
+            placeholder="Search by name, role, team…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', borderBottom: '2px solid var(--border)', marginBottom: 18, gap: 0 }}>
+        <DirTab active={tab === 'team'} onClick={() => setTab('team')}>Team Directory</DirTab>
+        <DirTab active={tab === 'company'} onClick={() => setTab('company')}>Company Directory</DirTab>
       </div>
 
       {active.isLoading ? (
@@ -88,11 +134,11 @@ export default function DirectoryPage() {
         <div className="empty-state"><Icon name="contacts" size={40} className="ei" /><p>No people found</p></div>
       ) : grouped ? (
         grouped.map(([teamName, members]) => (
-          <div key={teamName} className="dir-team-section" style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f5f5f5', padding: '10px 16px', borderRadius: 6, marginBottom: 16 }}>
+          <div key={teamName} className="dir-team-section" style={{ marginBottom: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0 8px', borderBottom: '2px solid var(--p3)', marginBottom: 14 }}>
               <Icon name="groups" size={18} style={{ color: 'var(--p)' }} />
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text)' }}>{teamName}</span>
-              <span className="pill pill-Admin" style={{ marginLeft: 'auto' }}>{members.length} members</span>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--p)' }}>{teamName}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 10 }}>{members.length} members</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
               {members.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} />)}

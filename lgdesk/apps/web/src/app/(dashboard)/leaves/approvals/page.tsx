@@ -3,18 +3,15 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '../../../../components/ui/icon';
 import { useAuth } from '../../../../hooks/use-auth';
-import { isAdmin, isManager } from '../../../../lib/auth';
+import { isManager } from '../../../../lib/auth';
 import { usePendingLeaves, useReviewLeave } from '../../../../lib/api/leaves';
-import { HolidayModal } from '../../../../components/modules/leaves/holiday-modal';
 import { apiErrorMessage } from '../../../../lib/api/client';
 import { toast } from '../../../../lib/toast';
 import { Spinner } from '../../../../components/ui/spinner';
-import { pillClass } from '../../../../lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../../components/ui/dialog';
+import { LeaveTypePill } from '../../../../components/modules/leaves/leave-type-pill';
 
 const fmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-
-const approveBtn: React.CSSProperties = { background: '#00897b', color: '#fff', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer' };
-const rejectBtn: React.CSSProperties = { background: '#c62828', color: '#fff', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer' };
 
 export default function LeaveApprovalsPage() {
   const { currentUser, employees } = useAuth();
@@ -23,7 +20,6 @@ export default function LeaveApprovalsPage() {
   const [rejecting, setRejecting] = useState<{ leaveId: string; name: string } | null>(null);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [holidayOpen, setHolidayOpen] = useState(false);
 
   const nameByEmpId = useMemo(() => {
     const m = new Map<string, string>();
@@ -57,13 +53,6 @@ export default function LeaveApprovalsPage() {
           <div className="ph-title">Leave Approvals</div>
           <div className="ph-sub">Pending leave requests from your team</div>
         </div>
-        {isAdmin(currentUser.role) && (
-          <div className="ph-actions">
-            <button onClick={() => setHolidayOpen(true)} className="btn btn-ghost">
-              <Icon name="add" size={15} /> Add Holiday
-            </button>
-          </div>
-        )}
       </div>
 
       {error && <div className="mb-4 rounded-[8px] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">{error}</div>}
@@ -97,7 +86,7 @@ export default function LeaveApprovalsPage() {
                 return (
                   <tr key={l.leaveId}>
                     <td style={{ fontWeight: 600 }}>{name}</td>
-                    <td><span className={pillClass(l.leaveType)}>{l.leaveType}</span></td>
+                    <td><LeaveTypePill type={l.leaveType} /></td>
                     <td className="text-[var(--muted)]">{fmt(l.startDate)}</td>
                     <td className="text-[var(--muted)]">{fmt(l.endDate)}</td>
                     <td>{l.days}</td>
@@ -105,8 +94,8 @@ export default function LeaveApprovalsPage() {
                     <td className="text-[var(--muted)]">{fmt(l.createdAt)}</td>
                     <td>
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => approve(l.leaveId)} disabled={review.isPending} style={approveBtn}>Approve</button>
-                        <button onClick={() => setRejecting({ leaveId: l.leaveId, name })} disabled={review.isPending} style={rejectBtn}>Reject</button>
+                        <button onClick={() => approve(l.leaveId)} disabled={review.isPending} className="btn btn-accent btn-sm">Approve</button>
+                        <button onClick={() => setRejecting({ leaveId: l.leaveId, name })} disabled={review.isPending} className="btn btn-danger btn-sm">Reject</button>
                       </div>
                     </td>
                   </tr>
@@ -117,21 +106,21 @@ export default function LeaveApprovalsPage() {
         </div>
       )}
 
-      {rejecting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-[400px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] p-5 text-[var(--text)]">
-            <h3 className="mb-1 text-sm font-semibold text-[var(--text)]">Reject {rejecting.name}&apos;s leave?</h3>
+      <Dialog open={!!rejecting} onOpenChange={(next) => { if (!next) { setRejecting(null); setNotes(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject {rejecting?.name}&apos;s leave?</DialogTitle>
+          </DialogHeader>
+          <div className="px-5 py-4">
             <p className="mb-3 text-xs text-[var(--muted)]">Add a reason for the rejection.</p>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Reason" className="w-full resize-none rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:border-[var(--p)] focus:outline-none" />
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => { setRejecting(null); setNotes(''); }} className="btn btn-ghost">Cancel</button>
-              <button onClick={confirmReject} disabled={review.isPending} className="btn btn-danger">{review.isPending && <Spinner size={14} />} Reject</button>
-            </div>
           </div>
-        </div>
-      )}
-
-      <HolidayModal open={holidayOpen} onClose={() => setHolidayOpen(false)} />
+          <DialogFooter>
+            <button onClick={() => { setRejecting(null); setNotes(''); }} className="btn btn-ghost">Cancel</button>
+            <button onClick={confirmReject} disabled={review.isPending} className="btn btn-danger">{review.isPending && <Spinner size={14} />} Reject</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

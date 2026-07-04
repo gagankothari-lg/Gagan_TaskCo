@@ -6,11 +6,15 @@ import { Icon } from '../../../components/ui/icon';
 export default function FormsPage() {
   return (
     <div className="p-6">
-      <h1 className="mb-1 text-xl font-semibold text-[var(--text)]">Forms</h1>
-      <p className="mb-5 text-sm text-[var(--muted)]">Company forms.</p>
-      <div className="flex flex-col items-center gap-2 rounded-[8px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-10 text-center text-[var(--muted)]">
-        <Icon name="description" size={32} className="opacity-50" />
-        <p className="text-sm">Coming soon.</p>
+      <div className="ph">
+        <div className="ph-left">
+          <div className="ph-title">Forms</div>
+          <div className="ph-sub">Create, manage and share forms</div>
+        </div>
+      </div>
+      <div className="empty-state">
+        <Icon name="description" size={40} className="ei" />
+        <p>Coming soon.</p>
       </div>
     </div>
   );

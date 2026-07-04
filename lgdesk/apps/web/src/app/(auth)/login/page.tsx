@@ -8,6 +8,7 @@ import { useAuth } from '../../../hooks/use-auth';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { requestPasswordReset, confirmPasswordReset } from '../../../lib/api/auth';
 import { Icon } from '../../../components/ui/icon';
+import { tokens } from '../../../lib/design-tokens';
 import { Card } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -26,7 +27,7 @@ import {
 
 type Mode = 'login' | 'verified' | 'forgot1' | 'forgot2';
 
-const GRADIENT = 'linear-gradient(135deg,#1a237e 0%,#283593 50%,#1565c0 100%)';
+const GRADIENT = tokens.colors.loginGradient;
 
 /** Password input with a show/hide toggle, built on the shared shadcn `Input`. */
 function PwField({
@@ -187,15 +188,14 @@ export default function LoginPage() {
     <main style={{ position: 'fixed', inset: 0, background: GRADIENT, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
       <Card className="w-full" style={{ maxWidth: 400 }}>
         <div style={{ padding: 32 }}>
-          {/* Logo */}
+          {/* Logo — matches reference .login-logo/.login-appname/.login-tagline exactly:
+              bare 40px icon (no background box), "LG_Desk. . ." wordmark, static tagline. */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--p)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-              <Icon name="task_alt" size={28} />
+            <div style={{ display: 'flex', color: 'var(--p2)', marginBottom: 8 }}>
+              <Icon name="task_alt" size={40} />
             </div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>LG Desk</h1>
-            <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-              {mode === 'forgot1' || mode === 'forgot2' ? 'Reset your password' : 'Sign in to your workspace'}
-            </p>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--p)', marginBottom: 4 }}>LG_Desk. . .</h1>
+            <p style={{ fontSize: 13, color: 'var(--muted)' }}>Enterprise Workspace Platform</p>
           </div>
 
           {bootBanner}

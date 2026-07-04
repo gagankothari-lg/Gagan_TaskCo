@@ -225,8 +225,6 @@ export default function TeamWorkLogPage() {
     else void refetchLogs();
   };
 
-  const navLabel =
-    period === 'day' ? 'Today' : period === 'week' ? 'This week' : period === 'month' ? 'This month' : '';
   const stepAnchor = (dir: -1 | 1) => {
     if (period === 'day') setAnchor((a) => addDays(a, dir));
     else if (period === 'week') setAnchor((a) => addDays(a, dir * 7));
@@ -247,28 +245,38 @@ export default function TeamWorkLogPage() {
               : `${range.label} — ${activeCount}/${roster.length} members active`}
           </div>
         </div>
-      </div>
 
-      {/* Period tabs + nav */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-        <div className="tl-tabs">
-          {(['day', 'week', 'month', 'custom'] as Period[]).map((p) => (
-            <button key={p} className={`tl-tab${period === p ? ' active' : ''}`} onClick={() => setPeriod(p)}>
-              {p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom'}
-            </button>
-          ))}
-        </div>
+        <div className="ph-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
+          {/* Range navigation */}
+          {period !== 'custom' && (
+            <div className="tl-range-bar" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button className="btn btn-ghost btn-sm" aria-label="Previous" onClick={() => stepAnchor(-1)}><Icon name="chevron_left" size={16} /></button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setAnchor(new Date())}>Today</button>
+              <span className="tl-range-label" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{range.label}</span>
+              <button className="btn btn-ghost btn-sm" aria-label="Next" onClick={() => stepAnchor(1)}><Icon name="chevron_right" size={16} /></button>
+            </div>
+          )}
 
-        {period !== 'custom' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button className="btn btn-ghost btn-sm" aria-label="Previous" onClick={() => stepAnchor(-1)}><Icon name="chevron_left" size={16} /></button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setAnchor(new Date())}>{navLabel}</button>
-            <button className="btn btn-ghost btn-sm" aria-label="Next" onClick={() => stepAnchor(1)}><Icon name="chevron_right" size={16} /></button>
+          {/* Period mode */}
+          <div className="tl-tabs">
+            {(['day', 'week', 'month', 'custom'] as Period[]).map((p) => (
+              <button key={p} className={`tl-tab${period === p ? ' active' : ''}`} onClick={() => setPeriod(p)}>
+                {p === 'day' ? 'Day' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Custom'}
+              </button>
+            ))}
           </div>
-        )}
 
-        {/* View tabs + refresh (right-aligned) */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Custom date range picker (shown only in Custom mode) */}
+          {period === 'custom' && (
+            <div className="tl-custom-bar" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', width: '100%' }}>
+              <input type="date" className="fc tl-date-inp" style={{ width: 140, padding: '6px 8px' }} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>to</span>
+              <input type="date" className="fc tl-date-inp" style={{ width: 140, padding: '6px 8px' }} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+              <button className="btn btn-primary btn-sm" onClick={applyCustom}>Apply</button>
+            </div>
+          )}
+
+          {/* View type */}
           <div className="tl-tabs">
             <button className={`tl-tab${view === 'member' ? ' active' : ''}`} onClick={() => setView('member')}>
               <Icon name="person" size={14} style={{ marginRight: 4 }} /> By Member
@@ -277,34 +285,17 @@ export default function TeamWorkLogPage() {
               <Icon name="calendar_month" size={14} style={{ marginRight: 4 }} /> By Date
             </button>
           </div>
+
+          {view === 'date' && (
+            <select className="fc tl-filter-inp" style={{ width: 150 }} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}>
+              <option value="">All members</option>
+              {roster.map((m) => <option key={m.empId} value={m.empId}>{m.name}</option>)}
+            </select>
+          )}
+
           <button className="btn btn-ghost btn-sm" aria-label="Refresh" onClick={refresh}><Icon name="refresh" size={16} /></button>
         </div>
       </div>
-
-      {/* Custom range bar */}
-      {period === 'custom' && (
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
-            From
-            <input type="date" className="fc" style={{ width: 170 }} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
-            To
-            <input type="date" className="fc" style={{ width: 170 }} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
-          </label>
-          <button className="btn btn-primary btn-sm" onClick={applyCustom}>Apply</button>
-        </div>
-      )}
-
-      {/* By Date member filter */}
-      {view === 'date' && (
-        <div style={{ marginBottom: 12 }}>
-          <select className="fc" style={{ width: 240 }} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}>
-            <option value="">All members</option>
-            {roster.map((m) => <option key={m.empId} value={m.empId}>{m.name}</option>)}
-          </select>
-        </div>
-      )}
 
       {/* Body */}
       {period === 'custom' && !applied ? (
@@ -377,7 +368,7 @@ export default function TeamWorkLogPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {byDateGroups.map(({ date, entries }) => (
             <div key={date}>
-              <div className="team-log-day" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
                 {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
                 <span style={{ color: 'var(--muted)', fontWeight: 600, marginLeft: 6 }}>— {entries.length} submission{entries.length === 1 ? '' : 's'}</span>
               </div>

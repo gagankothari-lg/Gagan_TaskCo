@@ -15,22 +15,26 @@ import { Spinner } from '../../../components/ui/spinner';
 import { Popover, PopoverTrigger, PopoverContent } from '../../../components/ui/popover';
 import { cn } from '../../../lib/utils';
 
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // UTC-safe YYYY-MM-DD key so Date objects and ISO strings never mismatch.
 const isoKey = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 const dayKey = (iso: string) => iso.slice(0, 10);
 
-// Event-category colours (legend + bars) — Master Reference Part 20 "Event Types & Colours".
+// Event-category colours — reference/lgdesk-gas-source.html's dedicated calendar palette
+// (.cal-fchip-*/.cal-ev-*, CSS lines 723-750), NOT the shared app tokens (except where the
+// two coincide, e.g. meeting/deadline/holiday border-accent below). `text` is the outline
+// chip's text colour; `solid` is the chip border/dot AND the on-grid event bar's solid fill
+// (paired with white text) — reference uses the same hex for both roles in every category.
 type Cat = 'task' | 'meeting' | 'deadline' | 'holiday' | 'leave';
-const CAT: Record<Cat, { label: string; color: string; bg: string }> = {
-  task:     { label: 'Tasks',              color: '#1a237e', bg: '#e8eaf6' },
-  deadline: { label: 'Project Deadlines',   color: '#c62828', bg: '#fce8e8' },
-  leave:    { label: 'Approved Leaves',     color: '#6a1b9a', bg: '#f3e5f5' },
-  holiday:  { label: 'Holidays',            color: '#2e7d32', bg: '#e8f5e9' },
-  meeting:  { label: 'Meetings',            color: '#00695c', bg: '#e0f2f1' },
+const CAT: Record<Cat, { label: string; text: string; solid: string }> = {
+  task:     { label: 'Task Due Dates',    text: '#1565c0', solid: '#1565c0' },
+  meeting:  { label: 'Events & Meetings', text: '#00695c', solid: 'var(--accent)' },
+  deadline: { label: 'Project Deadlines', text: '#b71c1c', solid: 'var(--danger)' },
+  holiday:  { label: 'Holidays',          text: '#1b5e20', solid: 'var(--ok)' },
+  leave:    { label: 'Leaves',            text: '#4a148c', solid: '#6a1b9a' },
 };
-const CAT_ORDER: Cat[] = ['task', 'deadline', 'leave', 'holiday', 'meeting'];
+const CAT_ORDER: Cat[] = ['task', 'meeting', 'deadline', 'holiday', 'leave'];
 // Master Reference Part 20 Event Types table: Holiday chips render first in a day's
 // stack even though the general type order (CAT_ORDER, used for the legend/filter
 // chips) lists Holiday fourth.
@@ -148,7 +152,7 @@ export default function CalendarPage() {
         </div>
         {admin && (
           <div className="ph-actions">
-            <button onClick={() => { setHolidayDefaultDate(undefined); setHolidayOpen(true); }} className="btn btn-accent">
+            <button onClick={() => { setHolidayDefaultDate(undefined); setHolidayOpen(true); }} className="btn btn-primary">
               <Icon name="add" size={15} /> Add Holiday
             </button>
           </div>
@@ -161,7 +165,7 @@ export default function CalendarPage() {
           <button onClick={() => { const n = new Date(); setCursor(new Date(n.getFullYear(), n.getMonth(), 1)); }} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-p3">Today</button>
           <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_right" size={16} /></button>
         </div>
-        <div style={{ fontSize: 18, fontWeight: 700 }} className="text-text">
+        <div style={{ fontSize: 18, fontWeight: 700 }} className="text-p">
           {cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
         </div>
 
@@ -173,29 +177,35 @@ export default function CalendarPage() {
                 key={c}
                 onClick={() => setActive((s) => ({ ...s, [c]: !s[c] }))}
                 aria-pressed={on}
-                className={cn('inline-flex items-center gap-1.5 rounded-[12px] border px-2.5 py-1 text-xs font-medium border-border', on && 'active')}
-                style={{ background: on ? CAT[c].bg : 'transparent', color: on ? CAT[c].color : 'var(--muted2)', opacity: on ? 1 : 0.6 }}
+                className="inline-flex items-center gap-1.5 rounded-[20px] border-[1.5px] px-2.5 py-1 text-xs font-semibold transition-[opacity,filter] duration-150"
+                style={{
+                  background: 'none',
+                  borderColor: CAT[c].solid,
+                  color: CAT[c].text,
+                  opacity: on ? 1 : 0.35,
+                  filter: on ? 'none' : 'grayscale(0.4)',
+                }}
               >
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAT[c].color, display: 'inline-block' }} />
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: CAT[c].solid, display: 'inline-block' }} />
                 {CAT[c].label}
               </button>
             );
           })}
         </div>
 
-        {/* Team + Member selects — managers/admins only (Part 37 Calendar Checklist). */}
+        {/* Team + Member selects — managers/admins only (Part 37 Calendar Checklist). Reference
+            renders both selects unconditionally (static "All Members" placeholder), so no team
+            gate here. */}
         {manager && (
           <div className="ml-auto flex items-center gap-2">
             <select value={team} onChange={(e) => onTeamChange(e.target.value)} className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-p focus:outline-none">
               <option value="Organisation">Organisation</option>
               {teams.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
-            {team !== 'Organisation' && (
-              <select value={member} onChange={(e) => setMember(e.target.value)} className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-p focus:outline-none">
-                <option value="ALL">All in {team}</option>
-                {teamMembers.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
-              </select>
-            )}
+            <select value={member} onChange={(e) => setMember(e.target.value)} className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-p focus:outline-none">
+              <option value="ALL">All Members</option>
+              {teamMembers.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
+            </select>
           </div>
         )}
       </div>
@@ -205,8 +215,14 @@ export default function CalendarPage() {
       ) : (
         <div className="overflow-hidden rounded-[8px] border border-border">
           <div className="grid grid-cols-7">
-            {DOW.map((d) => (
-              <div key={d} className="border-b border-border bg-surface px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted">{d}</div>
+            {DOW.map((d, di) => (
+              <div
+                key={d}
+                className="border-b border-border bg-surface px-2 py-1.5 text-center text-[11px] font-medium tracking-[0.3px] text-muted"
+                style={di === 0 ? { color: 'var(--danger)' } : undefined}
+              >
+                {d}
+              </div>
             ))}
             {cells.map((d, i) => {
               if (d === null) return <div key={`b-${i}`} className="min-h-[90px] border-b border-r border-border bg-bg" />;
@@ -219,8 +235,8 @@ export default function CalendarPage() {
               return (
                 <Popover key={key} open={openDay === key} onOpenChange={(o) => setOpenDay(o ? key : null)}>
                   <PopoverTrigger asChild>
-                    <div className="min-h-[90px] cursor-pointer border-b border-r border-border bg-surface p-1.5 align-top hover:bg-p3/40">
-                      <span className={cn('text-xs', isToday ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-p font-semibold text-white' : 'text-muted')}>{d}</span>
+                    <div className={cn('min-h-[90px] cursor-pointer border-b border-r border-border p-1.5 align-top hover:bg-p3/40', isToday ? 'bg-p3' : 'bg-surface')}>
+                      <span className={cn('inline-flex h-6 w-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-p font-semibold text-white' : 'text-text')}>{d}</span>
                       <div className="mt-1 space-y-0.5">
                         {shown.map((b, bi) => {
                           const clickable = (b.cat === 'task' || b.cat === 'meeting') && !!b.id;
@@ -230,7 +246,7 @@ export default function CalendarPage() {
                               title={`${CAT[b.cat].label}: ${b.label}`}
                               onClick={clickable ? (e) => { e.stopPropagation(); onBarClick(b); } : undefined}
                               className={cn('truncate rounded-[3px] px-1 text-[10px]', clickable && 'cursor-pointer hover:underline')}
-                              style={{ background: CAT[b.cat].bg, color: CAT[b.cat].color }}
+                              style={{ background: CAT[b.cat].solid, color: '#fff' }}
                             >
                               {b.label}
                             </div>
@@ -242,7 +258,7 @@ export default function CalendarPage() {
                   </PopoverTrigger>
                   <PopoverContent onClick={(e) => e.stopPropagation()}>
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-text">{new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                      <p className="text-sm font-bold text-p">{new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
                     </div>
                     {bars.length === 0 ? (
                       <p className="text-sm text-muted">No events this day.</p>
@@ -284,7 +300,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => { setOpenDay(null); setHolidayDefaultDate(key); setHolidayOpen(true); }}
-                        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-border py-1.5 text-xs font-medium text-p hover:bg-p3"
+                        className="btn btn-primary btn-sm btn-full mt-3"
                       >
                         <Icon name="add" size={13} /> Add Holiday for this day
                       </button>

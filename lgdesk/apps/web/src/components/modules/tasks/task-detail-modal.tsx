@@ -282,7 +282,7 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                           </FormItem>
                         )}
                       />
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <FormField
                           control={progressForm.control}
                           name="hoursLogged"

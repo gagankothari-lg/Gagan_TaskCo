@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../../../hooks/use-auth';
 import { Icon } from '../../../../components/ui/icon';
 import { Card, CardContent } from '../../../../components/ui/card';
-import { Button } from '../../../../components/ui/button';
 import { Badge } from '../../../../components/ui/badge';
 import { TaskDetailModal } from '../../../../components/modules/tasks/task-detail-modal';
 import { InlineStatusPill } from '../../../../components/modules/tasks/inline-status-pill';
@@ -102,18 +101,17 @@ export default function PlanWeekPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-text">Plan my week</h1>
-          <p className="text-sm text-muted">Your tasks for the week, grouped by day</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-text">
+      <div className="ph">
+        <div className="ph-left">
+          <div className="ph-title">Plan My Week</div>
+          <div className="ph-sub">
             {fmtDayMonth(weekStart)} – {fmtDayMonth(addDays(weekStart, 6))} {addDays(weekStart, 6).getFullYear()}
-          </span>
-          <Button variant="outline" size="icon" aria-label="Previous week" onClick={() => shift(-7)}><Icon name="chevron_left" size={16} /></Button>
-          <Button variant="outline" size="sm" onClick={goToday}>Today</Button>
-          <Button variant="outline" size="icon" aria-label="Next week" onClick={() => shift(7)}><Icon name="chevron_right" size={16} /></Button>
+          </div>
+        </div>
+        <div className="ph-actions">
+          <button className="btn btn-ghost btn-sm" aria-label="Previous week" onClick={() => shift(-7)}><Icon name="chevron_left" size={16} /></button>
+          <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
+          <button className="btn btn-ghost btn-sm" aria-label="Next week" onClick={() => shift(7)}><Icon name="chevron_right" size={16} /></button>
         </div>
       </div>
 

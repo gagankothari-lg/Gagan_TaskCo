@@ -47,7 +47,7 @@ const TEMPLATES: Template[] = [
 /** Inline "Post Announcement" panel — visibility is controlled by the caller (the
  * Notice Board card's "Post" button), matching Part 37's "Post button -> nb-post-panel
  * un-hides; nb-title focused" flow instead of a separate self-toggling widget. */
-export function AnnouncementForm({ onPosted }: { onPosted?: () => void }) {
+export function AnnouncementForm({ onPosted, onCancel }: { onPosted?: () => void; onCancel?: () => void }) {
   const create = useCreateAnnouncement();
   const [error, setError] = useState<string | null>(null);
 
@@ -88,7 +88,7 @@ export function AnnouncementForm({ onPosted }: { onPosted?: () => void }) {
   }
 
   return (
-    <div id="nb-post-panel" className="rounded-[var(--r)] border border-border bg-bg p-4">
+    <div id="nb-post-panel" className="rounded-[var(--r)] border border-dashed border-border bg-bg p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {TEMPLATES.map((t) => (
           <button
@@ -170,9 +170,12 @@ export function AnnouncementForm({ onPosted }: { onPosted?: () => void }) {
             )}
           />
           {error && <div className="rounded-[8px] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending && <Spinner size={14} />} {create.isPending ? 'Posting…' : 'Post Announcement'}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={create.isPending}>
+              {create.isPending && <Spinner size={14} />} {create.isPending ? 'Posting…' : 'Post Announcement'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onCancel?.()}>Cancel</Button>
+          </div>
         </form>
       </Form>
     </div>

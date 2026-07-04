@@ -15,6 +15,24 @@ import { useRegistrations, useProfileRequests } from '../../lib/api/teamMembers'
 
 type NavItem = { label: string; icon: string; href: string; badge?: number };
 
+// Mobile (<=768px) is a deliberately reduced feature set (Full Mobile Redesign
+// is a separate, later roadmap item) — these 8 nav items are hidden below the
+// md breakpoint only, per reference/lgdesk-gas-source.html's JS-injected
+// mobile CSS block (`.nav-item[data-view="calendar"],[...="meetings"],
+// [...="org-chart"],[...="directory"],[...="team-tasks"],[...="team-mgmt"],
+// [...="org-page"],[...="forms"]{display:none!important}`), mapped onto this
+// codebase's nav labels (team-mgmt → Team Members, org-page → Organisation).
+const MOBILE_HIDDEN_LABELS = new Set([
+  'Calendar',
+  'Meetings',
+  'Org Chart',
+  'Directory',
+  'Team Tasks',
+  'Team Members',
+  'Organisation',
+  'Forms',
+]);
+
 const PRES = {
   online: { label: 'Online', cls: 'pres-online' },
   away: { label: 'Away', cls: 'pres-away' },
@@ -150,8 +168,22 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const renderItem = (it: NavItem) => {
     const active = activeHref === it.href;
+    // NOTE: deliberately `max-md:hidden`, NOT the bare Tailwind `hidden` utility.
+    // globals.css has a blanket `.hidden { display: none !important; }` override
+    // (see its "HIDDEN UTILITY" section) that would make a paired `hidden md:flex`
+    // permanently hidden at every breakpoint — the unprefixed `.hidden` always
+    // wins over a non-`!important` `md:flex` companion class regardless of
+    // viewport. `max-md:hidden` is a distinct selector that override doesn't
+    // touch, and (as a responsive variant) it's emitted after `.nav-item` in the
+    // compiled stylesheet, so it correctly wins the display tie only below md.
+    const mobileHidden = MOBILE_HIDDEN_LABELS.has(it.label);
     return (
-      <Link key={it.href} href={it.href} className={`nav-item${active ? ' active' : ''}`} title={collapsed ? it.label : undefined}>
+      <Link
+        key={it.href}
+        href={it.href}
+        className={`nav-item${active ? ' active' : ''}${mobileHidden ? ' max-md:hidden' : ''}`}
+        title={collapsed ? it.label : undefined}
+      >
         <span className="nav-icon"><Icon name={it.icon} size={20} /></span>
         <span className="sb-label" style={{ flex: 1 }}>{it.label}</span>
         {!!it.badge && it.badge > 0 && <span className="nav-badge sb-label">{it.badge}</span>}

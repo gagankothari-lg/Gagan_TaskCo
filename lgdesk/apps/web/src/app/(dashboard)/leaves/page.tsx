@@ -8,6 +8,7 @@ import { apiErrorMessage } from '../../../lib/api/client';
 import { toast } from '../../../lib/toast';
 import { SubmitLeaveModal } from '../../../components/modules/leaves/submit-leave-modal';
 import { LeaveStatusBadge } from '../../../components/modules/leaves/leave-status-badge';
+import { LeaveTypePill } from '../../../components/modules/leaves/leave-type-pill';
 import { Spinner } from '../../../components/ui/spinner';
 
 const fmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -42,11 +43,11 @@ export default function MyLeavesPage() {
       <div className="ph">
         <div className="ph-left">
           <div className="ph-title">My Leaves</div>
-          <div className="ph-sub">Submit and track your leave requests</div>
+          <div className="ph-sub">Your leave requests and their status</div>
         </div>
         <div className="ph-actions">
-          <button onClick={() => setOpen(true)} className="btn btn-primary">
-            <Icon name="add" size={15} /> Request Leave
+          <button onClick={() => setOpen(true)} className="btn btn-accent">
+            + Request Leave
           </button>
         </div>
       </div>
@@ -79,7 +80,7 @@ export default function MyLeavesPage() {
               {(leaves ?? []).map((l) => (
                 <tr key={l.leaveId}>
                   <td className="font-mono text-xs text-muted2">{l.leaveId}</td>
-                  <td className="text-text">{l.leaveType}</td>
+                  <td><LeaveTypePill type={l.leaveType} /></td>
                   <td className="text-muted">{fmt(l.startDate)}</td>
                   <td className="text-muted">{fmt(l.endDate)}</td>
                   <td className="text-muted">{l.days}</td>
@@ -106,11 +107,12 @@ export default function MyLeavesPage() {
         {upcoming.length === 0 ? (
           <p className="text-sm text-muted">No upcoming holidays.</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div>
             {upcoming.map((h) => (
-              <span key={h.id} className="inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-surface px-2.5 py-1 text-xs text-text">
-                <span className="text-p">{fmt(h.date)}</span> {h.name}
-              </span>
+              <div key={h.id} className="mb-2 flex items-center justify-between gap-2.5 rounded-[8px] bg-p3 px-3.5 py-2.5">
+                <span className="min-w-[80px] text-[11px] font-bold text-p">{fmt(h.date)}</span>
+                <span className="flex-1 text-[13px] font-semibold text-text">{h.name}</span>
+              </div>
             ))}
           </div>
         )}

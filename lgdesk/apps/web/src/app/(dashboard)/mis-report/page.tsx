@@ -77,27 +77,22 @@ export default function MisReportPage() {
       <div className="ph">
         <div className="ph-left">
           <div className="ph-title">MIS Report</div>
-          <div className="ph-sub">Weekly summaries across the organisation</div>
+          <div className="ph-sub">Weekly summaries across all employees</div>
         </div>
         <div className="ph-actions">
+          <button onClick={() => setAnchor((a) => addDays(a, -7))} aria-label="Previous week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_left" size={16} /></button>
+          <button onClick={() => setAnchor(new Date())} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-p3">This week</button>
+          <button onClick={() => setAnchor((a) => addDays(a, 7))} aria-label="Next week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_right" size={16} /></button>
+          <div className="text-sm font-semibold text-text">
+            {mondayOf(anchor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+          </div>
+          {summary && (
+            <span className="text-xs text-muted">{summary.submitted}/{summary.total} submitted ({summary.pct}%)</span>
+          )}
           <button className="btn btn-ghost btn-sm" disabled={!data} onClick={exportCsv}>
             <Icon name="download" size={15} /> Export
           </button>
         </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1">
-          <button onClick={() => setAnchor((a) => addDays(a, -7))} aria-label="Previous week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_left" size={16} /></button>
-          <button onClick={() => setAnchor(new Date())} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-p3">This week</button>
-          <button onClick={() => setAnchor((a) => addDays(a, 7))} aria-label="Next week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_right" size={16} /></button>
-        </div>
-        <div className="text-sm font-semibold text-text">
-          {mondayOf(anchor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-        </div>
-        {summary && (
-          <span className="ml-auto text-xs text-muted">{summary.submitted}/{summary.total} submitted ({summary.pct}%)</span>
-        )}
       </div>
 
       {isLoading ? (

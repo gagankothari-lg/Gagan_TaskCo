@@ -45,7 +45,7 @@ export function statusDot(status: string, overdue = false): string {
 // Priority column display: "→ Low" / "→ Medium" / "+ High" / "!! Critical".
 const PRIORITY_DISPLAY: Record<string, { label: string; color: string }> = {
   Low: { label: '→ Low', color: '#757575' },
-  Medium: { label: '→ Medium', color: '#1a237e' },
+  Medium: { label: '→ Medium', color: '#3949ab' },
   High: { label: '+ High', color: '#e65100' },
   Critical: { label: '!! Critical', color: '#c62828' },
 };

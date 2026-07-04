@@ -1,5 +1,11 @@
 'use client';
 
+// Reference (reference/lgdesk-gas-source.html #meet-schedule-form) implements
+// scheduling as an inline expanding panel on the Meetings page itself — not a
+// modal overlay — with a color-coded type-indicator bar, a single combined
+// "Date & Time" field, and an inline success banner. This component mirrors
+// that structure; the parent page (meetings/page.tsx) mounts/unmounts it
+// inline rather than inside a Dialog.
 import { useEffect, useMemo, useState } from 'react';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,23 +15,42 @@ import { useCreateMeeting } from '../../../lib/api/meetings';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { toast } from '../../../lib/toast';
 import { Spinner } from '../../ui/spinner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
-import { EmployeeMultiSelect, fieldClass } from '../tasks/create-task-modal';
+import { CustomAttendeePicker } from './attendee-picker';
 import { scheduleMeetingSchema, DURATION_OPTIONS, type ScheduleMeetingFormValues } from './schedule-meeting-modal.schema';
 
 const TYPE_TITLE: Record<string, string> = { company: 'Company Meeting', team: 'Team Meeting', custom: 'Custom Meeting' };
+
+const fieldClass =
+  'w-full bg-surface border border-border text-text rounded-[8px] px-3 py-2 text-sm focus:border-p2 focus:outline-none';
 
 function defaults(meetType: 'company' | 'team' | 'custom'): ScheduleMeetingFormValues {
   return { title: '', description: '', date: '', time: '10:00', durationMins: 30, meetType, attendeeIds: [], teams: [] };
 }
 
+/** Color-coded type-indicator bar — reference `.meet-form-type-{company,team,custom}`. Hidden for custom. */
+function TypeBar({ meetType, team }: { meetType: 'company' | 'team' | 'custom'; team: string }) {
+  if (meetType === 'custom') return null;
+  const style =
+    meetType === 'company'
+      ? { background: '#e3f2fd', color: '#1565c0' }
+      : { background: '#e8f5e9', color: '#2e7d32' };
+  const icon = meetType === 'company' ? 'corporate_fare' : 'groups';
+  const text =
+    meetType === 'company'
+      ? 'All active employees will be automatically invited.'
+      : `All members of ${team || 'this team'} will be automatically invited.`;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, marginBottom: 14, fontSize: 12, fontWeight: 600, ...style }}>
+      <Icon name={icon} size={15} /> {text}
+    </div>
+  );
+}
+
 export function ScheduleMeetingModal({
-  open,
   onClose,
   initialMeetType = 'custom',
 }: {
-  open: boolean;
   onClose: () => void;
   initialMeetType?: string;
 }) {
@@ -42,18 +67,17 @@ export function ScheduleMeetingModal({
   });
 
   useEffect(() => {
-    if (open) {
-      form.reset({ ...defaults(meetType), teams: meetType === 'team' && currentUser?.team ? [currentUser.team] : [] });
-      setError(null);
-      setCreated(null);
-    }
+    form.reset({ ...defaults(meetType), teams: meetType === 'team' && currentUser?.team ? [currentUser.team] : [] });
+    setError(null);
+    setCreated(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, meetType]);
+  }, [meetType]);
 
   const allTeams = useMemo(() => Array.from(new Set(employees.map((e) => e.team).filter(Boolean))) as string[], [employees]);
   const selectedTeam = form.watch('teams')?.[0] ?? currentUser?.team ?? '';
-
-  if (!open) return null;
+  const dateVal = form.watch('date');
+  const timeVal = form.watch('time');
+  const dateTimeValue = dateVal ? `${dateVal}T${timeVal || '00:00'}` : '';
 
   async function onSubmit(values: ScheduleMeetingFormValues) {
     setError(null);
@@ -82,78 +106,68 @@ export function ScheduleMeetingModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{created ? 'Meeting Scheduled' : `Schedule ${TYPE_TITLE[meetType]}`}</DialogTitle>
-        </DialogHeader>
-
-        {created ? (
-          <div className="space-y-3 px-5 py-4">
-            <div className="flex items-center gap-2 rounded-[8px] border border-ok/40 bg-[#e8f5e9] px-3 py-2 text-sm text-ok">
-              <Icon name="check_circle" size={16} />
-              <span>Meeting scheduled successfully.</span>
-            </div>
-            {created.meetLink && (
-              <a
-                href={created.meetLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-[8px] border border-border bg-surface px-3 py-2 text-sm text-p hover:bg-p3"
-              >
-                <Icon name="video_call" size={16} /> {created.meetLink}
-              </a>
-            )}
-            <div className="flex justify-end pt-2">
-              <button type="button" onClick={onClose} className="btn btn-primary">Done</button>
-            </div>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+      {created ? (
+        // Inline success banner — reference `.meet-banner` / `.meet-banner-link`.
+        <div style={{ padding: '16px 20px', borderRadius: 10, background: '#e8f5e9', border: '1px solid #a5d6a7' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: 'var(--ok)' }}>
+            <Icon name="check_circle" size={18} /> Meeting scheduled successfully.
           </div>
-        ) : (
+          {created.meetLink && (
+            <a
+              href={created.meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontWeight: 600, color: 'var(--p)', textDecoration: 'none', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6 }}
+            >
+              <Icon name="video_call" size={16} /> {created.meetLink}
+            </a>
+          )}
+          <div style={{ marginTop: 12 }}>
+            <button type="button" onClick={onClose} className="btn btn-ghost btn-sm">Close</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="event" size={18} /> Schedule {TYPE_TITLE[meetType]}
+          </div>
+
+          <TypeBar meetType={meetType} team={selectedTeam} />
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit, onInvalid)}>
-              <div className="space-y-3 px-5 py-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormControl><input className={fieldClass} placeholder="e.g. Project Kickoff" {...field} /></FormControl>
+                      <FormLabel className="mb-1 block text-xs text-muted">Meeting Title *</FormLabel>
+                      <FormControl><input className={fieldClass} placeholder="e.g. Weekly Sync" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl><textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Description (optional)" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+
+                {/* Not a FormField/Controller — this single input writes to both the
+                    `date` and `time` RHF fields, which stay exactly as defined in the
+                    Zod schema; only the presentation merges them into one control. */}
+                <div className="grid gap-2">
+                  <label className="mb-1 block text-xs text-muted">Date &amp; Time *</label>
+                  <input
+                    type="datetime-local"
+                    className={fieldClass}
+                    value={dateTimeValue}
+                    onChange={(e) => {
+                      const [d, t] = e.target.value.split('T');
+                      form.setValue('date', d ?? '', { shouldValidate: true });
+                      form.setValue('time', t ?? '', { shouldValidate: true });
+                    }}
                   />
-                  <FormField
-                    control={form.control}
-                    name="time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl><input type="time" className={fieldClass} {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {form.formState.errors.date && <p className="text-sm text-danger">{form.formState.errors.date.message}</p>}
                 </div>
+
                 <FormField
                   control={form.control}
                   name="durationMins"
@@ -161,11 +175,7 @@ export function ScheduleMeetingModal({
                     <FormItem>
                       <FormLabel className="mb-1 block text-xs text-muted">Duration</FormLabel>
                       <FormControl>
-                        <select
-                          className={fieldClass}
-                          value={field.value}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        >
+                        <select className={fieldClass} value={field.value} onChange={(e) => field.onChange(Number(e.target.value))}>
                           {DURATION_OPTIONS.map((d) => <option key={d} value={d}>{d} minutes</option>)}
                         </select>
                       </FormControl>
@@ -174,91 +184,61 @@ export function ScheduleMeetingModal({
                   )}
                 />
 
-                {/* Team row — Team Meeting only; own team preselected. */}
+                {/* Team selector — Team Meeting only; own team preselected. */}
                 {meetType === 'team' && (
                   <FormField
                     control={form.control}
                     name="teams"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="mb-1 block text-xs text-muted">Team</FormLabel>
+                        <FormLabel className="mb-1 block text-xs text-muted">Team *</FormLabel>
                         <FormControl>
                           <select className={fieldClass} value={field.value?.[0] ?? ''} onChange={(e) => field.onChange(e.target.value ? [e.target.value] : [])}>
                             {allTeams.map((t) => <option key={t} value={t}>{t}</option>)}
                           </select>
                         </FormControl>
-                        <p className="text-xs text-muted">All members of {selectedTeam || 'this team'} will be invited automatically.</p>
                       </FormItem>
                     )}
                   />
                 )}
 
-                {meetType === 'company' && (
-                  <p className="rounded-[8px] border border-border bg-bg px-3 py-2 text-xs text-muted">
-                    All active employees will be invited automatically.
-                  </p>
-                )}
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem style={{ gridColumn: '1/-1' }}>
+                      <FormLabel className="mb-1 block text-xs text-muted">Description (optional)</FormLabel>
+                      <FormControl><textarea rows={2} className={`${fieldClass} resize-none`} placeholder="Agenda or notes…" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                {/* Attendee pickers (teams + people) — Custom only. */}
+                {/* Attendee pickers — Custom meetings only. Reads/writes the same
+                    `teams` / `attendeeIds` RHF fields as the rest of the form. */}
                 {meetType === 'custom' && (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="attendeeIds"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="mb-1 block text-xs text-muted">People</FormLabel>
-                          <FormControl>
-                            <EmployeeMultiSelect selected={field.value ?? []} onChange={field.onChange} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="teams"
-                      render={({ field }) => {
-                        const selectedTeams = field.value ?? [];
-                        const toggleTeam = (t: string) =>
-                          field.onChange(selectedTeams.includes(t) ? selectedTeams.filter((x) => x !== t) : [...selectedTeams, t]);
-                        return (
-                          <FormItem>
-                            <FormLabel className="mb-1 block text-xs text-muted">Teams</FormLabel>
-                            <FormControl>
-                              <div className="flex flex-wrap gap-1.5">
-                                {allTeams.map((t) => (
-                                  <button
-                                    type="button"
-                                    key={t}
-                                    onClick={() => toggleTeam(t)}
-                                    className={['rounded-[9999px] border px-2.5 py-1 text-xs', selectedTeams.includes(t) ? 'border-p bg-p3 text-p' : 'border-border text-muted hover:text-text'].join(' ')}
-                                  >
-                                    {t}
-                                  </button>
-                                ))}
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        );
-                      }}
-                    />
-                  </>
+                  <CustomAttendeePicker
+                    selectedTeams={form.watch('teams') ?? []}
+                    onTeamsChange={(next) => form.setValue('teams', next, { shouldValidate: true })}
+                    selectedPeople={form.watch('attendeeIds') ?? []}
+                    onPeopleChange={(next) => form.setValue('attendeeIds', next, { shouldValidate: true })}
+                  />
                 )}
-
-                {error && <div className="rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
               </div>
-              <DialogFooter>
-                <button type="submit" disabled={create.isPending} className="btn btn-primary disabled:opacity-60">
-                  {create.isPending && <Spinner size={14} />} Schedule
+
+              {error && <div className="mt-3 rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
+                <button type="submit" disabled={create.isPending} className="btn btn-accent disabled:opacity-60">
+                  {create.isPending ? <Spinner size={14} /> : <Icon name="video_call" size={15} />} Create Meeting
                 </button>
-              </DialogFooter>
+              </div>
             </form>
           </Form>
-        )}
-      </DialogContent>
-    </Dialog>
+        </>
+      )}
+    </div>
   );
 }
 

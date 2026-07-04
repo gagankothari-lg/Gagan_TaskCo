@@ -1,23 +1,60 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useAuth } from '../../../hooks/use-auth';
-import { useTasks, type TaskScope } from '../../../lib/api/tasks';
+import { useTasks, useCreateTask, type TaskScope } from '../../../lib/api/tasks';
 import { isManager } from '../../../lib/auth';
 import { apiErrorMessage } from '../../../lib/api/client';
+import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
 import { Badge } from '../../ui/badge';
 import { pillClass, badgeClass, fmtDate, isClosedTaskStatus } from '../../../lib/utils';
-import { TaskRow, isTaskOverdue } from './task-row';
+import { TaskRow, isTaskOverdue, COL_HIDE, stickyActionsStyle } from './task-row';
 import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
+import { createTaskSchema, TASK_STATUSES, TASK_PRIORITIES, type CreateTaskFormValues } from './create-task-modal.schema';
 import { CreateTaskModal } from './create-task-modal';
 import { TaskDetailModal } from './task-detail-modal';
 import { TaskEditModal } from './task-edit-modal';
-import type { Task } from '../../../lib/types';
+import type { Task, WorkFunction, Project, User } from '../../../lib/types';
 
 type OwnershipTab = 'To Me' | 'By Me' | 'All';
 type TeamTab = 'To Team' | 'By Team' | 'All';
 type GroupMode = 'function' | 'date' | 'week';
+
+// Per-column sort keys — mirrors the reference's `_tskSortClick(scope, field)` header
+// click handlers (task-sheet thead th onclick).
+type SortField = 'function' | 'subfn' | 'task' | 'assignee' | 'assigner' | 'project' | 'status' | 'priority' | 'due';
+
+// Sortable header column defs — label + hide-class shared 1:1 with TaskRow's <td>s via
+// COL_HIDE (single source of truth so header/filter row and body columns never drift).
+const SORT_COLS: { key: SortField; label: string; hide: string }[] = [
+  { key: 'function', label: 'Function', hide: COL_HIDE.function },
+  { key: 'subfn', label: 'Sub-Function', hide: COL_HIDE.subFn },
+  { key: 'task', label: 'Task', hide: COL_HIDE.task },
+  { key: 'assignee', label: 'Assigned To', hide: COL_HIDE.assignee },
+  { key: 'assigner', label: 'Assigned By', hide: COL_HIDE.assigner },
+  { key: 'project', label: 'Project', hide: COL_HIDE.project },
+  { key: 'status', label: 'Status', hide: COL_HIDE.status },
+  { key: 'priority', label: 'Priority', hide: COL_HIDE.priority },
+  { key: 'due', label: 'Due Date', hide: COL_HIDE.due },
+];
+const TOTAL_COLS = SORT_COLS.length + 2; // + priority-bar + actions
+
+const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+
+const thStyle: CSSProperties = {
+  position: 'sticky', top: 0, zIndex: 2, background: '#f7f8fb', color: 'var(--muted)',
+  textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 10.5, fontWeight: 700,
+  padding: '7px 8px', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)',
+};
+const filterThStyle: CSSProperties = { padding: '4px 6px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' };
+const filterSelectStyle: CSSProperties = { width: '100%', fontSize: 11, padding: '3px 4px' };
+
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function mondayOf(d: Date) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 
 interface TaskListViewProps {
   scope: TaskScope;
@@ -31,11 +68,6 @@ interface TaskListViewProps {
   showTeamTabs?: boolean;
 }
 
-const COLS = ['Assigned date', 'Sub-function', 'Task', 'Assigned to', 'Assigned by', 'Recurring', 'Status', 'Priority', 'Due date', ''];
-
-function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
-function mondayOf(d: Date) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
-
 export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTeamSelector, showTeamTabs }: TaskListViewProps) {
   const { currentUser, employees, functions, projects } = useAuth();
   const { data: tasks, isLoading, error } = useTasks(scope);
@@ -44,11 +76,22 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   const [teamTab, setTeamTab] = useState<TeamTab>('All');
   const [team, setTeam] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [rawQuery, setRawQuery] = useState('');
   const [query, setQuery] = useState('');
+  // Per-column sort (reference: clicking a task-sheet header th sorts by that field;
+  // clicking the active column again flips direction — the "ts-si" indicator span).
+  // Function-grouping (a Next.js-only view feature, left in place per scope) still
+  // orders its group headers by function name; sortField/sortDir additionally control
+  // the order of rows *within* each group.
+  const [sortField, setSortField] = useState<SortField>('function');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const handleSort = (field: SortField) => {
+    if (field === sortField) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortField(field); setSortDir('asc'); }
+  };
   // Lazy render (Part 13 FR-5 / Phase 6): first 80 rows render immediately; scrolling
   // within 300px of #main's bottom appends 80 more. Resets to 80 whenever the active
   // filter set changes, and the listener detaches once every row is rendered.
@@ -149,6 +192,24 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     return { overdue, weeks, thisWeekTs: mondayOf(today).getTime() };
   }, [filtered]);
 
+  // Comparable value for a task under a given sort field — used both for the
+  // per-column header sort (rows within a function group) and, when the active
+  // field is 'function', the group order itself.
+  const sortVal = (t: Task, field: SortField): string | number => {
+    switch (field) {
+      case 'function': return fnName(t.functionId).toLowerCase();
+      case 'subfn': return (functions.find((f) => f.functionId === t.subFnId)?.name ?? '').toLowerCase();
+      case 'task': return t.title.toLowerCase();
+      case 'assignee': return t.assigneeIds.length ? empName(t.assigneeIds[0]).toLowerCase() : '￿';
+      case 'assigner': return empName(t.assignerId).toLowerCase();
+      case 'project': return (projects.find((p) => p.projId === t.projId)?.name ?? '').toLowerCase();
+      case 'status': return t.status.toLowerCase();
+      case 'priority': return PRIORITY_RANK[t.priority] ?? 99;
+      case 'due': return t.dueDate ? new Date(t.dueDate).getTime() : Infinity;
+      default: return '';
+    }
+  };
+
   const functionGroups = useMemo(() => {
     const m = new Map<string, Task[]>();
     for (const t of filtered) { const k = t.functionId ?? '__none'; (m.get(k) ?? m.set(k, []).get(k)!).push(t); }
@@ -156,11 +217,18 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     entries.sort((a, b) => {
       const an = fnName(a[0] === '__none' ? undefined : a[0]);
       const bn = fnName(b[0] === '__none' ? undefined : b[0]);
-      return sortDir === 'asc' ? an.localeCompare(bn) : bn.localeCompare(an);
+      const cmp = an.localeCompare(bn);
+      return sortField === 'function' && sortDir === 'desc' ? -cmp : cmp;
     });
-    return entries;
+    const cmpRows = (a: Task, b: Task) => {
+      const av = sortVal(a, sortField);
+      const bv = sortVal(b, sortField);
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === 'asc' ? cmp : -cmp;
+    };
+    return entries.map(([fid, list]) => [fid, [...list].sort(cmpRows)] as [string, Task[]]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, sortDir]);
+  }, [filtered, sortField, sortDir]);
 
   // Lazy-render page: take the first `visibleCount` task rows in the already-sorted
   // group order, re-deriving the same [functionId, rows][] shape so partially-consumed
@@ -223,13 +291,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
             <Icon name="search" size={16} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
             <input className="fc" placeholder="Search tasks…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)} style={{ paddingLeft: 30, width: 200 }} />
           </div>
-          <button
-            className="btn btn-ghost btn-sm"
-            title={sortDir === 'asc' ? 'Sorted A→Z — click for Z→A' : 'Sorted Z→A — click for A→Z'}
-            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-          >
-            A-Z <Icon name={sortDir === 'asc' ? 'chevron_down' : 'chevron_up'} size={13} />
-          </button>
           <div className="tl-tabs">
             <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center', marginRight: 4 }}>Group by:</span>
             {(['function', 'date', 'week'] as GroupMode[]).map((m) => (
@@ -273,11 +334,146 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
       ) : grp === 'function' ? (
         <div className="tbl-wrap">
           <table>
-            <thead><tr>{COLS.map((c, i) => <th key={i}>{c}</th>)}</tr></thead>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, padding: 0, width: 4, minWidth: 4, maxWidth: 4 }} />
+                {SORT_COLS.map((c) => (
+                  <th
+                    key={c.key}
+                    className={c.hide}
+                    style={{ ...thStyle, cursor: 'pointer' }}
+                    onClick={() => handleSort(c.key)}
+                    title="Click to sort"
+                  >
+                    {c.label}
+                    {sortField === c.key && (
+                      <Icon name={sortDir === 'asc' ? 'chevron_up' : 'chevron_down'} size={11} style={{ marginLeft: 3, verticalAlign: 'middle', opacity: 0.7 }} />
+                    )}
+                  </th>
+                ))}
+                <th style={{ ...thStyle, ...stickyActionsStyle('#f7f8fb'), width: 34, zIndex: 3 }} />
+              </tr>
+              {/* Per-column filter row (reference: tr.ts-filter-row) — reuses the same
+                  ColFilter state/applyColFilters as the standalone FilterBar above (kept
+                  as-is; see decisions). Native <select>s to match the reference's exact
+                  filter-row controls (single-value, not the multi-select widget). */}
+              <tr>
+                <th style={filterThStyle} />
+                <th className={COL_HIDE.function} style={filterThStyle}>
+                  <select
+                    className="fc" style={filterSelectStyle}
+                    value={filter.functions[0] ?? ''}
+                    onChange={(e) => setFilter({ ...filter, functions: e.target.value ? [e.target.value] : [] })}
+                  >
+                    <option value="">All Functions</option>
+                    {functions.filter((f) => !f.parentFnId).map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
+                  </select>
+                </th>
+                <th className={COL_HIDE.subFn} style={filterThStyle}>
+                  <select
+                    className="fc" style={filterSelectStyle}
+                    value={filter.subFunctions[0] ?? ''}
+                    onChange={(e) => setFilter({ ...filter, subFunctions: e.target.value ? [e.target.value] : [] })}
+                  >
+                    <option value="">All Sub-Functions</option>
+                    {functions.filter((f) => !!f.parentFnId).map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
+                  </select>
+                </th>
+                <th className={COL_HIDE.task} style={filterThStyle}>
+                  {/* Reference uses a "Task" <select>; we reuse the existing debounced
+                      search box's state instead of adding a new filter field/select
+                      populated from free-text task titles — see decisions. */}
+                  <input
+                    type="text" className="fc" style={filterSelectStyle}
+                    placeholder="Search…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)}
+                  />
+                </th>
+                <th className={COL_HIDE.assignee} style={filterThStyle}>
+                  {/* My Tasks has no Assigned-To filter cell here (reference: blank <th>
+                      for the "my" task-sheet instance) — Team/All Tasks get the select. */}
+                  {scope !== 'mine' && (
+                    <select
+                      className="fc" style={filterSelectStyle}
+                      value={filter.assignee[0] ?? ''}
+                      onChange={(e) => setFilter({ ...filter, assignee: e.target.value ? [e.target.value] : [] })}
+                    >
+                      <option value="">All Assignees</option>
+                      {employees.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
+                    </select>
+                  )}
+                </th>
+                <th className={COL_HIDE.assigner} style={filterThStyle}>
+                  <select
+                    className="fc" style={filterSelectStyle}
+                    value={filter.assigner[0] ?? ''}
+                    onChange={(e) => setFilter({ ...filter, assigner: e.target.value ? [e.target.value] : [] })}
+                  >
+                    <option value="">All Assigners</option>
+                    {employees.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
+                  </select>
+                </th>
+                <th className={COL_HIDE.project} style={filterThStyle}>
+                  <select
+                    className="fc" style={filterSelectStyle}
+                    value={filter.projects[0] ?? ''}
+                    onChange={(e) => setFilter({ ...filter, projects: e.target.value ? [e.target.value] : [] })}
+                  >
+                    <option value="">All Projects</option>
+                    {projects.map((p) => <option key={p.projId} value={p.projId}>{p.name}</option>)}
+                  </select>
+                </th>
+                <th className={COL_HIDE.status} style={filterThStyle}>
+                  <select
+                    className="fc" style={filterSelectStyle}
+                    value={filter.status[0] ?? ''}
+                    onChange={(e) => setFilter({ ...filter, status: e.target.value ? [e.target.value] : [] })}
+                  >
+                    <option value="">All Statuses</option>
+                    {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </th>
+                <th className={COL_HIDE.priority} style={filterThStyle}>
+                  <select
+                    className="fc" style={filterSelectStyle}
+                    value={filter.priority[0] ?? ''}
+                    onChange={(e) => setFilter({ ...filter, priority: e.target.value ? [e.target.value] : [] })}
+                  >
+                    <option value="">All</option>
+                    {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </th>
+                <th className={COL_HIDE.due} style={filterThStyle}>
+                  <input
+                    type="date" className="fc" style={filterSelectStyle}
+                    value={filter.due} onChange={(e) => setFilter({ ...filter, due: e.target.value })}
+                    title="Show tasks due by this date"
+                  />
+                </th>
+                <th style={{ ...filterThStyle, ...stickyActionsStyle('var(--surface)'), textAlign: 'center' }}>
+                  <button
+                    type="button" className="wl-save-btn" title="Clear all filters"
+                    onClick={() => { setFilter(DEFAULT_COL_FILTER); setRawQuery(''); }}
+                  >
+                    <Icon name="filter_list" size={14} />
+                  </button>
+                </th>
+              </tr>
+            </thead>
             <tbody>
               {pagedFunctionGroups.map(([fid, list]) => (
                 <FunctionGroup key={fid} name={fnName(fid === '__none' ? undefined : fid)} list={list} onOpen={setDetailId} onEdit={setEditId} />
               ))}
+              {/* Inline batch "Add Tasks" row pinned at the bottom of the table
+                  (reference: tr.ts-foot-trig / tr.ts-add-row) — wired to the existing
+                  useCreateTask mutation + createTaskSchema, one row per task. */}
+              <TaskBatchAddRow
+                open={batchOpen}
+                onOpenChange={setBatchOpen}
+                functions={functions}
+                projects={projects}
+                employees={employees}
+                currentUserName={currentUser?.name ?? ''}
+              />
             </tbody>
           </table>
         </div>
@@ -310,7 +506,7 @@ function FunctionGroup({ name, list, onOpen, onEdit }: { name: string; list: Tas
   return (
     <>
       <tr>
-        <td colSpan={10} style={{ background: '#f0f2f5', borderLeft: '4px solid #1a237e', padding: '10px 14px' }}>
+        <td colSpan={TOTAL_COLS} style={{ background: '#f0f2f5', borderLeft: '4px solid #1a237e', padding: '10px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 9, color: '#9e9e9e', textTransform: 'uppercase', letterSpacing: 0.5 }}>Function</span>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{name}</span>
@@ -320,6 +516,146 @@ function FunctionGroup({ name, list, onOpen, onEdit }: { name: string; list: Tas
       </tr>
       {list.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} onEdit={onEdit} />)}
     </>
+  );
+}
+
+// ─── Inline batch "Add Tasks" row (reference: ts-foot-trig / ts-add-row / ts-batch-panel) ──
+// A top-level component (not a closure defined inside TaskListView) so its identity is
+// stable across parent re-renders — an inline component using useForm/useFieldArray would
+// otherwise remount (and lose in-progress input) on every keystroke elsewhere in the view.
+const defaultBatchRow = (): CreateTaskFormValues => ({
+  title: '', description: '', projId: '', functionId: '', subFnId: '', assigneeIds: [],
+  team: '', status: 'Not Started', priority: 'Medium', dueDate: '', estimatedHours: '',
+});
+
+function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, currentUserName }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  functions: WorkFunction[];
+  projects: Project[];
+  employees: User[];
+  currentUserName: string;
+}) {
+  const create = useCreateTask();
+  const form = useForm<{ rows: CreateTaskFormValues[] }>({
+    resolver: zodResolver(z.object({ rows: z.array(createTaskSchema).min(1) })),
+    defaultValues: { rows: [defaultBatchRow()] },
+  });
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'rows' });
+
+  const close = () => { onOpenChange(false); form.reset({ rows: [defaultBatchRow()] }); };
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      for (const row of values.rows) {
+        // eslint-disable-next-line no-await-in-loop -- batch rows must land as distinct
+        // tasks in submission order, not raced in parallel.
+        await create.mutateAsync({
+          title: row.title,
+          description: row.description || undefined,
+          projId: row.projId || undefined,
+          functionId: row.functionId || undefined,
+          subFnId: row.subFnId || undefined,
+          assigneeIds: row.assigneeIds,
+          status: row.status,
+          priority: row.priority,
+          dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : undefined,
+        });
+      }
+      toast(`${values.rows.length} task${values.rows.length > 1 ? 's' : ''} added`, 'success');
+      close();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not save one or more tasks'), 'error');
+    }
+  });
+
+  if (!open) {
+    return (
+      <tr>
+        <td colSpan={TOTAL_COLS} style={{ padding: 0 }}>
+          <div
+            onClick={() => onOpenChange(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 14px', cursor: 'pointer', color: 'var(--p)', fontSize: 12, fontWeight: 600 }}
+          >
+            <Icon name="add" size={15} /> Add Tasks
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <td colSpan={TOTAL_COLS} style={{ padding: 0 }}>
+        <div style={{ background: 'var(--bg)', borderTop: '2px solid var(--p)', padding: '8px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--p)', flex: 1 }}>Add Tasks</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => append(defaultBatchRow())}>
+              <Icon name="add" size={13} /> Row
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {fields.map((field, i) => {
+              const rowFunctionId = form.watch(`rows.${i}.functionId`);
+              const subFnOpts = functions.filter((f) => f.parentFnId === rowFunctionId);
+              return (
+                <div
+                  key={field.id}
+                  style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.6fr 1fr 0.9fr 1fr 0.9fr 0.9fr 0.9fr auto', gap: 6, alignItems: 'center' }}
+                >
+                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.functionId` as const)}>
+                    <option value="">Function</option>
+                    {functions.filter((f) => !f.parentFnId).map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
+                  </select>
+                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.subFnId` as const)}>
+                    <option value="">Sub-Function</option>
+                    {subFnOpts.map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
+                  </select>
+                  <input className="fc" style={{ fontSize: 12 }} placeholder="Task title *" {...form.register(`rows.${i}.title` as const)} />
+                  <select
+                    className="fc" style={{ fontSize: 12 }}
+                    value={form.watch(`rows.${i}.assigneeIds`)?.[0] ?? ''}
+                    onChange={(e) => form.setValue(`rows.${i}.assigneeIds`, e.target.value ? [e.target.value] : [])}
+                  >
+                    <option value="">Assigned To</option>
+                    {employees.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
+                  </select>
+                  <span
+                    style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    title="Assigned by (you)"
+                  >
+                    {currentUserName}
+                  </span>
+                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.projId` as const)}>
+                    <option value="">Project</option>
+                    {projects.map((p) => <option key={p.projId} value={p.projId}>{p.name}</option>)}
+                  </select>
+                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.status` as const)}>
+                    {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.priority` as const)}>
+                    {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <input type="date" className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.dueDate` as const)} />
+                  <button
+                    type="button" className="wl-save-btn" title="Remove row"
+                    onClick={() => fields.length > 1 && remove(i)} disabled={fields.length <= 1}
+                  >
+                    <Icon name="delete" size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={close}>Cancel</button>
+            <button type="button" className="btn btn-primary btn-sm" disabled={create.isPending} onClick={onSubmit}>
+              {create.isPending ? 'Saving…' : 'Save All'}
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
   );
 }
 

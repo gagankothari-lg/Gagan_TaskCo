@@ -13,7 +13,7 @@ const MAX_PROJECT_CARDS = 10;
 function priorityStyle(p: string) {
   const map: Record<string, { bg: string; color: string }> = {
     Critical: { bg: '#fce8e8', color: '#c62828' }, High: { bg: '#fce8e8', color: '#c62828' },
-    Medium: { bg: '#e8eaf6', color: '#1a237e' }, Low: { bg: '#f5f5f5', color: '#757575' },
+    Medium: { bg: '#e8eaf6', color: '#3949ab' }, Low: { bg: '#f5f5f5', color: '#757575' },
   };
   return map[p] ?? { bg: '#f5f5f5', color: '#757575' };
 }

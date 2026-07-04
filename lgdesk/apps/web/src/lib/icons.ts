@@ -124,6 +124,7 @@ import {
   Lightbulb,
   Pin,
   Palette,
+  Presentation,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -260,6 +261,8 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   lightbulb: Lightbulb,
   push_pin: Pin,
   palette: Palette,
+  meeting_room: Presentation, // Meetings "Join a Meeting" action-card glyph
+  upcoming: CalendarClock, // Meetings "Upcoming Meetings" section-header glyph (reuses the `event` mapping's icon)
 };
 
 /** Fallback glyph for any name not (yet) present in ICON_MAP — never emoji, never MUI. */

@@ -189,6 +189,48 @@ Tailwind shorthand:
 - Radius: `rounded-[var(--r)]` (8px base) · Sidebar width: `w-[230px]` (collapsed: `w-[54px]`)
 - Header height: `h-[68px]`
 
+Mobile sidebar width is **260px**, not 230px — set via `#sidebar { width: 260px !important; }` inside
+`globals.css`'s `@media (max-width: 768px)` block. The `!important` is required: the sidebar's width is
+also set via an inline React style (`layout-client.tsx`, `style={{ width: sidebarVar }}`), which beats a
+plain (non-`!important`) media-query rule at any specificity. If a future change removes that inline
+style, the `!important` becomes unnecessary but harmless.
+
+## UI reference source — `reference/lgdesk-gas-source.html`
+
+The repo contains `reference/lgdesk-gas-source.html` — the user's real, actual production Google Apps
+Script `index.html` (pre-Next.js-rebuild version). This is the **single most authoritative visual/
+structural source** for how any view should look — more authoritative than this file's prose, and more
+authoritative than `LGDesk_Master_Reference.md`'s written descriptions, because it's the literal markup
+and CSS rather than a summary of it. **Before any future UI work** (new view, restyle, layout change),
+grep this file for the relevant `id="view-..."` anchor and read the actual markup — do not rely solely on
+this doc or on Master Reference. If a fresher export of the GAS source ever becomes available, replace
+this file rather than let it go stale.
+
+Two standardization decisions were made during the 2026-07-04 pixel-accuracy pass, verified directly
+against that reference — do not silently re-diverge these across components:
+
+- **Priority "Medium" color is `#3949ab` (`var(--p2)`).** The app previously had inconsistent Medium
+  values (`#1a237e` in some components, `#1565c0` in others). `#3949ab` was chosen because it's the only
+  variant of the three found in the real GAS source that maps to an actual design token rather than an
+  ad-hoc hex — the reference's own `.ts-pribar.p-Medium{background:#3949ab}` rule confirms it. Applies
+  everywhere Medium priority is shown: `status-styles.ts` `priorityDisplay()`, `globals.css`
+  `.badge-medium`/`.task-card.p-Medium`, `import-modal.tsx`, `my-projects.tsx`, and the task-sheet table's
+  priority bar (`task-row.tsx`).
+- **Presence-status dot colors are `#22c55e` (online) / `#f59e0b` (away) / `#ef4444` (dnd) / `#9ca3af`
+  (offline).** The app previously used an older, less-saturated palette (`#43a047`/`#fb8c00`/`#e53935`/
+  `#9e9e9e`). The newer, more-saturated set was chosen because it's the one used in the GAS source's most
+  recently modified component (the sidebar presence-menu chip). Single source of truth:
+  `globals.css` `.pres-online`/`.pres-away`/`.pres-dnd`/`.pres-offline`.
+
+The task-sheet table (My Tasks / Team Tasks / All Tasks, shared via `task-list-view.tsx` +
+`task-row.tsx`) was also rebuilt to match the reference's actual 11-column layout (priority bar,
+Function, Sub-Function, Task, Assigned To, Assigned By, Project, Status, Priority, Due Date, sticky
+Actions), including a per-column filter row, per-column sort, and an inline "Add Tasks" batch row.
+**"Assigned date" and "Recurring" were removed as table columns** — neither exists anywhere in the real
+GAS source's task-sheet markup — this is a deliberate, real loss of at-a-glance visibility for those two
+attributes (still viewable via task detail), done because the reference is authoritative here. If this
+turns out to matter to users in practice, it's a candidate to revisit, not an oversight.
+
 ## Google Integrations — blocked, do not implement
 
 Four integrations are planned but **blocked pending credentials that don't exist yet on Railway** (no
