@@ -33,8 +33,15 @@ export class DdrService {
 
     const assignerId = await this.getEntityAssigner(entityType, entityId);
     if (assignerId === null) throw new NotFoundException('Entity not found');
-    if (assignerId === callerEmpId) {
-      throw new BadRequestException('Assigners change the due date directly, not via a request');
+    const caller = await this.getCaller(callerEmpId);
+    // LGDesk_Master_Reference.md Part 42 Change #37, Part 13 DDR Flow step 1,
+    // and Part 5 Row 23 all confirm Admins bypass the request flow the same as
+    // the actual assigner, regardless of who assigned the entity — matches this
+    // method's own pre-existing comment ("assigners/admins change the date
+    // directly, rule #13") that the code had never actually implemented.
+    // Confirmed via PVERIFY-FULL-APP-PARITY reconciliation 2026-07-06.
+    if (assignerId === callerEmpId || isAdmin(caller.role)) {
+      throw new BadRequestException('Assigners/admins change the due date directly, not via a request');
     }
 
     const ddrId = await this.idUtils.generateId('dueDateRequest', 'ddrId', 'DDR');
