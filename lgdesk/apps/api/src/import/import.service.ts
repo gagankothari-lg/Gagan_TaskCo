@@ -151,15 +151,30 @@ export class ImportService {
       return -1;
     };
 
+    // Alias sets widened to match the reference's `ALIASES` map (task-import.gs:129-159) —
+    // see AUDIT_REPORT.md A2 "Fuzzy header matching" (Fix A). Aliases are written in already-
+    // normalized form (uppercase, underscores collapsed to spaces) since `normalizeHeader` never
+    // leaves an underscore in a header value.
     const iType = col('TYPE');
-    const iFn = col('FUNCTION');
-    const iSub = col('SUBFUNCTION', 'SUB-FUNCTION', 'SUB_FUNCTION', 'SUBFN');
-    const iTitle = col('TASKTITLE', 'TASK TITLE', 'TASK', 'TITLE');
-    const iAssigner = col('ASSIGNER');
-    const iAssignees = col('ASSIGNEES', 'ASSIGNEE');
-    const iStatus = col('STATUS');
-    const iPriority = col('PRIORITY');
-    const iDate = col('DUEDATE', 'DUE DATE', 'DATE');
+    const iFn = col('FUNCTION', 'FUNCTIONS', 'FN', 'FUNC');
+    const iSub = col(
+      'SUBFUNCTION',
+      'SUBFUNCTIONS',
+      'SUB-FUNCTION',
+      'SUB-FUNCTIONS',
+      'SUB FUNCTION',
+      'SUB FUNCTIONS',
+      'SUB - FUNCTION',
+      'SUB - FUNCTIONS',
+      'SF',
+      'SUBFN',
+    );
+    const iTitle = col('TASKTITLE', 'TASK TITLE', 'TASK', 'TASKS', 'TASK NAME', 'TITLE');
+    const iAssigner = col('ASSIGNER', 'GIVEN BY', 'ASSIGNED BY', 'CREATED BY');
+    const iAssignees = col('ASSIGNEES', 'ASSIGNEE', 'TASK EXECUTOR', 'ASSIGNED TO', 'EXECUTOR');
+    const iStatus = col('STATUS', 'TASK STATUS');
+    const iPriority = col('PRIORITY', 'TASK PRIORITY');
+    const iDate = col('DUEDATE', 'DUE DATE', 'DUE', 'TASK DUE DATE', 'DEADLINE', 'END DATE', 'DATE');
 
     const get = (cells: string[], idx: number): string => (idx >= 0 && idx < cells.length ? cells[idx].trim() : '');
 
