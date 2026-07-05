@@ -258,17 +258,33 @@ export class WorkDurationService {
     return notes ? `${notes}\n${line}` : line;
   }
 
-  // Keep the date of `base`, set its UTC time to HH:MM. Rejects malformed input rather
-  // than silently coercing it to 00:00 (which would corrupt the stored clock time).
+  // AUDIT_REPORT.md A3 item 6: the user-typed HH:MM from the "Edit today's times" / "Change
+  // clock-out time" flows is always IST wall-clock time (the reference, work-duration.gs:304-320,
+  // treats it as plain IST with no UTC step at all) — it must NOT be interpreted as UTC hours.
+  // Keep the IST calendar day of `base` (so an edit stays on the same IST day the user sees),
+  // and build the instant from an ISO string with an explicit +05:30 offset so the Date
+  // constructor resolves the IST->UTC conversion correctly and unambiguously, instead of the
+  // previous `d.setUTCHours(h, m, 0, 0)`, which silently shifted every manual edit by ~5.5h.
   private applyTime(base: Date, hhmm: string): Date {
     const match = /^(\d{1,2}):(\d{2})$/.exec((hhmm ?? '').trim());
     if (!match) throw new BadRequestException(`Invalid time format "${hhmm}" — expected HH:MM`);
     const h = Number(match[1]);
     const m = Number(match[2]);
     if (h > 23 || m > 59) throw new BadRequestException(`Invalid time "${hhmm}" — hours 0-23, minutes 0-59`);
-    const d = new Date(base);
-    d.setUTCHours(h, m, 0, 0);
-    return d;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dateStr = this.istDateStr(base);
+    return new Date(`${dateStr}T${pad(h)}:${pad(m)}:00+05:30`);
+  }
+
+  // The IST (Asia/Kolkata) calendar date — Y-M-D — that `d`'s instant falls on, formatted as
+  // yyyy-mm-dd. Used to anchor manual time edits (see `applyTime`) to the correct IST day.
+  private istDateStr(d: Date): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
   }
 
   private todayUtc(): Date {

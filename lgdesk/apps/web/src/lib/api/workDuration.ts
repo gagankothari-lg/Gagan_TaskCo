@@ -80,3 +80,16 @@ export function hmsFromMin(min: number): string {
   const m = Math.floor(min % 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
+
+// AUDIT_REPORT.md A3 item 6: clock-in/out instants must be displayed as IST wall-clock time
+// (the value the user actually typed/saw), not the browser's local time or raw UTC digits —
+// `.toISOString().slice(11, 16)` shows UTC and is wrong for IST users. Single source of truth
+// for this conversion so every "Edit today's times" prefill stays in lockstep.
+export function istHHMM(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
