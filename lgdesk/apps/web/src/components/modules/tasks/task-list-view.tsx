@@ -48,6 +48,30 @@ const TOTAL_COLS = SORT_COLS.length + 1; // + actions (no priority-bar column �
 
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 
+function empNameOf(empId: string, employees: User[]): string {
+  const u = employees.find((e) => e.empId === empId);
+  return u ? `${u.firstName} ${u.lastName}` : empId;
+}
+
+// Comparable value for a task under a given sort field — used by each FunctionGroup to
+// sort its own rows (FIX D: sort is per-group, so this is a plain module-level function
+// taking functions/employees as params, not a component closure — FunctionGroup lives
+// outside TaskListView so its render identity stays stable across parent re-renders).
+function sortValue(t: Task, field: SortField, functions: WorkFunction[], employees: User[]): string | number {
+  switch (field) {
+    case 'adate': return new Date(t.createdAt).getTime();
+    case 'subfn': return (functions.find((f) => f.functionId === t.subFnId)?.name ?? '').toLowerCase();
+    case 'task': return t.title.toLowerCase();
+    case 'assignee': return t.assigneeIds.length ? empNameOf(t.assigneeIds[0], employees).toLowerCase() : '￿';
+    case 'assigner': return empNameOf(t.assignerId, employees).toLowerCase();
+    case 'recurring': return t.recurring ? 0 : 1;
+    case 'status': return t.status.toLowerCase();
+    case 'priority': return PRIORITY_RANK[t.priority] ?? 99;
+    case 'due': return t.dueDate ? new Date(t.dueDate).getTime() : Infinity;
+    default: return '';
+  }
+}
+
 // FIX C (task-sheet rebuild): NOT sticky — nothing in the live reference app is sticky
 // (the static CSS's `position:sticky` rules, lgdesk-gas-source.html:319,371, are
 // attached to the dead <thead> the JS deletes at runtime; the live per-group table CSS,
@@ -87,16 +111,19 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   const [editId, setEditId] = useState<string | null>(null);
   const [rawQuery, setRawQuery] = useState('');
   const [query, setQuery] = useState('');
-  // Per-column sort (reference: clicking a task-sheet header th sorts by that field;
-  // clicking the active column again flips direction — the "ts-si" indicator span).
-  // Function-grouping (a Next.js-only view feature, left in place per scope) still
-  // orders its group headers by function name; sortField/sortDir additionally control
-  // the order of rows *within* each group.
-  const [sortField, setSortField] = useState<SortField>('due');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const handleSort = (field: SortField) => {
-    if (field === sortField) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortField(field); setSortDir('asc'); }
+  // Per-column sort — FIX D (task-sheet rebuild): sort is per-function-group, not
+  // global. `_tskGrpSetSort` (app.js.html:5463-5506) re-sorts one group's own rows; the
+  // static header's global `_tskSortClick` (9345) is wired only to the dead header and
+  // never runs. Keyed by function-group id (functionId, or '__none' for ungrouped) so
+  // each collapsible group remembers its own last-clicked column + direction
+  // independently. Clicking a column header cycles asc/desc for THAT group only.
+  const [groupSort, setGroupSort] = useState<Record<string, { field: SortField; dir: 'asc' | 'desc' }>>({});
+  const handleGroupSort = (fid: string, field: SortField) => {
+    setGroupSort((prev) => {
+      const cur = prev[fid];
+      if (cur && cur.field === field) return { ...prev, [fid]: { field, dir: cur.dir === 'asc' ? 'desc' : 'asc' } };
+      return { ...prev, [fid]: { field, dir: 'asc' } };
+    });
   };
   // Lazy render (Part 13 FR-5 / Phase 6): first 80 rows render immediately; scrolling
   // within 300px of #main's bottom appends 80 more. Resets to 80 whenever the active
@@ -197,44 +224,21 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     return { overdue, weeks, thisWeekTs: mondayOf(today).getTime() };
   }, [filtered]);
 
-  // Comparable value for a task under a given sort field — used both for the
-  // per-column header sort (rows within a function group) and, when the active
-  // field is 'function', the group order itself.
-  const sortVal = (t: Task, field: SortField): string | number => {
-    switch (field) {
-      case 'adate': return new Date(t.createdAt).getTime();
-      case 'subfn': return (functions.find((f) => f.functionId === t.subFnId)?.name ?? '').toLowerCase();
-      case 'task': return t.title.toLowerCase();
-      case 'assignee': return t.assigneeIds.length ? empName(t.assigneeIds[0]).toLowerCase() : '￿';
-      case 'assigner': return empName(t.assignerId).toLowerCase();
-      case 'recurring': return t.recurring ? 0 : 1;
-      case 'status': return t.status.toLowerCase();
-      case 'priority': return PRIORITY_RANK[t.priority] ?? 99;
-      case 'due': return t.dueDate ? new Date(t.dueDate).getTime() : Infinity;
-      default: return '';
-    }
-  };
-
+  // FIX D: group membership + group order only — NOT row order. Function is a group
+  // header, not a sortable column (FIX A), so group order is always alphabetical. Row
+  // order *within* each group is computed independently by FunctionGroup itself, using
+  // that group's own entry in `groupSort` (see `sortValue` below).
   const functionGroups = useMemo(() => {
     const m = new Map<string, Task[]>();
     for (const t of filtered) { const k = t.functionId ?? '__none'; (m.get(k) ?? m.set(k, []).get(k)!).push(t); }
     const entries = Array.from(m.entries());
-    // Function is a group header, not a sortable column (FIX A) — group order is always
-    // alphabetical, independent of the active per-column sort field.
     entries.sort((a, b) => {
       const an = fnName(a[0] === '__none' ? undefined : a[0]);
       const bn = fnName(b[0] === '__none' ? undefined : b[0]);
       return an.localeCompare(bn);
     });
-    const cmpRows = (a: Task, b: Task) => {
-      const av = sortVal(a, sortField);
-      const bv = sortVal(b, sortField);
-      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-      return sortDir === 'asc' ? cmp : -cmp;
-    };
-    return entries.map(([fid, list]) => [fid, [...list].sort(cmpRows)] as [string, Task[]]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, sortField, sortDir]);
+    return entries;
+  }, [filtered]);
 
   // Lazy-render page: take the first `visibleCount` task rows in the already-sorted
   // group order, re-deriving the same [functionId, rows][] shape so partially-consumed
@@ -338,23 +342,11 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
         <div className="tbl-wrap">
           <table>
             <thead>
-              <tr>
-                {SORT_COLS.map((c) => (
-                  <th
-                    key={c.key}
-                    className={c.hide}
-                    style={{ ...thStyle, cursor: 'pointer' }}
-                    onClick={() => handleSort(c.key)}
-                    title="Click to sort"
-                  >
-                    {c.label}
-                    {sortField === c.key && (
-                      <Icon name={sortDir === 'asc' ? 'chevron_up' : 'chevron_down'} size={11} style={{ marginLeft: 3, verticalAlign: 'middle', opacity: 0.7 }} />
-                    )}
-                  </th>
-                ))}
-                <th style={{ ...thStyle, ...actionsCellStyle('#f7f8fb'), width: 34 }} />
-              </tr>
+              {/* FIX D: the sortable column-header row moves into each FunctionGroup
+                  (per-group sort state, not global — see groupSort/handleGroupSort
+                  above and FunctionGroup below). This <thead> now hosts only the
+                  per-column filter row (superseded by the consolidated filter bar in
+                  FIX E, filter-bar.tsx). */}
               {/* Per-column filter row (reference: tr.ts-filter-row) — reuses the same
                   ColFilter state/applyColFilters as the standalone FilterBar above (kept
                   as-is; see decisions). Native <select>s to match the reference's exact
@@ -457,7 +449,15 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                 </tr>
               ) : (
                 pagedFunctionGroups.map(([fid, list]) => (
-                  <FunctionGroup key={fid} name={fnName(fid === '__none' ? undefined : fid)} list={list} onOpen={setDetailId} onEdit={setEditId} />
+                  <FunctionGroup
+                    key={fid}
+                    name={fnName(fid === '__none' ? undefined : fid)}
+                    list={list}
+                    sort={groupSort[fid]}
+                    onSort={(field) => handleGroupSort(fid, field)}
+                    onOpen={setDetailId}
+                    onEdit={setEditId}
+                  />
                 ))
               )}
               {/* Inline batch "Add Tasks" row pinned at the bottom of the table
@@ -509,7 +509,30 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   );
 }
 
-function FunctionGroup({ name, list, onOpen, onEdit }: { name: string; list: Task[]; onOpen: (id: string) => void; onEdit: (id: string) => void }) {
+// FIX D (task-sheet rebuild): each collapsible function-group owns its own sort state
+// (`sort`, passed down from TaskListView's `groupSort` map keyed by function id) and its
+// own sortable header row — clicking a column header here only re-sorts THIS group's
+// rows, mirroring the reference's `_tskGrpSetSort` (app.js.html:5463-5506), not a single
+// global sort applied to the whole page.
+function FunctionGroup({ name, list, sort, onSort, onOpen, onEdit }: {
+  name: string;
+  list: Task[];
+  sort?: { field: SortField; dir: 'asc' | 'desc' };
+  onSort: (field: SortField) => void;
+  onOpen: (id: string) => void;
+  onEdit: (id: string) => void;
+}) {
+  const { functions, employees } = useAuth();
+  const sorted = useMemo(() => {
+    if (!sort) return list;
+    return [...list].sort((a, b) => {
+      const av = sortValue(a, sort.field, functions, employees);
+      const bv = sortValue(b, sort.field, functions, employees);
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [list, sort, functions, employees]);
+
   return (
     <>
       <tr>
@@ -521,7 +544,24 @@ function FunctionGroup({ name, list, onOpen, onEdit }: { name: string; list: Tas
           </div>
         </td>
       </tr>
-      {list.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} onEdit={onEdit} />)}
+      <tr>
+        {SORT_COLS.map((c) => (
+          <th
+            key={c.key}
+            className={c.hide}
+            style={{ ...thStyle, cursor: 'pointer' }}
+            onClick={() => onSort(c.key)}
+            title="Click to sort this group"
+          >
+            {c.label}
+            {sort?.field === c.key && (
+              <Icon name={sort.dir === 'asc' ? 'chevron_up' : 'chevron_down'} size={11} style={{ marginLeft: 3, verticalAlign: 'middle', opacity: 0.7 }} />
+            )}
+          </th>
+        ))}
+        <th style={{ ...thStyle, ...actionsCellStyle('#f7f8fb'), width: 34 }} />
+      </tr>
+      {sorted.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} onEdit={onEdit} />)}
     </>
   );
 }
