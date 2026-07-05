@@ -296,10 +296,18 @@ truth, all cited to `app.js.html`:
   system as a production-data read) — do not add a "fix" here without first confirming which explanation
   is correct.
 
-**None of these corrections have been applied to the code yet as of this note** — `task-list-view.tsx`/
-`task-row.tsx` still have the 11-column/priority-bar/sticky/global-sort/multi-assignee version. This
-section documents the *diagnosis only*; update the paragraph above and "Task creation — inline batch add"
-below in place once the fix actually lands, rather than leaving both versions to drift out of sync.
+**Applied 2026-07-06 (PVERIFY-FULL-APP-PARITY Part B — "task-sheet table full rebuild")**, as 6 separate
+commits (FIX A-F) in `task-list-view.tsx` / `task-row.tsx` / `filter-bar.tsx` / `compact-multi-select.tsx`:
+column set now the real 9 (Assigned date via existing `createdAt`, Sub-Function, Task, Assigned To,
+Assigned By, Recurring — a simplified Yes/No stand-in over the existing `Task.recurring` Boolean, Status,
+Priority, Due date + Actions; Function/Project removed as columns); priority-bar column removed in favor
+of an icon+colored-text label (exact hex values above); all `position:sticky` removed; sort state is now a
+per-function-group `groupSort` map instead of one global sortField/sortDir; filtering consolidated to the
+reference's 2 mechanisms (a Function+Project toolbar, plus one rich-multi-select per-column bar built on
+`CompactMultiSelect`, both outside the `<table>`); the Add-Tasks row's Assigned To field is single-select
+(`CompactMultiSelect`'s new `single` prop) per FIX F. **Not done** (flagged, needs a decision, not
+implemented): the full 5-value Recurring cadence dropdown — that still needs a `recurrencePattern` schema
+migration.
 
 ## Table chrome renders unconditionally — never gate it on data state
 
@@ -359,10 +367,13 @@ or more entry rows (`+ Row` adds another), each independently configurable, subm
   multi-select upgrader for this field. `Task.assigneeIds` being a multi-value DB field (comma-separated
   string, the app's established array pattern — see "Array Fields — Storage Pattern" above) is still true
   and still needed no migration, but that's a data-model fact, not license to build a multi-select UI
-  here — the real app simply doesn't let one Add-Tasks row assign to more than one person at a time. The
-  batch row currently uses `compact-multi-select.tsx`'s `CompactMultiSelect` (a `.ts-ims-*`-styled
-  chip+checkbox dropdown) for Assigned To; this is pending a revert to a single-select to match the real
-  app, not yet done as of this note.
+  here — the real app simply doesn't let one Add-Tasks row assign to more than one person at a time.
+  **Fixed 2026-07-06 (FIX F of the task-sheet rebuild)**: the batch row still uses `compact-multi-select.tsx`'s
+  `CompactMultiSelect` (a `.ts-ims-*`-styled chip+checkbox dropdown) for Assigned To, but the component
+  gained a `single` prop — selecting an option now replaces the current selection and closes the dropdown
+  instead of toggling/appending, matching the real app's single-value `_ssInit` behavior. `assigneeIds`
+  keeps its array shape (0 or 1 entries via this widget); `Task.assigneeIds` remains a genuinely multi-value
+  DB field at the data layer, unaffected by this widget-level constraint.
 - **Function/Sub-Function quick-add**: the row's Function and Sub-Function dropdowns each have a "+"
   button that opens `CreateFunctionModal` inline (it already existed and already accepted
   `defaultParentFnId`). `CreateFunctionModal` gained a new optional `onCreated` prop so the batch row can
