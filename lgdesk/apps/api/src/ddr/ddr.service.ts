@@ -107,10 +107,17 @@ export class DdrService {
     // Mirror getDdrs: Admin/SA see the org-wide pending total, not just the
     // subset where they personally happen to be the entity's assigner.
     if (isAdmin(caller.role)) return { count: ddrs.length };
+    // Reference (dueDateRequests.gs:109-116) defines getPendingDueDateCount as a
+    // literal re-use of getDueDateRequests's own list — the badge count IS the
+    // list's length, by construction. getDdrs (:54-69) adds a `requestedBy`
+    // branch beyond the reference so non-admins also see DDRs they personally
+    // submitted; this count must apply that same branch or it under-counts
+    // relative to what the list actually shows for that user (AUDIT_REPORT.md
+    // A2 "Badge count vs. list — internal consistency").
     let count = 0;
     for (const d of ddrs) {
       const assignerId = await this.getEntityAssigner(d.entityType as EntityType, d.entityId);
-      if (assignerId === callerEmpId) count++;
+      if (assignerId === callerEmpId || d.requestedBy === callerEmpId) count++;
     }
     return { count };
   }
