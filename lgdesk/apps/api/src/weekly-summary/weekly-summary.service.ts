@@ -98,7 +98,14 @@ export class WeeklySummaryService {
     const dayText = await this.buildWeekText(empId, weekStart, weekEnd);
     if (!dayText) throw new BadRequestException('No work logs found for this week — fill in your work log first.');
 
-    const bullets = await this.callGemini(dayText);
+    // AUDIT_REPORT.md finding #10 (line 884, detailed at line 839): reference passes
+    // "Employee: " + empName into the prompt (weekly-summary.gs:154) — fetch the caller's
+    // name so callGemini can include the same employee-name context.
+    const user = await this.prisma.user.findUnique({ where: { empId }, select: { firstName: true, lastName: true } });
+    const empName = user ? `${user.firstName} ${user.lastName}` : empId;
+    const weekEndInclusive = new Date(weekEnd.getTime() - 86400000); // last day of week (Sunday), matches reference's inclusive "Week: start to end"
+
+    const bullets = await this.callGemini(dayText, empName, this.iso(weekStart), this.iso(weekEndInclusive));
     const content = bullets.join('\n');
     await this.prisma.weeklySummary.upsert({
       where: { empId_weekStart: { empId, weekStart } },
@@ -126,7 +133,8 @@ export class WeeklySummaryService {
     const weekEnd = new Date(weekStart.getTime());
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
 
-    const employees = await this.prisma.user.findMany({ where: { isActive: true }, select: { empId: true } });
+    const employees = await this.prisma.user.findMany({ where: { isActive: true }, select: { empId: true, firstName: true, lastName: true } });
+    const weekEndInclusive = new Date(weekEnd.getTime() - 86400000); // last day of week (Sunday), matches reference's inclusive "Week: start to end"
     let generated = 0;
     let skipped = 0;
     let failed = 0;
@@ -139,7 +147,7 @@ export class WeeklySummaryService {
         const dayText = await this.buildWeekText(emp.empId, weekStart, weekEnd);
         if (!dayText) { skipped++; continue; }
 
-        const bullets = await this.callGemini(dayText);
+        const bullets = await this.callGemini(dayText, `${emp.firstName} ${emp.lastName}`, this.iso(weekStart), this.iso(weekEndInclusive));
         await this.prisma.weeklySummary.create({
           data: { empId: emp.empId, weekStart, content: bullets.join('\n'), isEdited: false, generatedAt: new Date(), aiModel: GEMINI_MODEL },
         });
@@ -174,7 +182,14 @@ export class WeeklySummaryService {
     return lines.join('\n');
   }
 
-  private async callGemini(weekText: string): Promise<string[]> {
+  // AUDIT_REPORT.md finding #10 (line 884, detailed lines 835-849): the reference prompt
+  // (reference/weekly-summary.gs:152-168, `_wsGenerateWithAI`) is a 9-point instruction list —
+  // employee name + week date-range context, "cover ALL major areas," cross-day grouping,
+  // 1-2 complete-sentence bullets, an OT/extra-hours callout, an absence/leave callout, a
+  // "no headers/preamble/day names/dates in the output" guard, and a "don't number the
+  // bullets" guard. Reproduced here near-verbatim (only the API-call mechanics — model,
+  // temperature, maxOutputTokens per Master Reference Appendix E — are unchanged).
+  private async callGemini(weekText: string, empName: string, weekStartStr: string, weekEndStr: string): Promise<string[]> {
     // Master Reference wording is "...not set in Script Properties" (a GAS-specific
     // concept — Apps Script's key/value config store). This runtime configures the key
     // via an environment variable instead, so the message is adapted accordingly while
@@ -183,10 +198,22 @@ export class WeeklySummaryService {
     if (!key) throw new BadRequestException('GEMINI_API_KEY not set.');
 
     const prompt =
-      `You are writing a concise weekly work summary for an internal MIS report. ` +
-      `From the daily work logs below, produce 5 to 10 short, past-tense bullet points describing what was accomplished this week. ` +
-      `Each bullet on its own line, prefixed with "• ". Be specific and professional; do not invent work that is not in the logs.\n\n` +
-      `Daily work logs:\n${weekText}`;
+      `You are writing a weekly work summary for an employee's MIS (Management Information System) report.\n\n` +
+      `Employee: ${empName}\n` +
+      `Week: ${weekStartStr} to ${weekEndStr}\n\n` +
+      `Work log data:\n${weekText}\n\n` +
+      `Instructions:\n` +
+      `- Write 5 to 10 bullet points summarising the week's work\n` +
+      `- Cover ALL major areas of work — do not drop any significant task or feature area\n` +
+      `- Group related tasks that span multiple days into one comprehensive bullet\n` +
+      `- Each bullet should be 1–2 complete sentences — never cut off mid-sentence\n` +
+      `- Use past-tense action verbs: Developed, Implemented, Refactored, Tested, Fixed, etc.\n` +
+      `- If there was OT / extra hours on any day, mention it in the relevant bullet\n` +
+      `- If attendance was absent/leave on certain days, note it briefly in one bullet\n` +
+      `- Start each bullet with the • character on its own line\n` +
+      `- Do NOT include headers, preamble, day names, or dates in the output\n` +
+      `- Do NOT number the bullets — use only • as the prefix\n` +
+      `- Output only the bullet points, nothing else`;
 
     try {
       const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
