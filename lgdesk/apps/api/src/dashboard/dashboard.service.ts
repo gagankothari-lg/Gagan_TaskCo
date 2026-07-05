@@ -128,13 +128,12 @@ export class DashboardService {
       return { empId: e.empId, name: `${e.firstName} ${e.lastName}`, score: calcScore(done, inProg, overdue), done, inProg, overdue, rank: 0 };
     });
 
+    // Reference (dashboard.gs:372): plain sequential rank, no tie-awareness —
+    // `scores.forEach(function(s,i){ s.rank = i+1; });`. Two people tied at the
+    // same score still get consecutive, distinct ranks (e.g. 1, 2, 3), not
+    // standard competition ranking (1, 1, 3). AUDIT_REPORT.md A5 finding 20.
     rows.sort((a, b) => b.score - a.score);
-    let lastScore = Number.POSITIVE_INFINITY;
-    let lastRank = 0;
-    rows.forEach((r, i) => {
-      if (r.score === lastScore) r.rank = lastRank;
-      else { r.rank = i + 1; lastRank = r.rank; lastScore = r.score; }
-    });
+    rows.forEach((r, i) => { r.rank = i + 1; });
     return rows;
   }
 
