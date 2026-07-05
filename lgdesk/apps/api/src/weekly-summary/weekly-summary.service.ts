@@ -115,7 +115,12 @@ export class WeeklySummaryService {
   // trigger for runs that exceeded the ~6-minute Apps Script execution cap — that cap is
   // a GAS-specific constraint that doesn't apply to this Node/NestJS runtime, so no
   // continuation-trigger analogue is implemented here; the cron simply runs to completion.
-  @Cron('0 0 * * 1')
+  // AUDIT_REPORT.md finding #9 (line 883, detailed at line 831): reference/triggers.gs:29-33 pins
+  // this trigger to `.inTimezone('Etc/UTC')` explicitly — the reference's own comment there notes
+  // `.atHour(0)` resolves against the trigger's timezone, so the pin is required to fire at true
+  // midnight UTC rather than drifting to midnight IST. Match that explicit pin here rather than
+  // relying on the container's default TZ happening to be UTC.
+  @Cron('0 0 * * 1', { timeZone: 'Etc/UTC' })
   async generateWeeklySummaries(): Promise<{ generated: number; skipped: number; failed: number }> {
     const weekStart = this.mondayUtc(new Date(Date.now() - 7 * 86400000).toISOString());
     const weekEnd = new Date(weekStart.getTime());
