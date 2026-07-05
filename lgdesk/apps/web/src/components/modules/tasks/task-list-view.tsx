@@ -81,9 +81,6 @@ const thStyle: CSSProperties = {
   textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 10.5, fontWeight: 700,
   padding: '7px 8px', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)',
 };
-const filterThStyle: CSSProperties = { padding: '4px 6px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' };
-const filterSelectStyle: CSSProperties = { width: '100%', fontSize: 11, padding: '3px 4px' };
-
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function mondayOf(d: Date) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 
@@ -332,7 +329,10 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
         </div>
       )}
 
-      <FilterBar value={filter} onChange={setFilter} employees={employees} projects={projects} functions={functions} />
+      <FilterBar
+        value={filter} onChange={setFilter} employees={employees} projects={projects} functions={functions}
+        scope={scope} taskQuery={rawQuery} onTaskQueryChange={setRawQuery}
+      />
 
       {isLoading ? (
         <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
@@ -341,105 +341,12 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
       ) : grp === 'function' ? (
         <div className="tbl-wrap">
           <table>
-            <thead>
-              {/* FIX D: the sortable column-header row moves into each FunctionGroup
-                  (per-group sort state, not global — see groupSort/handleGroupSort
-                  above and FunctionGroup below). This <thead> now hosts only the
-                  per-column filter row (superseded by the consolidated filter bar in
-                  FIX E, filter-bar.tsx). */}
-              {/* Per-column filter row (reference: tr.ts-filter-row) — reuses the same
-                  ColFilter state/applyColFilters as the standalone FilterBar above (kept
-                  as-is; see decisions). Native <select>s to match the reference's exact
-                  filter-row controls (single-value, not the multi-select widget). */}
-              <tr>
-                {/* Assigned-date filter cell — moved to the consolidated per-column
-                    filter bar (FIX E, filter-bar.tsx); this table-level row no longer
-                    hosts Function (removed as a column, FIX A) here. */}
-                <th className={COL_HIDE.adate} style={filterThStyle} />
-                <th className={COL_HIDE.subFn} style={filterThStyle}>
-                  <select
-                    className="fc" style={filterSelectStyle}
-                    value={filter.subFunctions[0] ?? ''}
-                    onChange={(e) => setFilter({ ...filter, subFunctions: e.target.value ? [e.target.value] : [] })}
-                  >
-                    <option value="">All Sub-Functions</option>
-                    {functions.filter((f) => !!f.parentFnId).map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
-                  </select>
-                </th>
-                <th className={COL_HIDE.task} style={filterThStyle}>
-                  {/* Reference uses a "Task" <select>; we reuse the existing debounced
-                      search box's state instead of adding a new filter field/select
-                      populated from free-text task titles — see decisions. */}
-                  <input
-                    type="text" className="fc" style={filterSelectStyle}
-                    placeholder="Search…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)}
-                  />
-                </th>
-                <th className={COL_HIDE.assignee} style={filterThStyle}>
-                  {/* My Tasks has no Assigned-To filter cell here (reference: blank <th>
-                      for the "my" task-sheet instance) — Team/All Tasks get the select. */}
-                  {scope !== 'mine' && (
-                    <select
-                      className="fc" style={filterSelectStyle}
-                      value={filter.assignee[0] ?? ''}
-                      onChange={(e) => setFilter({ ...filter, assignee: e.target.value ? [e.target.value] : [] })}
-                    >
-                      <option value="">All Assignees</option>
-                      {employees.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
-                    </select>
-                  )}
-                </th>
-                <th className={COL_HIDE.assigner} style={filterThStyle}>
-                  <select
-                    className="fc" style={filterSelectStyle}
-                    value={filter.assigner[0] ?? ''}
-                    onChange={(e) => setFilter({ ...filter, assigner: e.target.value ? [e.target.value] : [] })}
-                  >
-                    <option value="">All Assigners</option>
-                    {employees.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
-                  </select>
-                </th>
-                {/* Recurring filter cell — moved to the consolidated per-column filter
-                    bar (FIX E); Project (removed as a column, FIX A) no longer appears
-                    here — it remains available only as a toolbar filter field. */}
-                <th className={COL_HIDE.recurring} style={filterThStyle} />
-                <th className={COL_HIDE.status} style={filterThStyle}>
-                  <select
-                    className="fc" style={filterSelectStyle}
-                    value={filter.status[0] ?? ''}
-                    onChange={(e) => setFilter({ ...filter, status: e.target.value ? [e.target.value] : [] })}
-                  >
-                    <option value="">All Statuses</option>
-                    {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </th>
-                <th className={COL_HIDE.priority} style={filterThStyle}>
-                  <select
-                    className="fc" style={filterSelectStyle}
-                    value={filter.priority[0] ?? ''}
-                    onChange={(e) => setFilter({ ...filter, priority: e.target.value ? [e.target.value] : [] })}
-                  >
-                    <option value="">All</option>
-                    {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </th>
-                <th className={COL_HIDE.due} style={filterThStyle}>
-                  <input
-                    type="date" className="fc" style={filterSelectStyle}
-                    value={filter.due} onChange={(e) => setFilter({ ...filter, due: e.target.value })}
-                    title="Show tasks due by this date"
-                  />
-                </th>
-                <th style={{ ...filterThStyle, ...actionsCellStyle('var(--surface)'), textAlign: 'center' }}>
-                  <button
-                    type="button" className="wl-save-btn" title="Clear all filters"
-                    onClick={() => { setFilter(DEFAULT_COL_FILTER); setRawQuery(''); }}
-                  >
-                    <Icon name="filter_list" size={14} />
-                  </button>
-                </th>
-              </tr>
-            </thead>
+            {/* FIX D: the sortable column-header row lives inside each FunctionGroup
+                (per-group sort state — see groupSort/handleGroupSort above and
+                FunctionGroup below), not a shared <thead>. FIX E: the per-column filter
+                row that used to live in this table's <thead> is removed entirely —
+                filtering is now consolidated into the single FilterBar rendered above
+                the <table>, outside it (filter-bar.tsx). */}
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
