@@ -349,22 +349,38 @@ export class ImportService {
   }
 
   // Resolve a list of "First Last" / email tokens to empIds (case-insensitive).
+  // AUDIT_REPORT.md A2 "Employee-name resolution" (Fix C): widen matching to the reference's
+  // full variant set — `_migBuildEmpMap`, task-import.gs:527-545, indexes ACTIVE-ONLY employees
+  // by full name, reversed full name, first name alone, last name alone, and email, first-match-
+  // wins for ambiguous keys. Exclude deactivated employees (`isActive: false`) so a deactivated
+  // user's name can never silently resolve during import.
   private async resolveEmpIds(names: string[]): Promise<string[]> {
     const wanted = names.map((n) => n.trim()).filter(Boolean);
     if (!wanted.length) return [];
 
     const users = await this.prisma.user.findMany({
+      where: { isActive: true },
       select: { empId: true, firstName: true, lastName: true, email: true },
     });
 
+    const empMap = new Map<string, string>();
+    const claim = (key: string, empId: string) => {
+      const k = key.trim().toLowerCase();
+      if (k && !empMap.has(k)) empMap.set(k, empId);
+    };
+    for (const u of users) {
+      claim(`${u.firstName} ${u.lastName}`, u.empId); // full name
+      claim(`${u.lastName} ${u.firstName}`, u.empId); // reversed full name
+      claim(u.firstName, u.empId); // first name alone
+      claim(u.lastName, u.empId); // last name alone
+      claim(u.email, u.empId); // email
+      claim(u.empId, u.empId); // rebuild-only extra: raw empId token
+    }
+
     const out: string[] = [];
     for (const name of wanted) {
-      const lc = name.toLowerCase();
-      const match = users.find((u) => {
-        const full = `${u.firstName} ${u.lastName}`.toLowerCase();
-        return full === lc || u.email.toLowerCase() === lc || u.empId.toLowerCase() === lc;
-      });
-      if (match && !out.includes(match.empId)) out.push(match.empId);
+      const empId = empMap.get(name.toLowerCase());
+      if (empId && !out.includes(empId)) out.push(empId);
     }
     return out;
   }
