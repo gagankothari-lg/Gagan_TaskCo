@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { GoogleCalendarService } from './google-calendar.service';
+import { EmailService } from '../email/email.service';
 import { isAdmin, isManager, parseIds, joinIds } from '../common/constants';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 
@@ -30,6 +31,7 @@ export class MeetingsService {
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
     private readonly calendar: GoogleCalendarService,
+    private readonly email: EmailService,
   ) {}
 
   userCanSeeMeeting(m: MeetingRow, caller: Caller): boolean {
@@ -93,6 +95,10 @@ export class MeetingsService {
 
     // Calendar sync — fire-and-forget; never blocks/fails the response.
     void this.syncToCalendar(meeting.id, meetingId, meetType, attendeeIds, attendeeTeams, dto, start, end);
+    // AUDIT_REPORT.md A5 finding 6 (`meet.gs:433-457` _sendMeetingGmail): "A meeting has
+    // been scheduled" notification email — fire-and-forget, independent of Calendar/Meet
+    // (needs no Google credentials, uses the existing Resend-backed EmailService).
+    void this.notifyMeetingScheduled(meetType, attendeeIds, attendeeTeams, caller.team, dto, start);
     await this.audit(callerEmpId, 'MEETING_CREATE', meetingId);
     return { meetingId, meetLink: meeting.meetLink ?? undefined };
   }
@@ -167,6 +173,34 @@ export class MeetingsService {
       users.forEach((u) => emails.add(u.email));
     }
     return [...emails];
+  }
+
+  // AUDIT_REPORT.md A5 finding 6: mirrors `_sendMeetingGmail` (`meet.gs:433-457`) — sent to
+  // resolved attendee emails only (the organizer is included automatically whenever they're
+  // also one of the resolved recipients — e.g. Company/Team scope — same as the reference;
+  // unlike the 5-minute reminder, the reference does NOT force-add the organizer here).
+  private async notifyMeetingScheduled(
+    meetType: string,
+    attendeeIds: string[],
+    attendeeTeams: string[],
+    organizerTeam: string | null,
+    dto: CreateMeetingDto,
+    start: Date,
+  ) {
+    try {
+      const attendeeEmails = await this.resolveAttendeesToEmails(meetType, attendeeIds, attendeeTeams);
+      await this.email.sendMeetingScheduled({
+        attendeeEmails,
+        title: dto.title,
+        description: dto.description,
+        startTime: start,
+        durationMins: dto.durationMins,
+        meetType,
+        team: meetType === 'team' ? (attendeeTeams[0] ?? organizerTeam) : undefined,
+      });
+    } catch {
+      // Notification is best-effort — never affects meeting creation itself.
+    }
   }
 
   private async syncToCalendar(

@@ -144,6 +144,73 @@ export class EmailService {
     );
   }
 
+  // AUDIT_REPORT.md A5 finding 6 (`meet.gs:373-457`, esp. `_sendMeetingGmail:433-457`):
+  // "A meeting has been scheduled" notification, sent to every attendee on top of whatever
+  // Calendar-invite email Google itself sends. Needs no Google credentials — plain Resend
+  // email, independent of the "Google Integrations blocked" umbrella. The 5-minute
+  // pre-meeting reminder (`meet.gs:373-430`) is NOT built here — see AUDIT_REPORT.md /
+  // needsDecision: it requires a dedup-tracking schema field to avoid duplicate sends.
+  async sendMeetingScheduled(params: {
+    attendeeEmails: string[];
+    title: string;
+    description?: string;
+    startTime: Date;
+    durationMins: number;
+    meetType: string;
+    team?: string | null;
+    meetLink?: string;
+  }): Promise<void> {
+    if (params.attendeeEmails.length === 0) return;
+
+    const prefix =
+      params.meetType === 'company' ? '[Company Meeting] '
+      : params.meetType === 'team' ? '[Team Meeting] '
+      : '[Meeting] ';
+    const subject = `${prefix}${params.title || 'Meeting'}`;
+
+    const timeStr = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(params.startTime).replace(/,(\s+\d)/, ',$1') + ' IST';
+
+    const scope =
+      params.meetType === 'company' ? 'Whole Company'
+      : params.meetType === 'team' ? `Team: ${params.team ?? ''}`
+      : 'Selected Attendees';
+
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:'Helvetica Neue',Arial,sans-serif">
+  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+    <div style="background:#1a237e;padding:24px 32px">
+      <div style="color:#fff;font-size:20px;font-weight:700">LG Desk</div>
+      <div style="color:#c5cae9;font-size:13px;margin-top:4px">A meeting has been scheduled</div>
+    </div>
+    <div style="padding:32px">
+      <div style="background:#f5f5f5;border-radius:8px;padding:20px;margin-bottom:24px">
+        <div style="font-size:16px;font-weight:600;color:#1a237e;margin-bottom:12px">${params.title || 'Meeting'}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="color:#757575;font-size:13px;padding:4px 0;width:100px">Date/Time</td><td style="color:#212121;font-size:13px;padding:4px 0">${timeStr}</td></tr>
+          <tr><td style="color:#757575;font-size:13px;padding:4px 0">Duration</td><td style="color:#212121;font-size:13px;padding:4px 0">${params.durationMins} minutes</td></tr>
+          <tr><td style="color:#757575;font-size:13px;padding:4px 0">Audience</td><td style="color:#212121;font-size:13px;padding:4px 0">${scope}</td></tr>
+          ${params.description ? `<tr><td style="color:#757575;font-size:13px;padding:4px 0;vertical-align:top">Description</td><td style="color:#212121;font-size:13px;padding:4px 0">${params.description}</td></tr>` : ''}
+        </table>
+      </div>
+      <a href="${params.meetLink || '#'}" style="display:inline-block;background:#1a237e;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600">${params.meetLink ? 'Join Meeting →' : 'Meet link unavailable'}</a>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    await Promise.all(params.attendeeEmails.map((to) => this.send(to, subject, html)));
+  }
+
   async sendPasswordResetOTP(params: {
     email: string;
     firstName: string;
