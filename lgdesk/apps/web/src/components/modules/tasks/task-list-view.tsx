@@ -44,7 +44,7 @@ const SORT_COLS: { key: SortField; label: string; hide: string }[] = [
   { key: 'priority', label: 'Priority', hide: COL_HIDE.priority },
   { key: 'due', label: 'Due Date', hide: COL_HIDE.due },
 ];
-const TOTAL_COLS = SORT_COLS.length + 2; // + priority-bar + actions
+const TOTAL_COLS = SORT_COLS.length + 1; // + actions (no priority-bar column — FIX B, nothing in the reference is a priority bar)
 
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 
@@ -335,7 +335,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
           <table>
             <thead>
               <tr>
-                <th style={{ ...thStyle, padding: 0, width: 4, minWidth: 4, maxWidth: 4 }} />
                 {SORT_COLS.map((c) => (
                   <th
                     key={c.key}
@@ -357,7 +356,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                   as-is; see decisions). Native <select>s to match the reference's exact
                   filter-row controls (single-value, not the multi-select widget). */}
               <tr>
-                <th style={filterThStyle} />
                 {/* Assigned-date filter cell — moved to the consolidated per-column
                     filter bar (FIX E, filter-bar.tsx); this table-level row no longer
                     hosts Function (removed as a column, FIX A) here. */}

@@ -9,7 +9,7 @@ import { Icon } from '../../ui/icon';
 import { Badge } from '../../ui/badge';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../ui/dropdown-menu';
 import { avatarColor, initials, statusDotColor as dotColor, fmtDate } from '../../../lib/utils';
-import { statusDot, priorityDisplay, statusPillStyle } from '../../../lib/status-styles';
+import { statusDot, statusPillStyle } from '../../../lib/status-styles';
 import { TASK_STATUSES } from './create-task-modal.schema';
 import type { Task, User } from '../../../lib/types';
 
@@ -35,16 +35,21 @@ export function statusDotColor(status: string, overdue: boolean): string {
   return dotColor(status, { overdue });
 }
 
-// Leftmost 4px priority-bar colour (reference: `.ts-pribar.p-<Priority>`).
-// Medium standardized to #3949ab app-wide (matches lib/status-styles.ts priorityDisplay()).
-export function priorityBarColor(priority: string): string {
-  switch (priority) {
-    case 'Critical': return 'var(--danger)';
-    case 'High': return 'var(--warn)';
-    case 'Medium': return '#3949ab';
-    case 'Low': return 'var(--muted2)';
-    default: return 'transparent';
-  }
+// FIX B (task-sheet rebuild): there is no priority-bar anywhere in the live reference
+// app — the only function that would ever emit a `.ts-pribar` cell (`_renderTskSheet`,
+// app.js.html:9424) has zero callers. Priority is instead an icon + colored-text label
+// in a normal column (8th of 9, after Status, before Due date) — exact values from
+// `_tskGrpPriorityHtml` (app.js.html:5212-5216). These are literal hex values confirmed
+// from the reference's own live rendering, not this app's indigo brand tokens — used
+// as-is since this is a data-status indicator, not a brand element.
+const TASK_PRIORITY_DISPLAY: Record<string, { icon: string; color: string }> = {
+  Critical: { icon: '⬆', color: '#dc2626' },
+  High: { icon: '↑', color: '#dc2626' },
+  Medium: { icon: '→', color: '#d97706' },
+  Low: { icon: '↓', color: '#16a34a' },
+};
+export function taskPriorityDisplay(priority: string): { icon: string; color: string } {
+  return TASK_PRIORITY_DISPLAY[priority] ?? { icon: '–', color: '#94a3b8' };
 }
 
 // Responsive column-hide classes shared with task-list-view.tsx's <th> header/filter
@@ -98,7 +103,7 @@ function AvatarStack({ ids }: { ids: string[] }) {
   );
 }
 
-/** Function-mode table row (task-sheet: priority-bar + 8 data columns + actions) with double-click inline status edit. */
+/** Function-mode table row (task-sheet: 9 data columns + actions, no priority bar — FIX B) with double-click inline status edit. */
 export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: string) => void; onEdit: (id: string) => void }) {
   const { currentUser, employees, functions } = useAuth();
   const update = useUpdateTask();
@@ -145,8 +150,6 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
 
   return (
     <tr onClick={() => onOpen(task.taskId)} className={closed ? 'tsk-row-closed' : undefined} style={{ cursor: 'pointer' }}>
-      {/* Leftmost 4px priority-bar column (reference: ts-pribar) */}
-      <td style={{ padding: 0, width: 4, minWidth: 4, maxWidth: 4, background: priorityBarColor(task.priority) }} />
       <td className={COL_HIDE.adate} style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--muted)' }}>{fmtDate(task.createdAt, { month: 'short', day: 'numeric' })}</td>
       <td className={COL_HIDE.subFn}>{subFnName ? <span>{subFnName} <span style={{ color: 'var(--muted2)', fontFamily: 'monospace', fontSize: 10 }}>{task.subFnId}</span></span> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
       <td className={COL_HIDE.task}>
@@ -193,7 +196,16 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
         )}
       </td>
 
-      <td className={COL_HIDE.priority}>{(() => { const pd = priorityDisplay(task.priority); return <span style={{ color: pd.color, fontWeight: 600, fontSize: 12 }}>{pd.label}</span>; })()}</td>
+      <td className={COL_HIDE.priority}>
+        {(() => {
+          const pd = taskPriorityDisplay(task.priority);
+          return (
+            <span style={{ color: pd.color, fontWeight: 600, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span aria-hidden="true">{pd.icon}</span>{task.priority}
+            </span>
+          );
+        })()}
+      </td>
       <td className={COL_HIDE.due} style={{ whiteSpace: 'nowrap' }}>
         {task.dueDate ? (
           <span style={{ color: overdue ? 'var(--danger)' : 'var(--muted)', fontSize: 12, textDecoration: closed ? 'line-through' : 'none' }}>
