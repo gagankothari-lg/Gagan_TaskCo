@@ -292,9 +292,8 @@ export interface Leave {
   updatedAt: string;
 }
 
-// Reference ground truth: setupSheets.gs:123 `Leave_Type` validation list — 8 values,
-// including "Emergency Leave" (audit finding A4). Mirrors apps/api/src/common/constants.ts.
-export const LEAVE_TYPES = ['Annual', 'Sick', 'Casual', 'Maternity', 'Paternity', 'Unpaid Leave', 'Half Day', 'Emergency Leave'] as const;
+// Master Reference Part 23 BR-1 / Part 37 My Leaves Checklist: exactly these 7 types.
+export const LEAVE_TYPES = ['Annual', 'Sick', 'Casual', 'Maternity', 'Paternity', 'Unpaid Leave', 'Half Day'] as const;
 
 // ─── Meetings (P16/P17) ────────────────────────────
 export interface Meeting {

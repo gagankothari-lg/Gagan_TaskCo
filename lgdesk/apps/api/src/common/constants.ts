@@ -28,10 +28,9 @@ export const VISIBILITY_TYPES = ['Organisation', 'TCs & TFs', 'TCs Only'] as con
 export const parseIds = (s?: string | null): string[] => (s ? s.split(',').filter(Boolean) : []);
 export const joinIds  = (a?: string[] | null): string => (a ? a.filter(Boolean).join(',') : '');
 
-// Reference ground truth: setupSheets.gs:123 `Leave_Type` validation list — 8 values,
-// including "Emergency Leave" (audit finding A4; added here as a pure validation-list
-// widening — leaveType is a plain String column, no DB enum, see schema.prisma).
-export const LEAVE_TYPES = ['Annual','Sick','Casual','Maternity','Paternity','Unpaid Leave','Half Day','Emergency Leave'] as const;
+// Master Reference Part 23 BR-1: exactly these 7 types (no "Emergency"; "Unpaid Leave"
+// not "Unpaid" — Part 37 My Leaves Checklist asserts this exact option list).
+export const LEAVE_TYPES = ['Annual','Sick','Casual','Maternity','Paternity','Unpaid Leave','Half Day'] as const;
 
 export const ATTENDANCE_TYPES = [
   'Present','Leave Full Day','Leave Half Day','Alternate Week Off','Week Off','Holiday','Extra Full Day','Extra Half Day'
