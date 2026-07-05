@@ -283,6 +283,11 @@ export default function LoginPage() {
                     <span className={rolePillClass(user.role)}>{user.role}</span>
                     {user.team && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{user.team}</span>}
                   </div>
+                  {/* Reference: #luc-designation (index.html:1768) — unhidden + populated only
+                      `if (r.designation)` (app.js.html:776-778); stays absent otherwise. */}
+                  {user.designation && (
+                    <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', marginTop: 2 }}>{user.designation}</div>
+                  )}
                 </div>
               </div>
               <Button className="w-full" onClick={() => router.push('/dashboard')}>Enter Dashboard →</Button>
