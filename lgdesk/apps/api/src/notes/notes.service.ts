@@ -39,7 +39,10 @@ export class NotesService {
   // ─────────────────────────────────────────────── notes
   async getNotes(empId: string) {
     // Pinned notes surface first, matching the Keep-style UI convention.
-    return this.prisma.note.findMany({ where: { empId }, orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }] });
+    // Secondary key is updatedAt (not createdAt) so an edited note bubbles
+    // back to the top of its pinned/unpinned group, matching notes.gs:82
+    // (`String(b['Updated_At']).localeCompare(String(a['Updated_At']))`).
+    return this.prisma.note.findMany({ where: { empId }, orderBy: [{ pinned: 'desc' }, { updatedAt: 'desc' }] });
   }
 
   async createNote(dto: CreateNoteDto, empId: string) {
