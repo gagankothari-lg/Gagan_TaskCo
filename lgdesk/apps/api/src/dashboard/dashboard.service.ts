@@ -59,10 +59,16 @@ export class DashboardService {
     const onLeave = await this.getOnLeaveToday(employees);
 
     // 4. Upcoming meetings, today through +30 days (Part 27 "Additional Notice Sources").
+    // AUDIT_REPORT.md A5 finding 14 (`dashboard.gs:116-193`, esp. `:161`
+    // `if (!tmType || tmType === 'custom') return;`): Custom/personal meetings are
+    // explicitly excluded from the Notice Board — only Company/Team meetings belong here.
+    // (Company-meeting visibility itself is restored by the userCanSeeMeeting fix,
+    // AUDIT_REPORT.md A5 finding 5.)
     const monthAhead = new Date(today);
     monthAhead.setUTCDate(monthAhead.getUTCDate() + 30);
     const upcoming = await this.meetings.getUpcomingMeetings(caller.empId);
     const meetings = upcoming
+      .filter((m) => m.meetType !== 'custom')
       .filter((m) => new Date(m.startTime) <= monthAhead)
       .map((m) => ({ meetingId: m.meetingId, title: m.title, startTime: m.startTime }));
 

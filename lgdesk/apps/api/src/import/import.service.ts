@@ -249,22 +249,45 @@ export class ImportService {
 
     const subKey = (fn: string, sub: string): string => `${fn.toLowerCase()}|||${sub.toLowerCase()}`;
 
-    const ensureFunction = async (name: string): Promise<string> => {
+    // Status/Priority/Deadline for a structure-only (Function/Sub-Fn) row — applied only when the
+    // row itself creates the Function/Sub-Function record, never when a Task row is merely
+    // ensuring its parent hierarchy exists (mirrors `_migInsertRows`, task-import.gs:304-311).
+    interface StructureFields {
+      status?: string;
+      priority?: string;
+      deadline?: string;
+    }
+
+    const ensureFunction = async (name: string, fields?: StructureFields): Promise<string> => {
       const key = name.toLowerCase();
       const existing = fnByName.get(key);
       if (existing) return existing;
-      const fn = await this.functions.createFunction({ name, projId: projectId }, callerEmpId);
+      const fn = await this.functions.createFunction(
+        { name, projId: projectId, status: fields?.status, priority: fields?.priority, deadline: fields?.deadline },
+        callerEmpId,
+      );
       fnByName.set(key, fn.functionId);
       return fn.functionId;
     };
 
-    const ensureSubFunction = async (parentName: string, subName: string): Promise<string> => {
+    const ensureSubFunction = async (
+      parentName: string,
+      subName: string,
+      fields?: StructureFields,
+    ): Promise<string> => {
       const key = subKey(parentName, subName);
       const existing = subByKey.get(key);
       if (existing) return existing;
       const parentId = await ensureFunction(parentName);
       const fn = await this.functions.createFunction(
-        { name: subName, parentFnId: parentId, projId: projectId },
+        {
+          name: subName,
+          parentFnId: parentId,
+          projId: projectId,
+          status: fields?.status,
+          priority: fields?.priority,
+          deadline: fields?.deadline,
+        },
         callerEmpId,
       );
       subByKey.set(key, fn.functionId);
@@ -276,12 +299,20 @@ export class ImportService {
       try {
         if (row.type === 'Function') {
           if (!row.function) throw new Error('Function name is required');
-          await ensureFunction(row.function);
+          await ensureFunction(row.function, {
+            status: this.cleanStatus(row.status),
+            priority: this.cleanPriority(row.priority),
+            deadline: this.parseDate(row.dueDate),
+          });
           created++;
         } else if (row.type === 'Sub-Fn') {
           if (!row.function) throw new Error('Parent function name is required');
           if (!row.subFunction) throw new Error('Sub-function name is required');
-          await ensureSubFunction(row.function, row.subFunction);
+          await ensureSubFunction(row.function, row.subFunction, {
+            status: this.cleanStatus(row.status),
+            priority: this.cleanPriority(row.priority),
+            deadline: this.parseDate(row.dueDate),
+          });
           created++;
         } else {
           // Task
