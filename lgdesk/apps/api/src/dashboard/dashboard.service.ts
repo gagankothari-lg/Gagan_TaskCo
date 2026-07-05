@@ -84,10 +84,14 @@ export class DashboardService {
     const leaves = await this.prisma.leave.findMany({
       where: { status: 'Approved', startDate: { lte: today }, endDate: { gte: today } },
     });
-    return leaves.map((l) => {
-      const e = employees.find((x) => x.empId === l.empId);
-      return { empId: l.empId, name: e ? `${e.firstName} ${e.lastName}` : l.empId, leaveType: l.leaveType };
-    });
+    // Sort by employee name ascending — matches reference dashboard.gs:311
+    // (`.sort(function(a,b){ return a.name < b.name ? -1 : 1; })`), audit finding A5.
+    return leaves
+      .map((l) => {
+        const e = employees.find((x) => x.empId === l.empId);
+        return { empId: l.empId, name: e ? `${e.firstName} ${e.lastName}` : l.empId, leaveType: l.leaveType };
+      })
+      .sort((a, b) => (a.name < b.name ? -1 : 1));
   }
 
   async getScoreboard(caller: Caller, employees: Emp[]) {
