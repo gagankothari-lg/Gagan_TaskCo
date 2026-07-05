@@ -34,6 +34,12 @@ export class MeetingsService {
 
   userCanSeeMeeting(m: MeetingRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
+    // AUDIT_REPORT.md A5 finding 5 (`meet.gs:490-492` tmType==='company' → true): Company
+    // Meetings are visible org-wide to every active employee, matching the reference's
+    // `_userCanSeeMeeting`. Without this case, Company meetings (whose attendeeIds/
+    // attendeeTeams are deliberately emptied in createMeeting) were only visible to the
+    // organizer and admins.
+    if (m.meetType === 'company') return true;
     if (m.organizerId === caller.empId) return true;
     if (parseIds(m.attendeeIds).includes(caller.empId)) return true;
     if (caller.team && parseIds(m.attendeeTeams).includes(caller.team)) return true;
