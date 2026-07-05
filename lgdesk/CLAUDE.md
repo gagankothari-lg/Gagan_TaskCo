@@ -209,13 +209,14 @@ this file rather than let it go stale.
 Two standardization decisions were made during the 2026-07-04 pixel-accuracy pass, verified directly
 against that reference — do not silently re-diverge these across components:
 
-- **Priority "Medium" color is `#3949ab` (`var(--p2)`).** The app previously had inconsistent Medium
-  values (`#1a237e` in some components, `#1565c0` in others). `#3949ab` was chosen because it's the only
-  variant of the three found in the real GAS source that maps to an actual design token rather than an
-  ad-hoc hex — the reference's own `.ts-pribar.p-Medium{background:#3949ab}` rule confirms it. Applies
-  everywhere Medium priority is shown: `status-styles.ts` `priorityDisplay()`, `globals.css`
-  `.badge-medium`/`.task-card.p-Medium`, `import-modal.tsx`, `my-projects.tsx`, and the task-sheet table's
-  priority bar (`task-row.tsx`).
+- **Priority "Medium" color is `#3949ab` (`var(--p2)`).** ⚠️ **SUPERSEDED 2026-07-05 for the task-sheet
+  table specifically** — see the dead-code warning section immediately below. The `.ts-pribar` rule this
+  decision was based on turned out to be unreachable code; the real app has no priority bar at all and
+  uses a completely different icon+color scheme (`#dc2626`/`#d97706`/`#16a34a`) for the task-sheet. This
+  `#3949ab` value may still be the right call for `status-styles.ts`/`import-modal.tsx`/`my-projects.tsx`'s
+  own Medium-priority badges (those weren't part of the 2026-07-05 re-diagnosis), but `task-row.tsx`'s
+  priority-bar column is pending a rebuild, not a settled fact. The app previously had inconsistent Medium
+  values (`#1a237e` in some components, `#1565c0` in others) before this decision.
 - **Presence-status dot colors are `#22c55e` (online) / `#f59e0b` (away) / `#ef4444` (dnd) / `#9ca3af`
   (offline).** The app previously used an older, less-saturated palette (`#43a047`/`#fb8c00`/`#e53935`/
   `#9e9e9e`). The newer, more-saturated set was chosen because it's the one used in the GAS source's most
@@ -230,6 +231,75 @@ Actions), including a per-column filter row, per-column sort, and an inline "Add
 GAS source's task-sheet markup — this is a deliberate, real loss of at-a-glance visibility for those two
 attributes (still viewable via task detail), done because the reference is authoritative here. If this
 turns out to matter to users in practice, it's a candidate to revisit, not an oversight.
+
+⚠️ **This whole paragraph is SUPERSEDED as of 2026-07-05 — it was built from `lgdesk-gas-source.html`'s
+static markup alone, which turned out to be dead code for the task-sheet (see the section immediately
+below).** The real column set is the OPPOSITE swap of what's described above: it correctly has no
+Function/Project columns (Function is a group header, confirmed correct), but it's **missing Assigned-
+date and Recurring**, which the real app *does* have as columns — not missing them, as stated above. There
+is also no priority bar, no sticky behavior, and sort is per-function-group rather than global. None of
+this has been rebuilt in code yet as of this note; `task-list-view.tsx`/`task-row.tsx` still match the
+(now known incorrect) description in this paragraph, not the corrected one below.
+
+## ⚠️ `lgdesk-gas-source.html`'s task-sheet markup is largely dead code — `app.js.html` is required reading
+
+**Discovered 2026-07-05, during the `PFIX-TASKS-EXACT-PARITY` diagnostic pass.** `reference/lgdesk-gas-
+source.html` is only the static markup/CSS. The repo also has `reference/app.js.html` (the real
+interactive logic, ~17,200 lines) — and it proves large parts of the static task-sheet markup are **dead
+code the JS deletes or hides on every render**: `_tskInjectFilterBarForVid` (`app.js.html:5730-5742`) does
+`oldFilterRow.remove()` and `oldHdrRow.style.display='none'` on the static `<thead>` unconditionally on
+every render of My/Team/All Tasks, and the only function that would ever emit a `.ts-pribar` priority-bar
+cell (`_renderTskSheet`, `app.js.html:9424`) has zero callers anywhere in the file. **For any future
+task-sheet work, `app.js.html` is required reading — the static HTML alone gives a wrong answer for
+column set, priority display, sticky behavior, sort scope, and the filter mechanism.** Corrected ground
+truth, all cited to `app.js.html`:
+
+- **Columns (9, not 11)**: Assigned date, Sub-function, Task, Assigned To, Assigned By, Recurring, Status,
+  Priority, Due date, + Actions — one shared spec, `_TSK_COL_SPEC` (`app.js.html:677-688`), used
+  identically by My/Team/All Tasks (`_renderGroupedRow`, `5360-5446`). **Function is a collapsible group
+  header, not a column; there is no Project column.**
+- **No priority bar exists anywhere in the live app.** Priority is an icon + colored text label in a
+  normal cell (8th of 9 columns): Critical=`⬆`/`#dc2626`, High=`↑`/`#dc2626`, Medium=`→`/`#d97706`,
+  Low=`↓`/`#16a34a` (`_tskGrpPriorityHtml`, `app.js.html:5212-5216`).
+- **Nothing in the task-sheet is sticky.** The static CSS's `position:sticky` rules
+  (`lgdesk-gas-source.html:319,371`) are attached to the dead `<thead>`; the live per-group table CSS
+  (`_tskGrpInjectCss`, `app.js.html:5046-5101`) has zero `position:sticky` rules.
+- **Sort is per-function-group, not global.** `_tskGrpSetSort` (`app.js.html:5463-5506`) re-sorts one
+  group's own rows; the static header's global `_tskSortClick` (`9345`) is wired only to the dead header
+  and never runs.
+- **Filtering is exactly 2 mechanisms** (not 1, not 3), both built by JS **outside the `<table>`
+  element** (not inside a `<thead>`): (a) a 2-control "Filter:" toolbar — Function + Project only
+  (`_tskBuildFilterBar`, `app.js.html:5643-5647`); (b) a ~9-control per-column bar (Assigned-date range,
+  Sub-fn, Task, Assignee, Assigner, Recurring, Status, Priority, Due, + a Select-All/Clear control) using
+  **rich checkbox/chip multi-select widgets** via `_ssInitMulti` (`app.js.html:475-659`), not plain
+  `<select>`s (`5649-5723`).
+- **Add-Tasks row "Assigned To" is single-select, not multi.** `_ssInit` (a single-value searchable
+  select), confirmed via grep to never be passed through `_ssInitMulti` for this field
+  (`app.js.html:10396,10404`). The `CompactMultiSelect` multi-assignee rebuild described in "Task
+  creation — inline batch add" below contradicts the real app.
+- **Add-Tasks row "Assigned Date"** is present in the real markup (`app.js.html:10426-10428`, defaults to
+  today) but **`_atmSaveAll` never reads it** (`10747-10756`) — decorative/dead even in the real app. A
+  decorative-only date input can be added safely; **no schema migration is needed for this field.**
+- **Add-Tasks row "Recurring"** IS a real, saved field (read by `_atmSaveAll`, `10747-10756`) — a plain
+  select with exactly 5 options: One Time / Daily / Weekly / Monthly / Quarterly (`app.js.html:10480-
+  10485` — corrected down from an earlier misread of the *standalone* New Task modal's unrelated 10-option
+  select). `Task.recurring` is currently a plain `Boolean` — supporting this for real needs a small schema
+  migration (a `recurrencePattern` column, 5 values). **Pending a decision — not yet built.**
+- **"Assigned To" showing "Leveraged Growth" instead of a person's name** — reported live, not yet root-
+  caused. Code has zero fallback path (`auth.service.ts:86,119` always computes `${firstName}
+  ${lastName}` from the DB row, no `||` default anywhere in the chain) — so if this is real, it's either
+  (a) the specific logged-in account's actual `firstName`/`lastName` DB values literally being
+  "Leveraged"/"Growth", or (b) UI misattribution from the Org Chart page's hardcoded root-node label
+  (`org-chart/page.tsx:405`, "Leveraged Growth", sitting at the top of the org tree in the visual position
+  a person's card would occupy). Confirming (a) requires a direct DB/data read, which needs explicit
+  authorization (a direct-Prisma-connection script dumping user names/emails was blocked by the permission
+  system as a production-data read) — do not add a "fix" here without first confirming which explanation
+  is correct.
+
+**None of these corrections have been applied to the code yet as of this note** — `task-list-view.tsx`/
+`task-row.tsx` still have the 11-column/priority-bar/sticky/global-sort/multi-assignee version. This
+section documents the *diagnosis only*; update the paragraph above and "Task creation — inline batch add"
+below in place once the fix actually lands, rather than leaving both versions to drift out of sync.
 
 ## Table chrome renders unconditionally — never gate it on data state
 
@@ -254,6 +324,16 @@ mobile hamburger and `ClockWidget`) was a static visual placeholder (hardcoded d
 hours) since the original UI-shell phase — it's now wired to real data via the existing `useMyWorkLogs`
 hook (no new endpoint needed), showing real per-day attendance colors and a real "`<n>`h this week" total.
 
+⚠️ **Still completely invisible at every screen width, confirmed 2026-07-05 — the data-wiring fix above
+did not fix the actual visibility bug.** `week-glance-widget.tsx`'s root className uses bare Tailwind
+`hidden` paired with `sm:flex` (meant as "hidden below 640px, flex at/above it"), but `globals.css`'s
+`.hidden { display: none !important; }` (a project-wide override) always wins over `sm:flex`'s plain,
+non-`!important` `display:flex`, regardless of viewport width or media-query specificity — so the widget
+never displays, at any screen size. This is the exact footgun `layout-client.tsx`'s own nav-item code
+already documents and avoids (using `max-md:hidden` instead of `hidden md:flex`, see the mobile-sidebar
+note earlier in this file) — `week-glance-widget.tsx` just wasn't written to follow that same rule. Fix
+is a one-line className change (e.g. to `max-sm:hidden ... flex`); not yet applied as of this note.
+
 ## Task creation — inline batch add, not a modal
 
 My Tasks / Team Tasks / All Tasks (all three share `task-list-view.tsx` + `task-row.tsx`) create tasks
@@ -273,12 +353,16 @@ or more entry rows (`+ Row` adds another), each independently configurable, subm
   visible with their typed data intact and an inline error message, so a partial failure never silently
   discards what the user typed. Row-to-result matching is keyed by React Hook Form's stable `field.id`,
   not array index (indices shift once succeeded rows are spliced out).
-- **Multi-assignee**: `Task.assigneeIds` was already a multi-value field before this change (the app's
-  established comma-separated-string array pattern — see "Array Fields — Storage Pattern" above), so no
-  schema migration was needed to support assigning a task to multiple people. The batch row uses
-  `compact-multi-select.tsx`'s `CompactMultiSelect` (a `.ts-ims-*`-styled chip+checkbox dropdown, sized for
-  a narrow table cell — distinct from the roomier `.ms-wrap`/`.ms-chip` widget used in Meetings/full-size
-  modals) for the Assigned To column; new rows default to the current user as a pre-selected chip.
+- **Multi-assignee**: ⚠️ **This decision is SUPERSEDED as of 2026-07-05 — the real app's Add-Tasks row is
+  single-assignee, not multi.** `app.js.html:10396,10404` uses `_ssInit` (a single-value searchable
+  select) for Assigned To, confirmed via grep to never be passed through the app's own `_ssInitMulti`
+  multi-select upgrader for this field. `Task.assigneeIds` being a multi-value DB field (comma-separated
+  string, the app's established array pattern — see "Array Fields — Storage Pattern" above) is still true
+  and still needed no migration, but that's a data-model fact, not license to build a multi-select UI
+  here — the real app simply doesn't let one Add-Tasks row assign to more than one person at a time. The
+  batch row currently uses `compact-multi-select.tsx`'s `CompactMultiSelect` (a `.ts-ims-*`-styled
+  chip+checkbox dropdown) for Assigned To; this is pending a revert to a single-select to match the real
+  app, not yet done as of this note.
 - **Function/Sub-Function quick-add**: the row's Function and Sub-Function dropdowns each have a "+"
   button that opens `CreateFunctionModal` inline (it already existed and already accepted
   `defaultParentFnId`). `CreateFunctionModal` gained a new optional `onCreated` prop so the batch row can
@@ -286,16 +370,20 @@ or more entry rows (`+ Row` adds another), each independently configurable, subm
   `useAuth().refresh()` (refetching the initial-payload), **not** `useFunctions()`'s TanStack Query
   invalidation — `task-list-view.tsx`'s `functions` prop comes from that one-shot initial payload, a
   separate cache from the `['functions']` query key.
-- **Deliberately deferred, not built** (both would need a schema change, and neither was confirmed before
-  building — revisit as a dedicated follow-up, don't silently add later without re-checking this note):
-  - **Recurring cadence.** The real app's "Recurring" field is a 10-option dropdown (One Time / Daily /
-    Weekly / Alternate Week / Bi Weekly / Monthly / Bi Monthly / Quarterly / Bi Yearly / Yearly — confirmed
-    from the reference's standalone New Task modal markup), but `Task.recurring` in the schema is a plain
-    boolean. The batch row has no Recurring field at all right now (rather than build a boolean toggle
-    that doesn't match the real cadence options, or guess at a migration).
-  - **Assigned Date.** The reference shows an editable "Assigned Date" input (defaults to today) distinct
-    from the task's creation timestamp, but there's no backing schema field for a user-settable date
-    separate from `createdAt`. Omitted from the batch row for the same reason.
+- **Deliberately deferred, not built** — ⚠️ **corrected 2026-07-05, both details below were wrong in the
+  original note**:
+  - **Recurring cadence.** ⚠️ The dropdown's real option set is **5 values, not 10**: One Time / Daily /
+    Weekly / Monthly / Quarterly (`app.js.html:10480-10485` — the earlier 10-option list was misread from
+    the *standalone* New Task modal's unrelated recurring select, not the Add-Tasks batch row's actual
+    one). It also turns out to be a **real, saved field** (`_atmSaveAll` reads it, `app.js.html:10747-
+    10756`) — not decorative. `Task.recurring` in the schema is still a plain boolean, so this still needs
+    a small migration (a `recurrencePattern` column, 5 values) before it can be built for real — that
+    decision is still pending, not yet built as of this note.
+  - **Assigned Date.** ⚠️ Confirmed the field is **decorative/dead even in the real app** —
+    `app.js.html:10426-10428` builds the input (defaults to today) but `_atmSaveAll` never reads it
+    (`10747-10756`). So unlike Recurring, this one needs **no schema migration at all** — a purely
+    decorative date input (not wired to anything submitted) can be added safely to match the real app
+    exactly. Not yet built as of this note.
 - `create-task-modal.tsx` (the file) is **not deleted** despite its `CreateTaskModal` component being
   retired — it still hosts `EmployeeMultiSelect`/`fieldClass`/`TASK_STATUSES`/`TASK_PRIORITIES` re-exports
   that 8+ other modals depend on (`create-function-modal`, `create-project-modal`,

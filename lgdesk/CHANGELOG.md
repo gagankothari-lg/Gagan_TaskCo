@@ -2,6 +2,56 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-07-05 — PFIX-TASKS-EXACT-PARITY diagnostic pass (task-sheet exact-parity audit vs. production GAS app)
+
+Diagnosis-only pass — **no code was changed in this pass.** An exact-parity audit of the My/Team/All
+Tasks table against the real production GAS app was requested (`PFIX-TASKS-EXACT-PARITY`). The repo has
+two GAS reference files: `reference/lgdesk-gas-source.html` (static markup/CSS only) and
+`reference/app.js.html` (~17,200 lines, the actual interactive JS logic, only recently made available).
+Reading `app.js.html` revealed that large parts of the static HTML's task-sheet markup are **dead code**
+that the live JS deletes or hides on every render — meaning three prior passes in this project (a
+pixel-accuracy pass, a batch-task-add pass, and a table-shell pass) were all built against the wrong
+ground truth, since they only had the static HTML available, not `app.js.html`. Full citations and detail
+live in `CLAUDE.md`'s new section, "⚠️ `lgdesk-gas-source.html`'s task-sheet markup is largely dead code —
+`app.js.html` is required reading" — this entry only summarizes what was found there.
+
+### Diagnosed (not yet fixed)
+
+- **Column set is 9, not 11.** Real columns: Assigned date, Sub-function, Task, Assigned To, Assigned By,
+  Recurring, Status, Priority, Due date, + Actions. Function is a group header, not a column; there is no
+  Project column. The Next.js rebuild instead built Function+Project as columns and omitted
+  Assigned-date/Recurring — the opposite of correct.
+- **No priority-bar column exists anywhere in the real app** — it's dead code; priority is shown as an
+  icon + colored-text label instead. The rebuild's 4px priority bar, and the earlier "Medium priority =
+  `#3949ab`" color standardization (based on that same dead CSS rule), don't reflect the real app.
+- **Nothing in the real task-sheet is sticky** (no sticky header, no sticky Actions column) — the rebuild
+  added both.
+- **Sort is per-function-group-table in the real app, not global** across the whole page.
+- **Filtering is exactly 2 mechanisms** in the real app (a 2-control Function/Project toolbar, and a
+  ~9-control per-column bar using rich checkbox/chip multi-select widgets), both sitting outside the
+  `<table>` entirely — the rebuild currently has 3 overlapping filter UIs (all writing the same state, so
+  no data-drift risk, but real UI duplication).
+- **Add-Tasks row "Assigned To" is single-select in the real app**, not multi — contradicting the
+  multi-assignee widget built in the earlier batch-task-add pass.
+- **Add-Tasks row "Assigned Date" is decorative and never saved** in the real app (confirmed via the save
+  function never reading it) — can be added to the rebuild with zero schema risk. **"Recurring" IS a
+  real, saved field**, with 5 cadence options (One Time / Daily / Weekly / Monthly / Quarterly —
+  corrected down from an earlier reading of an unrelated 10-option select) — needs a small schema
+  migration (`Task.recurring` is currently a plain boolean); the migration decision is still pending, not
+  yet built.
+- **A live-reported bug** ("Assigned To showing an organization name instead of a person's name") was
+  investigated — the code has zero fallback path that could explain it, so it's either a real data issue
+  (the specific account's actual name fields) or UI misattribution from an unrelated hardcoded Org Chart
+  label. Confirming which one requires a direct database read, which was blocked by the permission system
+  pending explicit authorization — still unresolved.
+- **Separately, and unaffected by any of the above**: the header's week-glance widget, despite being
+  wired to real work-log data in an earlier pass, was found to still be completely invisible at every
+  screen width due to a CSS specificity bug (a project-wide hidden-with-`!important` rule permanently
+  defeating the widget's own responsive-visibility class) — a one-line fix, not yet applied.
+
+None of the above have been fixed as part of this pass — this entry is diagnosis only, recorded here for
+a future fix pass to pick up.
+
 ## 2026-07-02 — Verification round 2 (4-way audit: doc-accuracy, regression-check, deep re-audit, build-safety)
 
 A follow-up verification round after the initial rebuild+verification pass. Ran a 4-way parallel audit —
