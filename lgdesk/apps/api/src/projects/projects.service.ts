@@ -212,11 +212,19 @@ export class ProjectsService {
     return false;
   }
 
-  // RBAC matrix Row 6: Admin/SA always; TC/TF within their own team (flat
-  // Team-string match against assignedTeams). TM/Intern can never delete.
+  // LGDesk_Master_Reference.md Part 5 Row 6: Admin/SA always; TC/TF within
+  // their own team (flat Team-string match against assignedTeams) OR as the
+  // project's owner/assigner — both conditions independently grant delete
+  // rights (never narrows). TM/Intern can never delete. The owner/assigner
+  // half was previously missing entirely (confirmed via PVERIFY-FULL-APP-PARITY
+  // reconciliation 2026-07-06) — a project's own creator/owner could lose
+  // delete rights to their own project if their team string didn't happen to
+  // match assignedTeams. Restored here.
   private canDelete(p: ProjectRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
-    if (isManager(caller.role) && caller.team && parseIds(p.assignedTeams).includes(caller.team)) return true;
+    if (!isManager(caller.role)) return false;
+    if (caller.team && parseIds(p.assignedTeams).includes(caller.team)) return true;
+    if (p.assignerId === caller.empId || parseIds(p.ownerIds).includes(caller.empId)) return true;
     return false;
   }
 
