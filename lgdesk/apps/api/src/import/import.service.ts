@@ -401,6 +401,12 @@ export class ImportService {
     if (!v) return undefined;
     const d = new Date(v);
     if (isNaN(d.getTime())) return undefined;
-    return d.toISOString();
+    const iso = d.toISOString();
+    // AUDIT_REPORT.md A2 "Date sanitization" (Fix D): Google Sheets' epoch-zero placeholder for
+    // an empty date cell (`1899-12-30` / `12/30/1899`) parses as a valid JS Date — without this
+    // check it would be imported as a real (bogus) due date instead of left blank, unlike the
+    // reference's `_migNormaliseDate` (task-import.gs:547-556), which explicitly rejects it.
+    if (iso.startsWith('1899-12-30')) return undefined;
+    return iso;
   }
 }
