@@ -22,9 +22,19 @@ interface CompactMultiSelectProps {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   placeholder?: string;
+  // FIX F (task-sheet rebuild, bonus): the reference's Add-Tasks batch row "Assigned To"
+  // field is single-value (`_ssInit`, app.js.html:10396,10404 — never passed through the
+  // app's own `_ssInitMulti` upgrader for this field), not multi. Rather than build a
+  // parallel single-select widget, this component gained a `single` mode: selecting an
+  // option replaces (not appends to) the current selection and closes the dropdown,
+  // matching a normal searchable single-select's UX. `selectedIds`/`onChange` keep their
+  // array shape either way (Task.assigneeIds is a genuinely multi-value DB field at the
+  // data layer — AUDIT_REPORT.md A2 §1 — this prop only constrains the widget to ever
+  // populate at most one entry in that array).
+  single?: boolean;
 }
 
-export function CompactMultiSelect({ options, selectedIds, onChange, placeholder = 'Select…' }: CompactMultiSelectProps) {
+export function CompactMultiSelect({ options, selectedIds, onChange, placeholder = 'Select…', single = false }: CompactMultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -45,6 +55,12 @@ export function CompactMultiSelect({ options, selectedIds, onChange, placeholder
   }, [open]);
 
   const toggleId = (id: string) => {
+    if (single) {
+      onChange(selectedIds.includes(id) ? [] : [id]);
+      setOpen(false);
+      setQuery('');
+      return;
+    }
     onChange(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
   };
 

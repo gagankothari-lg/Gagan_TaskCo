@@ -651,7 +651,10 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, c
                       <textarea rows={1} className="fc" style={{ fontSize: 11, resize: 'vertical' }} placeholder="Description" {...form.register(`rows.${i}.description` as const)} />
                       <textarea rows={1} className="fc" style={{ fontSize: 11, resize: 'vertical' }} placeholder="Links (one per line)" {...form.register(`rows.${i}.links` as const)} />
                     </div>
+                    {/* FIX F: single-value, not multi — app.js.html:10396,10404 (`_ssInit`,
+                        never `_ssInitMulti`, for this specific field). */}
                     <CompactMultiSelect
+                      single
                       options={employees.map((e) => ({ id: e.empId, label: `${e.firstName} ${e.lastName}` }))}
                       selectedIds={form.watch(`rows.${i}.assigneeIds`) ?? []}
                       onChange={(ids) => form.setValue(`rows.${i}.assigneeIds`, ids)}
