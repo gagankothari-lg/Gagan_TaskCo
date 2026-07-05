@@ -60,7 +60,10 @@ export class WorkDurationService {
     const open = await this.prisma.workBreak.findFirst({ where: { sessionId: s.sessionId, breakEnd: null }, orderBy: { breakStart: 'desc' } });
     if (open) {
       const now = new Date();
-      const mins = Math.ceil((now.getTime() - open.breakStart.getTime()) / 60000);
+      // AUDIT_REPORT.md A3 item 2: reference rounds per-break minutes to the nearest
+      // minute (work-duration.gs:189, Math.round) — Math.ceil here always rounded up,
+      // systematically under-crediting net work time. Match the reference exactly.
+      const mins = Math.round((now.getTime() - open.breakStart.getTime()) / 60000);
       await this.prisma.workBreak.update({ where: { id: open.id }, data: { breakEnd: now, durationMins: mins } });
       // CUMULATIVE: add to totalBreakMins, never replace (rule #10).
       await this.prisma.workDuration.update({ where: { id: s.id }, data: { status: 'ACTIVE', totalBreakMins: s.totalBreakMins + mins } });
@@ -83,8 +86,15 @@ export class WorkDurationService {
     } else {
       clockOut = new Date();
     }
-    const grossMinutes = Math.floor((clockOut.getTime() - s.clockIn.getTime()) / 60000);
-    const netMinutes = Math.max(0, grossMinutes - s.totalBreakMins);
+    // AUDIT_REPORT.md A3 item 2: reference keeps gross elapsed time as a raw (unrounded)
+    // float and rounds only once, at the very end, on (gross − totalBreak)
+    // (work-duration.gs:129-130, Math.round). The rebuild previously floored gross to a
+    // whole minute before subtracting the break (Math.floor), which systematically
+    // under-counts net work minutes for any real (sub-minute) timestamp. Compute the raw
+    // float gross minutes and round only the final net figure to match the reference.
+    const grossMinutesRaw = (clockOut.getTime() - s.clockIn.getTime()) / 60000;
+    const grossMinutes = Math.round(grossMinutesRaw);
+    const netMinutes = Math.max(0, Math.round(grossMinutesRaw - s.totalBreakMins));
     const notes = dto?.reason ? this.appendNote(s.notes, `Clock-out reason [${new Date().toISOString()}]: ${dto.reason}`) : s.notes;
 
     await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut, status: 'COMPLETED', grossMinutes, netMinutes, notes } });
