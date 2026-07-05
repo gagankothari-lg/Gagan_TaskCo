@@ -35,12 +35,22 @@ const CAT: Record<Cat, { label: string; text: string; solid: string }> = {
   leave:    { label: 'Leaves',            text: '#4a148c', solid: '#6a1b9a' },
 };
 const CAT_ORDER: Cat[] = ['task', 'meeting', 'deadline', 'holiday', 'leave'];
-// Master Reference Part 20 Event Types table: Holiday chips render first in a day's
-// stack even though the general type order (CAT_ORDER, used for the legend/filter
-// chips) lists Holiday fourth.
-const STACK_ORDER: Cat[] = ['holiday', 'task', 'deadline', 'leave', 'meeting'];
+// reference/app.js.html:12230 `TYPE_ORDER = { holiday: 0, meeting: 1, task: 2, project: 3, leave: 4 }`
+// — this is the stack/row-packing order for the on-grid event bars (distinct from CAT_ORDER,
+// which is only the legend/filter-chip and day-popover grouping order). 'deadline' here is the
+// reference's 'project' (Project Deadlines).
+const STACK_ORDER: Cat[] = ['holiday', 'meeting', 'task', 'deadline', 'leave'];
+// reference/app.js.html:12229,12281 `MAX_EV_ROWS = 4` — cap on visible stacked rows per week
+// before the remainder collapses into a "+N more" overflow indicator.
+const MAX_EV_ROWS = 4;
 
 interface Bar { cat: Cat; label: string; id?: string; sub?: string }
+// One event-bar placed on the week grid: colStart/colEnd are 1-based, inclusive day-of-week
+// columns (colEnd > colStart only for a multi-day-spanning leave bar). `ds` is the date (within
+// this week row) a click on the bar should open the day-detail popover for — reference/app.js.html:
+// 12255,12315 (calDayClick(event, item.ds) for non task/meeting types).
+interface GridItem { bar: Bar; colStart: number; colEnd: number; ds: string }
+interface PlacedItem { item: GridItem; row: number }
 
 export default function CalendarPage() {
   const router = useRouter();
@@ -112,7 +122,10 @@ export default function CalendarPage() {
       const start = new Date(`${dayKey(l.startDate)}T00:00:00Z`);
       const end = new Date(`${dayKey(l.endDate)}T00:00:00Z`);
       for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-        push(isoKey(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), { cat: 'leave', label: l.leaveType });
+        // id is required for cross-day span detection below (buildWeekLayouts) — without it,
+        // two different employees' same-typed leave on adjacent days would incorrectly merge
+        // into one spanning bar.
+        push(isoKey(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), { cat: 'leave', label: l.leaveType, id: l.leaveId });
       }
     }
     for (const m of data?.meetings ?? []) {
@@ -142,6 +155,82 @@ export default function CalendarPage() {
     bars.forEach((b) => groups.set(b.cat, [...(groups.get(b.cat) ?? []), b]));
     return groups;
   };
+
+  // 6 rows of 7 cells (day-of-month or null for out-of-month padding) — same shape as `cells`,
+  // just chunked for per-week span/pack processing (reference/app.js.html:12226-12227, `weeks`).
+  const weeks = useMemo(() => {
+    const w: (number | null)[][] = [];
+    for (let i = 0; i < 42; i += 7) w.push(cells.slice(i, i + 7));
+    return w;
+  }, [cells]);
+
+  // Real multi-day-spanning event bars + row-packing, ported from reference/app.js.html:
+  // renderCalendar (12232-12332). Per week row: (1) collect one item per event, with leave
+  // events widened to a colStart..colEnd span covering every contiguous day within THIS week
+  // row the same leave (by id) appears on; (2) sort longer spans first, then stack order, then
+  // column; (3) greedily pack into rows (row 1 reserved for day numbers), capping at
+  // MAX_EV_ROWS visible rows and counting the rest per affected column as overflow.
+  const weekLayouts = useMemo(() => {
+    return weeks.map((week) => {
+      const items: GridItem[] = [];
+      const seenLeaveIds = new Set<string>();
+
+      week.forEach((d, ci) => {
+        if (d === null) return;
+        const key = isoKey(year, month, d);
+        const col = ci + 1;
+        const evs = (barsByDay.get(key) ?? [])
+          .filter((b) => active[b.cat])
+          .sort((a, b) => STACK_ORDER.indexOf(a.cat) - STACK_ORDER.indexOf(b.cat));
+
+        evs.forEach((bar) => {
+          if (bar.cat === 'leave' && bar.id) {
+            if (seenLeaveIds.has(bar.id)) return;
+            seenLeaveIds.add(bar.id);
+            // Contiguous span of this same leave across the rest of this week row.
+            let colEnd = ci;
+            for (let fc = ci + 1; fc < 7; fc++) {
+              const fd = week[fc];
+              if (fd === null) break;
+              const fkey = isoKey(year, month, fd);
+              const found = (barsByDay.get(fkey) ?? []).some((fb) => fb.cat === 'leave' && fb.id === bar.id && active[fb.cat]);
+              if (!found) break;
+              colEnd = fc;
+            }
+            items.push({ bar, colStart: col, colEnd: colEnd + 1, ds: key });
+          } else {
+            items.push({ bar, colStart: col, colEnd: col, ds: key });
+          }
+        });
+      });
+
+      // Longer spans first, then stack order, then column (reference:12264-12270).
+      items.sort((a, b) => {
+        const spanDiff = (b.colEnd - b.colStart) - (a.colEnd - a.colStart);
+        if (spanDiff) return spanDiff;
+        const typeDiff = STACK_ORDER.indexOf(a.bar.cat) - STACK_ORDER.indexOf(b.bar.cat);
+        if (typeDiff) return typeDiff;
+        return a.colStart - b.colStart;
+      });
+
+      const colNext = [2, 2, 2, 2, 2, 2, 2]; // next free row per column; row 1 = day numbers
+      const overflowCol = [0, 0, 0, 0, 0, 0, 0];
+      const placed: PlacedItem[] = [];
+
+      items.forEach((item) => {
+        let row = 2;
+        for (let c = item.colStart - 1; c < item.colEnd; c++) row = Math.max(row, colNext[c]);
+        if (row > MAX_EV_ROWS + 1) {
+          for (let c = item.colStart - 1; c < item.colEnd; c++) overflowCol[c]++;
+          return;
+        }
+        for (let c = item.colStart - 1; c < item.colEnd; c++) colNext[c] = row + 1;
+        placed.push({ item, row });
+      });
+
+      return { week, placed, overflowCol };
+    });
+  }, [weeks, barsByDay, active, year, month]);
 
   return (
     <div className="p-6">
@@ -224,92 +313,135 @@ export default function CalendarPage() {
                 {d}
               </div>
             ))}
-            {cells.map((d, i) => {
-              if (d === null) return <div key={`b-${i}`} className="min-h-[90px] border-b border-r border-border bg-bg" />;
-              const key = isoKey(year, month, d);
-              const isToday = key === todayKey;
-              const bars = (barsByDay.get(key) ?? []).filter((b) => active[b.cat]);
-              const stacked = [...bars].sort((a, b) => STACK_ORDER.indexOf(a.cat) - STACK_ORDER.indexOf(b.cat));
-              const shown = stacked.slice(0, 3);
-              const extra = stacked.length - shown.length;
-              return (
-                <Popover key={key} open={openDay === key} onOpenChange={(o) => setOpenDay(o ? key : null)}>
-                  <PopoverTrigger asChild>
-                    <div className={cn('min-h-[90px] cursor-pointer border-b border-r border-border p-1.5 align-top hover:bg-p3/40', isToday ? 'bg-p3' : 'bg-surface')}>
-                      <span className={cn('inline-flex h-6 w-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-p font-semibold text-white' : 'text-text')}>{d}</span>
-                      <div className="mt-1 space-y-0.5">
-                        {shown.map((b, bi) => {
-                          const clickable = (b.cat === 'task' || b.cat === 'meeting') && !!b.id;
-                          return (
-                            <div
-                              key={bi}
-                              title={`${CAT[b.cat].label}: ${b.label}`}
-                              onClick={clickable ? (e) => { e.stopPropagation(); onBarClick(b); } : undefined}
-                              className={cn('truncate rounded-[3px] px-1 text-[10px]', clickable && 'cursor-pointer hover:underline')}
-                              style={{ background: CAT[b.cat].solid, color: '#fff' }}
-                            >
-                              {b.label}
-                            </div>
-                          );
-                        })}
-                        {extra > 0 && <div className="px-1 text-[10px] text-muted">+{extra} more</div>}
+          </div>
+
+          {/* One CSS-grid per week row: row 1 holds the day-number cells (each spanning all
+              6 rows as a full-height background/click-target), rows 2-5 hold up to
+              MAX_EV_ROWS stacked/spanning event bars, row 6 holds the "+N more" overflow
+              indicator — mirrors reference/app.js.html:12300-12329's per-week grid-column/
+              grid-row placement. */}
+          {weekLayouts.map(({ week, placed, overflowCol }, wi) => (
+            <div
+              key={wi}
+              className="grid grid-cols-7"
+              style={{ gridTemplateRows: `minmax(30px,auto) repeat(${MAX_EV_ROWS}, minmax(15px,auto)) minmax(13px,auto)` }}
+            >
+              {week.map((d, ci) => {
+                if (d === null) {
+                  return <div key={`b-${wi}-${ci}`} style={{ gridColumn: ci + 1, gridRow: '1 / span 6' }} className="border-b border-r border-border bg-bg" />;
+                }
+                const key = isoKey(year, month, d);
+                const isToday = key === todayKey;
+                const bars = (barsByDay.get(key) ?? []).filter((b) => active[b.cat]);
+                return (
+                  <Popover key={key} open={openDay === key} onOpenChange={(o) => setOpenDay(o ? key : null)}>
+                    <PopoverTrigger asChild>
+                      <div
+                        style={{ gridColumn: ci + 1, gridRow: '1 / span 6' }}
+                        className={cn('cursor-pointer border-b border-r border-border p-1.5 align-top hover:bg-p3/40', isToday ? 'bg-p3' : 'bg-surface')}
+                      >
+                        <span className={cn('inline-flex h-6 w-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-p font-semibold text-white' : 'text-text')}>{d}</span>
                       </div>
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent onClick={(e) => e.stopPropagation()}>
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-bold text-p">{new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                    </div>
-                    {bars.length === 0 ? (
-                      <p className="text-sm text-muted">No events this day.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {CAT_ORDER.filter((c) => groupedForDay(key).has(c)).map((c) => (
-                          <div key={c}>
-                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{CAT[c].label}</p>
-                            {groupedForDay(key).get(c)!.map((b, bi) => (
-                              <div key={bi} className="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 text-xs hover:bg-p3">
-                                <button
-                                  type="button"
-                                  onClick={() => onBarClick(b)}
-                                  className={cn('truncate text-left', (b.cat === 'task' || b.cat === 'meeting') && 'cursor-pointer text-p underline-offset-2 hover:underline')}
-                                  style={{ color: b.cat === 'task' || b.cat === 'meeting' ? 'var(--p)' : 'var(--text)' }}
-                                >
-                                  {b.label}
-                                </button>
-                                {admin && c === 'holiday' && b.id && (
+                    </PopoverTrigger>
+                    <PopoverContent onClick={(e) => e.stopPropagation()}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-sm font-bold text-p">{new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                      </div>
+                      {bars.length === 0 ? (
+                        <p className="text-sm text-muted">No events this day.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {CAT_ORDER.filter((c) => groupedForDay(key).has(c)).map((c) => (
+                            <div key={c}>
+                              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{CAT[c].label}</p>
+                              {groupedForDay(key).get(c)!.map((b, bi) => (
+                                <div key={bi} className="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 text-xs hover:bg-p3">
                                   <button
                                     type="button"
-                                    aria-label="Delete holiday"
-                                    onClick={async () => {
-                                      try { await deleteHoliday.mutateAsync(b.id!); toast('Holiday deleted', 'success'); }
-                                      catch (err) { toast(apiErrorMessage(err, 'Unable to delete holiday'), 'error'); }
-                                    }}
-                                    className="text-muted hover:text-danger"
+                                    onClick={() => onBarClick(b)}
+                                    className={cn('truncate text-left', (b.cat === 'task' || b.cat === 'meeting') && 'cursor-pointer text-p underline-offset-2 hover:underline')}
+                                    style={{ color: b.cat === 'task' || b.cat === 'meeting' ? 'var(--p)' : 'var(--text)' }}
                                   >
-                                    <Icon name="delete" size={14} />
+                                    {b.label}
                                   </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {admin && (
-                      <button
-                        type="button"
-                        onClick={() => { setOpenDay(null); setHolidayDefaultDate(key); setHolidayOpen(true); }}
-                        className="btn btn-primary btn-sm btn-full mt-3"
-                      >
-                        <Icon name="add" size={13} /> Add Holiday for this day
-                      </button>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              );
-            })}
-          </div>
+                                  {admin && c === 'holiday' && b.id && (
+                                    <button
+                                      type="button"
+                                      aria-label="Delete holiday"
+                                      onClick={async () => {
+                                        try { await deleteHoliday.mutateAsync(b.id!); toast('Holiday deleted', 'success'); }
+                                        catch (err) { toast(apiErrorMessage(err, 'Unable to delete holiday'), 'error'); }
+                                      }}
+                                      className="text-muted hover:text-danger"
+                                    >
+                                      <Icon name="delete" size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {admin && (
+                        <button
+                          type="button"
+                          onClick={() => { setOpenDay(null); setHolidayDefaultDate(key); setHolidayOpen(true); }}
+                          className="btn btn-primary btn-sm btn-full mt-3"
+                        >
+                          <Icon name="add" size={13} /> Add Holiday for this day
+                        </button>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                );
+              })}
+
+              {/* Event bars — grid-column spans > 1 for multi-day leave bars, single column
+                  otherwise. Rendered after the day cells so they paint on top (no z-index
+                  needed: later same-stacking-context DOM siblings win). */}
+              {placed.map(({ item, row }, pi) => {
+                const clickable = (item.bar.cat === 'task' || item.bar.cat === 'meeting') && !!item.bar.id;
+                const span = item.colEnd - item.colStart + 1;
+                return (
+                  <div
+                    key={`ev-${wi}-${pi}`}
+                    title={`${CAT[item.bar.cat].label}: ${item.bar.label}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (clickable) onBarClick(item.bar);
+                      else setOpenDay(item.ds);
+                    }}
+                    className={cn('cursor-pointer truncate rounded-[3px] px-1 text-[10px]', clickable && 'hover:underline')}
+                    style={{
+                      gridColumn: `${item.colStart} / span ${span}`,
+                      gridRow: row,
+                      background: CAT[item.bar.cat].solid,
+                      color: '#fff',
+                    }}
+                  >
+                    {item.bar.label}
+                  </div>
+                );
+              })}
+
+              {/* Overflow "+N more" per column, beyond MAX_EV_ROWS visible bars. */}
+              {overflowCol.map((n, ci) => {
+                if (n <= 0 || week[ci] === null) return null;
+                const key = isoKey(year, month, week[ci] as number);
+                return (
+                  <div
+                    key={`ov-${wi}-${ci}`}
+                    style={{ gridColumn: ci + 1, gridRow: MAX_EV_ROWS + 2 }}
+                    onClick={(e) => { e.stopPropagation(); setOpenDay(key); }}
+                    className="cursor-pointer px-1 text-[10px] text-muted hover:underline"
+                  >
+                    +{n} more
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
 
