@@ -968,3 +968,132 @@ No findings in this phase meet the stop-and-flag criteria (schema/migration impl
 
 1. **Registrations and Profile Updates are promoted to standalone top-level sidebar nav items with their own dedicated pages in the rebuild, where the reference has no such nav entries at all** — the corresponding reference features are embedded widgets inside the existing Team Management and Organisation pages (`index.html:1831-1898,2401-2418`, `app.js.html:6325-6387`). The rebuild's justification for this restructuring cites `LGDesk_Master_Reference.md` Part 24 (and Part 10 for the nav skeleton generally) — a file confirmed not present anywhere in this repo, so neither citation can be verified, and per this audit's standing rule the actual `.gs`/`.html` source (which has no such nav items) is authoritative. Needs explicit product sign-off on whether this is an intentional, accepted UX improvement (arguably reasonable — badge-carrying dedicated pages vs. two buried embedded widgets) or an unauthorized structural drift that should be reverted to match the reference. (`layout-client.tsx:57-59,97,124-125`, `apps/web/src/app/(dashboard)/registrations/page.tsx`, `.../profile-requests/page.tsx`)
 2. **Notice Board announcements have no `type` (General/Emergency/Reminder) or `priority` (Normal/High/Urgent) field anywhere in the rebuild's schema, DTO, or form** — both fields are actively used in the reference to select the notice's icon and to render an URGENT badge (`index.html:1974,1978`, `app.js.html:1353,1358,1373-1375,1442-1443`), and both are entirely absent from `Announcement`'s Prisma model (`schema.prisma:302-316`), `CreateAnnouncementDto`, and `announcement-form.tsx`. Restoring parity requires adding two columns to the `Announcement` table, which is a schema/migration change per this audit's ground rules, so it needs sign-off rather than an unreviewed silent add.
+
+## Master Reference Reconciliation — RBAC & Security
+
+`LGDesk_Master_Reference.md` (7000 lines, located one level up at `Gagan_TaskCo/LGDesk_Master_Reference.md`, not inside `lgdesk/`) has now been found. This section reconciles the six A1 "NEEDS DECISION" items assigned to this phase against it, per the given line-range citations. Master Reference's own front matter (line 4) states it "Merges `LGDesk_PRD.md` (product intent) and `LGDesk_Complete_Verification.md` (verified implementation) into one document" — this distinction (PRD-intent parts vs. verified-implementation parts) matters below, because in one case (Item 3) the two source documents' merged content actually disagrees with itself.
+
+---
+
+### Item 1 — Task/Project/Function DELETE scoping replaced with a team-string-match model
+
+**Original finding (AUDIT_REPORT.md §A1.5, quoted verbatim):**
+> "### 5. Task/Project/Function DELETE scoping — NEEDS DECISION: the rebuild replaced the reference's ownership/assignee model with a team-string-match model, in both directions (over- and under-permission)" ... "**NEEDS DECISION:** Confirm whether the `assignedTeams`-field-match delete/function-update model (`tasks.service.ts:315-320`, `projects.service.ts:217-221`, `functions.service.ts:211-217`, `:203-209`) was a deliberate, approved simplification of the reference's ownership/assignee model (cannot verify — `LGDesk_Master_Reference.md` not present in this repo), or an unintentional drift that should be reconciled with `auth.gs`'s actual `isOwner`/`isAssignee`/unrestricted-manager rules."
+
+**Master Reference citations:**
+- Part 5 "Full RBAC Matrix (Verified)", Row 3: `deleteTask | ✓ | ✓ | ✓ (team) | ✓ (team) | Own creator only | ✗ | auth.gs` (line 217).
+- Part 4 "Permission Matrix", "Delete task" row: `✓ | ✓ | ✓ (own team) | ✓ (own team) | Own-created only | ✗` (line 192).
+- Part 13 "Task CRUD RBAC": "**Delete:** Managers (own team); TM only if own creator (`Assigner_ID === self`)" (line 863).
+- Part 5, Row 6: `deleteProject | ✓ | ✓ | ✓ (own team, owner/assigner) | ✓ | ✗ | ✗ | auth.gs` (line 220).
+- Part 5, Row 9: `deleteFunction | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | auth.gs` (line 223, **no "(team)" qualifier** for TC/TF, unlike Rows 3 and 6).
+- Part 14 "Module — Functions & Sub-Functions" § RBAC: "**Delete:** Managers only; deletes child sub-functions, unlinks their tasks..." (line 946, again no team qualifier).
+
+**Verdict — split by entity, each resolved differently:**
+
+- **Tasks: RESOLVED — Master Reference disagrees with the `.gs` source.** Master Reference states three separate times (Part 5 Row 3, Part 4, Part 13) that the *intended* task-delete model for TC/TF is team-scoped ("✓ (team)" / "Managers (own team)") — this is exactly the rebuild's `assignedTeams`-match model (`tasks.service.ts:315-320`). This directly conflicts with the audit's own line-by-line reading of `auth.gs:1024-1041` (cited in the original finding), which found an owner-any-role-OR-manager+personal-assignee model with **no team-field check anywhere in `deleteTask`**. Per the ground rules, both citations are reported rather than silently picked: `auth.gs:1024-1041` (as read by this audit) implements owner/assignee matching; Master Reference Part 5 Row 3 / Part 4 / Part 13 all document team-string matching as the spec. Practically, this tells us the rebuild's model was very likely the *deliberately intended* one (three independent Master Reference passages agree with it) — but it is a genuine reference-vs-Master-Reference disagreement, not a case where Master Reference simply confirms the `.gs` file's own behavior.
+- **Projects: RESOLVED — Master Reference disagrees with the `.gs` source, and also reveals a residual rebuild gap.** Master Reference Row 6 documents the intended model as **both** team-match **and** owner/assigner ("✓ (own team, owner/assigner)") for TC. This conflicts with the audit's reading of `auth.gs:1043-1056` (owner/creator only, **no** team check at all) — a Master-Reference-vs-`.gs` disagreement, reported per the ground rules rather than resolved by picking one. It also reveals that even if the rebuild's `assignedTeams`-only model (`projects.service.ts:217-221`, no owner/assignerId check) was intentionally aligned with the "team" half of Master Reference's Row 6, it is still missing the "owner/assigner" half that Master Reference says should also gate deletion — so the original finding's *under-permission* concern (a project's creator/owner unable to delete their own project without a team-string match) is confirmed as a real gap against Master Reference's own stated spec, not just against `auth.gs`.
+- **Functions: RESOLVED.** Master Reference Row 9 (`deleteFunction`, no "(team)" qualifier for TC/TF) and Part 14's RBAC section ("Delete: Managers only") **agree with** the audit's reading of `auth.gs:1115-1137` (any manager, unrestricted, no team/ownership check at all) — no Master-Reference-vs-`.gs` disagreement here. This directly resolves the "NEEDS DECISION": the rebuild's `assignedTeams`-match requirement on function delete (`functions.service.ts:211-217`) was **not** an approved simplification — Master Reference confirms the intended behavior is unrestricted cross-team manager delete, matching `auth.gs`. The rebuild is over-restrictive relative to both the reference and Master Reference here.
+
+---
+
+### Item 2 — Function delete/update scoping
+
+**Original finding:** same summary-table row as Item 1 — `| 5 | Function delete/update scoping | auth.gs:1098-1137 (any manager, unrestricted) | functions.service.ts:203-217 (team-match required) | [SECURITY] | NEEDS DECISION |` — plus the body text at AUDIT_REPORT.md §A1.5: "reference's `updateFunction` (`auth.gs:1098-1106`) gives **any** manager unrestricted update rights ... whereas the rebuild's `canModify` (`functions.service.ts:203-209`) adds a `caller.team && assignedTeams.includes(caller.team)` requirement even for managers who are not the function's assigner/creator/assignee. Same directional divergence as delete."
+
+**Master Reference citations:**
+- Part 5, Row 8: `updateFunction | ✓ | ✓ | ✓ | ✓ | ✓ (own assignee/creator) | ✓ (own) | auth.gs` (line 222 — **no team qualifier** for TC/TF).
+- Part 14 "Module — Functions & Sub-Functions" § RBAC: "**Update:** Managers; TM only if own assignee or creator" (line 945 — again no team qualifier), and FR-2 (line 961): "`updateFunction` allows TMs who are an assignee or creator" — no team-scoping mentioned for managers at all.
+
+**Verdict: RESOLVED.** Both the delete and update rows in Master Reference (Part 5 Rows 8 and 9, and Part 14's RBAC/FR-2 text) agree with the audit's reading of `auth.gs` — unrestricted manager access, no team-string check. No Master-Reference-vs-`.gs` disagreement for Functions specifically (contrast with Tasks/Projects above, where such a disagreement exists). This confirms the rebuild's `assignedTeams`-scoping on both `canDelete` and `canModify` in `functions.service.ts` is an unapproved over-restriction relative to the documented spec, not a deliberate, signed-off simplification.
+
+---
+
+### Item 3 — Intern hard-blocked from updating/deleting any task
+
+**Original finding (quoted verbatim):**
+> "### 6. Intern task-update/delete restriction — NEEDS DECISION: not present anywhere in `auth.gs`" ... "**[SECURITY/FUNCTIONAL] NEEDS DECISION**: is the blanket "Interns cannot update or delete any task" rule in `tasks.service.ts:190` and `canDeleteTask` a real, approved product requirement (plausibly recorded in `LGDesk_Master_Reference.md`'s RBAC matrix, referenced directly in the code's own comment "RBAC matrix Row 2" — **cannot verify, `LGDesk_Master_Reference.md` not present in this repo**), or an over-restriction relative to the actual GAS source..."
+
+**Master Reference citations — genuinely contradictory within the document itself:**
+- Part 4 "Permission Matrix", "Delete task" row (line 192): Intern column = **✗**.
+- Part 5 "Full RBAC Matrix (Verified)", Row 2 `updateTask` (line 216): TM = "Own assignee/assigner", Intern column = **✗**. Row 3 `deleteTask` (line 217): Intern column = **✗**.
+- Part 13 "Task Permissions Matrix (PRD §9.6)" (lines 924-932): `Edit status` row: Intern = **✓ (own)**; `Edit all fields` row: Intern = **✓ (own)**; `Delete` row: Intern = **✓ (own creator)**.
+
+**Verdict: RESOLVED — Master Reference disagrees with the `.gs` source, and with itself.** This is a three-way split, reported without silently picking a side per the ground rules:
+1. The audit's own grep of `reference/auth.gs` for every occurrence of "Intern" (cited in the original finding) found **zero** Intern-specific branches in `canModifyTask`, `updateTask`, or `deleteTask` — Intern is treated identically to Team Member (own assignee/assigner/creator only, no blanket block).
+2. Master Reference Part 4 and Part 5 — explicitly labeled matrices "Verified" against the implementation — state Intern is blocked (✗) from both task update and delete, **matching the rebuild's behavior**, but **contradicting** the `.gs` source as independently read by this audit.
+3. Master Reference Part 13's "Task Permissions Matrix (PRD §9.6)" — sourced from the PRD's product-intent section, per its own citation — states Intern should have the **same** editing rights as a TM assignee on their own tasks (✓, not ✗), which **agrees with** the `.gs` source's actual (no-special-case) behavior but **contradicts** Part 4/Part 5's "verified" matrices, and contradicts the rebuild.
+
+None of this settles which behavior is actually correct/approved — it confirms the code's own comment ("RBAC matrix Row 2") is referencing a real document/matrix structure (Master Reference Part 5 does have a numbered RBAC matrix, and Row 2 of it is `updateTask`), but that matrix's own content is internally inconsistent with a different part of the same merged document, and with the underlying `.gs` code both parts claim to describe. This should be flagged for explicit product clarification rather than resolved by this audit — recommend confirming directly with product which of Part 4/5 ("verified," matches rebuild) vs. Part 13 ("PRD intent," matches `.gs` and contradicts rebuild) reflects the actually-desired policy.
+
+---
+
+### Item 4 — DDR Admin direct-change bypass and Intern-approval exclusion
+
+**4a. Admin direct-change bypass missing in rebuild's `createDdr`**
+
+**Original finding (quoted verbatim, AUDIT_REPORT.md §A2.3 table + summary):**
+> "Admins are not exempted from the "must submit a request" path at all in `createDdr` (only `assignerId === callerEmpId` is checked) — an Admin who is not the entity's assigner would have to submit a DDR request in the rebuild, whereas the reference's `_isAdmin(user.role)` check (`:29`) lets any Admin bypass the request flow and change dates directly, assigner or not." ... summary item 3: "**DDR: Admin direct-change bypass missing from `createDdr`** — reference's `_isAdmin(user.role)` (`dueDateRequests.gs:29`) lets any Admin skip the request flow regardless of whether they're the entity's assigner; rebuild's `createDdr` (`ddr.service.ts:34-38`) only exempts the actual assigner, forcing non-assigner Admins through the request flow."
+
+**Master Reference citations:**
+- Part 42, Change #37 "Due Date Change Approval Flow" (line 4666): "**Fix:** ... Admins and entity Assigners can change dates directly (`{direct:true}`); all others submit a request."
+- Part 37 §4.5 "Pending queue 3" checklist (line 3481): "As Admin → all pending DDRs; as others → only those where I am the `Approver_ID` (the entity's Assigner)." (This is about the approve-side visibility, but corroborates Admin's blanket special status throughout the DDR flow.)
+- Part 13 "Due Date Change Request (DDR) Flow" (line 874): "1. Admin or the entity's `Assigner_ID`: direct change (`direct:true`, no request row)."
+- Part 5, Row 23: `requestDueDateChange | ✓ (direct=true) | ✓ (direct=true) | direct if assigner, else request | ...` (line 237) — SA and Admin both get unconditional `direct=true`, independent of assigner status.
+
+**Verdict: RESOLVED.** Three independent Master Reference passages (Part 42 Change #37, Part 13 DDR Flow step 1, Part 5 Row 23) consistently and unambiguously confirm the reference's actual behavior — any Admin bypasses the request flow regardless of whether they are the entity's assigner — is the documented, intended design, not an incidental artifact of `dueDateRequests.gs`. This is not a policy question needing product sign-off; it directly confirms the rebuild's `createDdr` (which only exempts the literal assigner, not Admins generally) has a real, citable functional gap that should be fixed to match the documented spec.
+
+**4b. Unsourced Intern-approval exclusion ("RBAC matrix Row 24")**
+
+**Original finding (quoted verbatim):**
+> "an extra guard: `if (caller.role === 'Intern') throw new ForbiddenException()` (`:68-71`, comment cites "RBAC matrix Row 24"). **[SECURITY] NEEDS DECISION** — this Intern-specific exclusion has no citation anywhere in `dueDateRequests.gs`... and the comment's "RBAC matrix Row 24" cites a document not present in this repo (cannot verify...). It is also asymmetric: `rejectDdr` (`:83-95`) calls `assertCanReview` with no equivalent Intern guard, so an Intern who is the entity's assigner could reject a DDR but not approve one..."
+
+**Master Reference citation:**
+- Part 5 "Full RBAC Matrix (Verified)", **Row 24** (line 238, counting from the table's own `#` column): `approveDueDateChange | ✓ | ✓ | Only if Approver_ID | Only if Approver_ID | Only if Approver_ID | ✗ | dueDateRequests.gs` — the Intern column is explicitly **✗**.
+
+**Verdict: RESOLVED for the citation itself; STILL OPEN for the asymmetry.** "RBAC matrix Row 24" is a real, verifiable citation: Master Reference Part 5's Full RBAC Matrix is explicitly row-numbered, and row 24 of that table is exactly `approveDueDateChange`, with Intern listed as ✗ — this directly validates the rebuild's `approveDdr` guard and its comment. However, the asymmetry the original finding raised (why `rejectDdr` has no equivalent Intern guard) is **STILL OPEN**: Master Reference's Row 24 only covers `approveDueDateChange`; there is no separate numbered row anywhere in Part 5's 25-row matrix for a distinct "reject" action, and Part 37 §4.5's checklist (lines 3476-3486) describes Approve/Reject generically with no Intern-specific carve-out for either. Master Reference does not address whether an Intern-as-Approver should also be blocked from *rejecting* a DDR — this specific question is not answered anywhere in the cited sections.
+
+---
+
+### Item 5 — Import Tasks RBAC-open citation mismatch (`LGDesk_Complete_Verification.md` vs `LGDesk_Master_Reference.md`)
+
+**Original finding (quoted verbatim, AUDIT_REPORT.md §A2.2):**
+> "**RBAC gate — re-confirmed intact, but the citation trail has a documentation mismatch.** ... the reference's own comment cites `LGDesk_Complete_Verification.md GAP RBAC-B` (`task-import.gs:391,435,481`) as the source of that product decision, while `import.controller.ts:22-23,30-31,37-38,63-64` and `CLAUDE.md`'s "Quick-reference gotchas" section instead cite `LGDesk_Master_Reference.md GAP RBAC-B`. Neither `LGDesk_Complete_Verification.md` nor `LGDesk_Master_Reference.md` exists anywhere in this repo... **NEEDS DECISION**..."
+
+**Master Reference citations:**
+- Front matter, line 4: "Merges `LGDesk_PRD.md` (product intent) and `LGDesk_Complete_Verification.md` (verified implementation) into one document."
+- Line 16: "Primary Source 1 | `LGDesk_Complete_Verification.md` (6,436 lines, field-by-field verified against `src/`)".
+- Line 4454 (Part 42's file-disposition table): "`LGDesk_Complete_Verification.md` | Superseded by Part 37 of this file | Archive or delete; mark header 'SUPERSEDED by LGDesk_Master_Reference.md'".
+- Part 44, "GAP RBAC-B: Import Tasks Visible and Functional for All Roles" (lines 5021-5031): identical gap description — "`#nav-import-btn` is shown to all logged-in users... Backend `migrationPreview`, `migrationImport`, and `migrationImportDirectRows` have no `_isManager`/`_isAdmin` gate." — "**Status:** Confirmed open product decision (2026-06-30). Documented as known gap." (same date, "2026-06-30," as the rebuild's own comment).
+
+**Verdict: RESOLVED.** Master Reference explicitly documents that it supersedes `LGDesk_Complete_Verification.md` (line 4454), and its own "GAP RBAC-B" entry (Part 44) is verbatim the same gap referenced by `reference/task-import.gs`'s citation of `LGDesk_Complete_Verification.md GAP RBAC-B` — same gap ID, same description, same "2026-06-30" confirmation date. This confirms the two citations (`task-import.gs`'s reference to `LGDesk_Complete_Verification.md` and the rebuild's/`CLAUDE.md`'s reference to `LGDesk_Master_Reference.md`) point at the **same underlying rationale**, just under an old, now-superseded document name versus its replacement — not a genuine disagreement, and not an unconfirmable dangling citation. The rebuild's citation (`LGDesk_Master_Reference.md`) is in fact the more current/correct one of the two.
+
+---
+
+### Item 6 — WorkLog one-row-per-day: hard `@@unique([empId,date])` vs. reference's unenforced invariant
+
+**Original finding (quoted verbatim, AUDIT_REPORT.md §A1.8a):**
+> "**8a. WorkLog one-row-per-day — schema is *stricter* than the reference, NEEDS DECISION.** ... `apps/api/prisma/schema.prisma:164-186` (`model WorkLog`) has `@@unique([empId, date])` (line 186) — a hard DB constraint that would make a second `submitWorkLog`-equivalent call for the same employee/day **fail outright** (Prisma `P2002`) rather than silently create a duplicate row... **NEEDS DECISION**: confirm this stricter DB-level constraint is an intentional data-quality improvement... rather than a schema change made without registering the corresponding behavior change..."
+
+**Master Reference citations (as specifically assigned to this item):**
+- Part 44, GAP-004 "Dev DB Schema Mismatches Prod for Work_Duration/Work_Breaks" (lines 4955-4967): entirely about a **column-set** mismatch between `setupDevDatabase()`'s dev schema and the production `Work_Duration`/`Work_Breaks` sheets (e.g., dev is missing `Email`, `Emp_Name`, `Net_Work_Mins`, `Created_At`) — this is a different sheet (`Work_Duration`, the clock-session table) from the one at issue in the original finding (`Work_Log`, the daily log-entry table), and does not address row-uniqueness at all.
+- Part 44, GAP-013 "`submitWorkLog` Return Type Inconsistency" (lines 5009-5019): about a return-shape bug (bare string vs. `{ok:false}`) causing a lock-timeout to be silently misread as success by the frontend — related to `submitWorkLog`'s insert path generally, but not to whether duplicate `(Emp_ID, Date)` rows should be structurally preventable.
+- Part 42, Change #43 "Work Log ID Collision Fix" (lines 4571-4585): adds `LockService.getScriptLock().tryLock(20000)` around the insert branch of `submitWorkLog`/`adminSubmitWorkLog`, to stop two concurrent inserts from generating the same `WL-NNNNN` ID via a race on `generateId()`. This addresses **ID-collision** (two rows getting the same ID), not **row-duplication** (two rows existing for the same employee+day) — they are related but distinct problems, and this section is silent on the latter.
+
+**Verdict: STILL OPEN**, based strictly on the three cited sections — none of GAP-004, GAP-013, or Change #43 addresses whether "one row per employee per day" is an intended hard invariant, nor whether/how a conflict should be surfaced to the caller. Master Reference does not answer the specific question asked here within the assigned citations.
+
+**Note (supplementary, outside the assigned line ranges, found via a targeted follow-up search of the term "duplicate"):** Part 44's "Data Integrity Checklist" (line 6031) does contain a directly on-point item: "Open Work_Log sheet → no duplicate rows by Emp_ID+Date (LockService should prevent, but verify)." This confirms the reference's own intended invariant *is* "no duplicate rows by Emp_ID+Date" — i.e., the Prisma `@@unique([empId,date])` constraint enforces an invariant the reference already considered correct, just relying on `LockService` (imperfectly — hence "should prevent, but verify") rather than a hard schema constraint. This meaningfully de-risks the "intentional data-quality improvement" reading from the original finding, but it does **not** answer the original finding's more specific implementation question — whether the rebuild's work-log submission endpoint (`apps/api/src/work-log/*`, outside this phase's file list) handles the resulting `P2002` conflict gracefully as a user-facing "already logged today" message, or surfaces a raw 500. That remains unresolved and, per the original finding, belongs to whichever phase covers `apps/api/src/work-log/*`.
+
+---
+
+### Reconciliation summary
+
+| # | Item | Verdict |
+|---|---|---|
+| 1 | Task delete scoping (team-match) | RESOLVED — Master Ref (Part 5 Row 3, Part 4, Part 13) disagrees with `.gs` reading, agrees with rebuild |
+| 1 | Project delete scoping (team-match) | RESOLVED — Master Ref (Part 5 Row 6) disagrees with `.gs` reading; also shows rebuild is missing the "owner/assigner" half of Master Ref's own stated model |
+| 1 / 2 | Function delete/update scoping (team-match) | RESOLVED — Master Ref (Part 5 Rows 8-9, Part 14) agrees with `.gs`; rebuild's team-restriction confirmed as unapproved over-restriction |
+| 3 | Intern task update/delete block | RESOLVED — but as a genuine three-way disagreement: Master Ref Part 4/5 ("verified") agree with rebuild; Master Ref Part 13 ("PRD intent") and the `.gs` source agree with each other, against both. Needs explicit product tie-break, not further code archaeology. |
+| 4a | DDR Admin direct-change bypass | RESOLVED — Master Ref (Change #37, Part 13, Part 5 Row 23) confirms reference's Admin-blanket-bypass is intended; rebuild's `createDdr` has a real gap to fix |
+| 4b | DDR "RBAC matrix Row 24" / Intern-approval exclusion | RESOLVED (citation is real: Part 5 Row 24) for the approve-side exclusion; STILL OPEN for the reject-side asymmetry (no Master Ref row addresses reject) |
+| 5 | Import RBAC-B citation mismatch | RESOLVED — `LGDesk_Complete_Verification.md` is explicitly superseded by `LGDesk_Master_Reference.md` (line 4454); same gap, same ID, same date, just an old vs. new document name |
+| 6 | WorkLog one-row-per-day hard constraint | STILL OPEN per the three specifically-assigned citations (none address it); a supplementary, directly on-point citation found outside the assigned ranges (Data Integrity Checklist, line 6031) confirms the invariant was already intended, but does not resolve the rebuild-specific error-handling question |
