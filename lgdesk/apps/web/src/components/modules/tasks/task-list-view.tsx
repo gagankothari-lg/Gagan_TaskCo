@@ -26,17 +26,20 @@ type GroupMode = 'function' | 'date' | 'week';
 
 // Per-column sort keys — mirrors the reference's `_tskSortClick(scope, field)` header
 // click handlers (task-sheet thead th onclick).
-type SortField = 'function' | 'subfn' | 'task' | 'assignee' | 'assigner' | 'project' | 'status' | 'priority' | 'due';
+// FIX A (task-sheet rebuild): column set corrected to the reference's real 9-column
+// `_TSK_COL_SPEC` (app.js.html:677-688) — 'function'/'project' removed (Function is a
+// group header, not a column; there is no Project column), 'adate'/'recurring' added.
+type SortField = 'adate' | 'subfn' | 'task' | 'assignee' | 'assigner' | 'recurring' | 'status' | 'priority' | 'due';
 
 // Sortable header column defs — label + hide-class shared 1:1 with TaskRow's <td>s via
 // COL_HIDE (single source of truth so header/filter row and body columns never drift).
 const SORT_COLS: { key: SortField; label: string; hide: string }[] = [
-  { key: 'function', label: 'Function', hide: COL_HIDE.function },
+  { key: 'adate', label: 'Assigned Date', hide: COL_HIDE.adate },
   { key: 'subfn', label: 'Sub-Function', hide: COL_HIDE.subFn },
   { key: 'task', label: 'Task', hide: COL_HIDE.task },
   { key: 'assignee', label: 'Assigned To', hide: COL_HIDE.assignee },
   { key: 'assigner', label: 'Assigned By', hide: COL_HIDE.assigner },
-  { key: 'project', label: 'Project', hide: COL_HIDE.project },
+  { key: 'recurring', label: 'Recurring', hide: COL_HIDE.recurring },
   { key: 'status', label: 'Status', hide: COL_HIDE.status },
   { key: 'priority', label: 'Priority', hide: COL_HIDE.priority },
   { key: 'due', label: 'Due Date', hide: COL_HIDE.due },
@@ -85,7 +88,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   // Function-grouping (a Next.js-only view feature, left in place per scope) still
   // orders its group headers by function name; sortField/sortDir additionally control
   // the order of rows *within* each group.
-  const [sortField, setSortField] = useState<SortField>('function');
+  const [sortField, setSortField] = useState<SortField>('due');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const handleSort = (field: SortField) => {
     if (field === sortField) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -195,12 +198,12 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   // field is 'function', the group order itself.
   const sortVal = (t: Task, field: SortField): string | number => {
     switch (field) {
-      case 'function': return fnName(t.functionId).toLowerCase();
+      case 'adate': return new Date(t.createdAt).getTime();
       case 'subfn': return (functions.find((f) => f.functionId === t.subFnId)?.name ?? '').toLowerCase();
       case 'task': return t.title.toLowerCase();
       case 'assignee': return t.assigneeIds.length ? empName(t.assigneeIds[0]).toLowerCase() : '￿';
       case 'assigner': return empName(t.assignerId).toLowerCase();
-      case 'project': return (projects.find((p) => p.projId === t.projId)?.name ?? '').toLowerCase();
+      case 'recurring': return t.recurring ? 0 : 1;
       case 'status': return t.status.toLowerCase();
       case 'priority': return PRIORITY_RANK[t.priority] ?? 99;
       case 'due': return t.dueDate ? new Date(t.dueDate).getTime() : Infinity;
@@ -212,11 +215,12 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     const m = new Map<string, Task[]>();
     for (const t of filtered) { const k = t.functionId ?? '__none'; (m.get(k) ?? m.set(k, []).get(k)!).push(t); }
     const entries = Array.from(m.entries());
+    // Function is a group header, not a sortable column (FIX A) — group order is always
+    // alphabetical, independent of the active per-column sort field.
     entries.sort((a, b) => {
       const an = fnName(a[0] === '__none' ? undefined : a[0]);
       const bn = fnName(b[0] === '__none' ? undefined : b[0]);
-      const cmp = an.localeCompare(bn);
-      return sortField === 'function' && sortDir === 'desc' ? -cmp : cmp;
+      return an.localeCompare(bn);
     });
     const cmpRows = (a: Task, b: Task) => {
       const av = sortVal(a, sortField);
@@ -354,16 +358,10 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                   filter-row controls (single-value, not the multi-select widget). */}
               <tr>
                 <th style={filterThStyle} />
-                <th className={COL_HIDE.function} style={filterThStyle}>
-                  <select
-                    className="fc" style={filterSelectStyle}
-                    value={filter.functions[0] ?? ''}
-                    onChange={(e) => setFilter({ ...filter, functions: e.target.value ? [e.target.value] : [] })}
-                  >
-                    <option value="">All Functions</option>
-                    {functions.filter((f) => !f.parentFnId).map((f) => <option key={f.functionId} value={f.functionId}>{f.name}</option>)}
-                  </select>
-                </th>
+                {/* Assigned-date filter cell — moved to the consolidated per-column
+                    filter bar (FIX E, filter-bar.tsx); this table-level row no longer
+                    hosts Function (removed as a column, FIX A) here. */}
+                <th className={COL_HIDE.adate} style={filterThStyle} />
                 <th className={COL_HIDE.subFn} style={filterThStyle}>
                   <select
                     className="fc" style={filterSelectStyle}
@@ -407,16 +405,10 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                     {employees.map((e) => <option key={e.empId} value={e.empId}>{e.firstName} {e.lastName}</option>)}
                   </select>
                 </th>
-                <th className={COL_HIDE.project} style={filterThStyle}>
-                  <select
-                    className="fc" style={filterSelectStyle}
-                    value={filter.projects[0] ?? ''}
-                    onChange={(e) => setFilter({ ...filter, projects: e.target.value ? [e.target.value] : [] })}
-                  >
-                    <option value="">All Projects</option>
-                    {projects.map((p) => <option key={p.projId} value={p.projId}>{p.name}</option>)}
-                  </select>
-                </th>
+                {/* Recurring filter cell — moved to the consolidated per-column filter
+                    bar (FIX E); Project (removed as a column, FIX A) no longer appears
+                    here — it remains available only as a toolbar filter field. */}
+                <th className={COL_HIDE.recurring} style={filterThStyle} />
                 <th className={COL_HIDE.status} style={filterThStyle}>
                   <select
                     className="fc" style={filterSelectStyle}

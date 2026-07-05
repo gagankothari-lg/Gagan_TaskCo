@@ -49,17 +49,22 @@ export function priorityBarColor(priority: string): string {
 
 // Responsive column-hide classes shared with task-list-view.tsx's <th> header/filter
 // cells, so <td> and <th> stay in lockstep at every breakpoint (single source of truth).
-// Cascade mirrors the GAS reference's 3-tier column hiding (1024px/960px/768px media
-// queries), approximated onto Tailwind's default lg(1024)/md(768) breakpoints:
-// at <768px only Sub-Function, Task, Status, Actions (+ the priority bar) remain — 5
-// columns total, matching the reference's mobile comment exactly.
+// FIX A (PVERIFY-FULL-APP-PARITY Part B, task-sheet rebuild): column set corrected to
+// match the reference's real 9-column `_TSK_COL_SPEC` (app.js.html:677-688, cited in
+// CLAUDE.md's "task-sheet markup is largely dead code" note) — Assigned date,
+// Sub-Function, Task, Assigned To, Assigned By, Recurring, Status, Priority, Due date
+// (+ Actions). Function is a collapsible group header, not a column (unchanged,
+// see FunctionGroup in task-list-view.tsx); there is no Project column at all —
+// Project remains available only as a filter field (filter-bar.tsx), never a column.
+// At <768px only Sub-Function, Task, Status, Actions remain — 4 columns + Actions,
+// matching the reference's mobile comment.
 export const COL_HIDE = {
-  function: 'hidden lg:table-cell',
+  adate: 'hidden lg:table-cell',
   subFn: '',
   task: '',
   assignee: 'hidden md:table-cell',
   assigner: 'hidden lg:table-cell',
-  project: 'hidden lg:table-cell',
+  recurring: 'hidden lg:table-cell',
   status: '',
   priority: 'hidden md:table-cell',
   due: 'hidden md:table-cell',
@@ -95,7 +100,7 @@ function AvatarStack({ ids }: { ids: string[] }) {
 
 /** Function-mode table row (task-sheet: priority-bar + 8 data columns + actions) with double-click inline status edit. */
 export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: string) => void; onEdit: (id: string) => void }) {
-  const { currentUser, employees, functions, projects } = useAuth();
+  const { currentUser, employees, functions } = useAuth();
   const update = useUpdateTask();
   const del = useDeleteTask();
   const canEdit = canEditTask(currentUser, task);
@@ -107,9 +112,7 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
 
   const overdue = isTaskOverdue(task);
   const closed = CLOSED.includes(task.status);
-  const fnName = functions.find((f) => f.functionId === task.functionId)?.name;
   const subFnName = functions.find((f) => f.functionId === task.subFnId)?.name;
-  const projName = projects.find((p) => p.projId === task.projId)?.name;
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   async function saveStatus(newStatus: string) {
@@ -144,7 +147,7 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
     <tr onClick={() => onOpen(task.taskId)} className={closed ? 'tsk-row-closed' : undefined} style={{ cursor: 'pointer' }}>
       {/* Leftmost 4px priority-bar column (reference: ts-pribar) */}
       <td style={{ padding: 0, width: 4, minWidth: 4, maxWidth: 4, background: priorityBarColor(task.priority) }} />
-      <td className={COL_HIDE.function}>{fnName ? <span>{fnName}</span> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
+      <td className={COL_HIDE.adate} style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--muted)' }}>{fmtDate(task.createdAt, { month: 'short', day: 'numeric' })}</td>
       <td className={COL_HIDE.subFn}>{subFnName ? <span>{subFnName} <span style={{ color: 'var(--muted2)', fontFamily: 'monospace', fontSize: 10 }}>{task.subFnId}</span></span> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
       <td className={COL_HIDE.task}>
         <div style={{ fontWeight: 600, color: closed ? 'var(--muted)' : 'var(--text)', textDecoration: closed ? 'line-through' : 'none' }}>{task.title}</div>
@@ -157,7 +160,19 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
           <span style={{ fontSize: 12 }}>{empName(task.assignerId, employees)}</span>
         </div>
       </td>
-      <td className={COL_HIDE.project}>{projName ? <span>{projName}</span> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
+      {/* Recurring — interim schema-safe stand-in: `Task.recurring` is currently a plain
+          Boolean (no migration needed). The reference's real field is a 5-value cadence
+          dropdown (One Time/Daily/Weekly/Monthly/Quarterly, app.js.html:10480-10485),
+          which needs a `recurrencePattern` schema migration not yet authorized — see
+          CLAUDE.md / AUDIT_REPORT.md A2. This Yes/No display is a simplified placeholder
+          until that migration decision is made. */}
+      <td className={COL_HIDE.recurring} style={{ fontSize: 12 }}>
+        {task.recurring ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--p)' }}><Icon name="autorenew" size={13} /> Yes</span>
+        ) : (
+          <span style={{ color: 'var(--muted2)' }}>No</span>
+        )}
+      </td>
 
       {/* Status — double-click inline edit */}
       <td className={COL_HIDE.status} onClick={stop} onDoubleClick={() => setEditing(true)} title="Double-click to edit status" style={{ opacity: saving ? 0.5 : 1 }}>
