@@ -200,19 +200,28 @@ export class FunctionsService {
     return this.ownedBy(f, caller.empId);
   }
 
+  // LGDesk_Master_Reference.md Part 5 Row 8 / Part 14 FR-2: updateFunction has
+  // no team qualifier for managers — any manager (TC/TF/Admin/SA) may update any
+  // function, org-wide. Confirmed via PVERIFY-FULL-APP-PARITY reconciliation
+  // 2026-07-06 that the prior team-restricted check was an unapproved
+  // over-restriction relative to both auth.gs and Master Reference.
   private canModify(f: FnRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
+    if (isManager(caller.role)) return true;
     if (f.assignerId === caller.empId || f.createdById === caller.empId) return true;
     if (parseIds(f.assigneeIds).includes(caller.empId)) return true;
-    if (isManager(caller.role) && caller.team && parseIds(f.assignedTeams).includes(caller.team)) return true;
     return false;
   }
 
-  // RBAC matrix Row 9: Admin/SA always; TC/TF within their own team (flat
-  // Team-string match against assignedTeams). TM/Intern can never delete.
+  // LGDesk_Master_Reference.md Part 5 Row 9 / Part 14 "Delete: Managers only":
+  // no team qualifier — any manager (TC/TF/Admin/SA) may delete any function,
+  // org-wide. Confirmed via PVERIFY-FULL-APP-PARITY reconciliation 2026-07-06
+  // that the prior team-restricted check was an unapproved over-restriction
+  // relative to both auth.gs and Master Reference (which agree with each other
+  // here, unlike the Task/Project delete-scoping questions).
   private canDelete(f: FnRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
-    if (isManager(caller.role) && caller.team && parseIds(f.assignedTeams).includes(caller.team)) return true;
+    if (isManager(caller.role)) return true;
     return false;
   }
 
