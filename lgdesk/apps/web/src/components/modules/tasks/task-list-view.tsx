@@ -11,7 +11,7 @@ import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
 import { Badge } from '../../ui/badge';
 import { pillClass, badgeClass, fmtDate, isClosedTaskStatus } from '../../../lib/utils';
-import { TaskRow, isTaskOverdue, COL_HIDE, stickyActionsStyle } from './task-row';
+import { TaskRow, isTaskOverdue, COL_HIDE, actionsCellStyle } from './task-row';
 import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
 import { createTaskSchema, TASK_STATUSES, TASK_PRIORITIES } from './create-task-modal.schema';
 import { CompactMultiSelect } from './compact-multi-select';
@@ -48,8 +48,12 @@ const TOTAL_COLS = SORT_COLS.length + 1; // + actions (no priority-bar column �
 
 const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 
+// FIX C (task-sheet rebuild): NOT sticky — nothing in the live reference app is sticky
+// (the static CSS's `position:sticky` rules, lgdesk-gas-source.html:319,371, are
+// attached to the dead <thead> the JS deletes at runtime; the live per-group table CSS,
+// `_tskGrpInjectCss`, app.js.html:5046-5101, has zero `position:sticky` rules).
 const thStyle: CSSProperties = {
-  position: 'sticky', top: 0, zIndex: 2, background: '#f7f8fb', color: 'var(--muted)',
+  background: '#f7f8fb', color: 'var(--muted)',
   textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 10.5, fontWeight: 700,
   padding: '7px 8px', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)',
 };
@@ -349,7 +353,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                     )}
                   </th>
                 ))}
-                <th style={{ ...thStyle, ...stickyActionsStyle('#f7f8fb'), width: 34, zIndex: 3 }} />
+                <th style={{ ...thStyle, ...actionsCellStyle('#f7f8fb'), width: 34 }} />
               </tr>
               {/* Per-column filter row (reference: tr.ts-filter-row) — reuses the same
                   ColFilter state/applyColFilters as the standalone FilterBar above (kept
@@ -434,7 +438,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                     title="Show tasks due by this date"
                   />
                 </th>
-                <th style={{ ...filterThStyle, ...stickyActionsStyle('var(--surface)'), textAlign: 'center' }}>
+                <th style={{ ...filterThStyle, ...actionsCellStyle('var(--surface)'), textAlign: 'center' }}>
                   <button
                     type="button" className="wl-save-btn" title="Clear all filters"
                     onClick={() => { setFilter(DEFAULT_COL_FILTER); setRawQuery(''); }}

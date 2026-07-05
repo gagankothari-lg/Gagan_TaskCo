@@ -75,11 +75,12 @@ export const COL_HIDE = {
   due: 'hidden md:table-cell',
 } as const;
 
-// Sticky last (Actions) column — reference `.ts-actions-cell` / `.task-sheet thead
-// th:last-child`.
-export const stickyActionsStyle = (bg: string): CSSProperties => ({
-  position: 'sticky', right: 0, background: bg, zIndex: 1, boxShadow: '-2px 0 6px rgba(0,0,0,.04)',
-});
+// Last (Actions) column background helper. FIX C (task-sheet rebuild): NOT sticky —
+// nothing in the live reference app is sticky (the static CSS's `position:sticky`
+// rules, lgdesk-gas-source.html:319,371, are attached to the dead <thead> the JS
+// deletes at runtime; the live per-group table CSS, `_tskGrpInjectCss`,
+// app.js.html:5046-5101, has zero `position:sticky` rules).
+export const actionsCellStyle = (bg: string): CSSProperties => ({ background: bg });
 
 function empName(empId: string, employees: User[]): string {
   const u = employees.find((e) => e.empId === empId);
@@ -213,7 +214,7 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
           </span>
         ) : <span style={{ color: 'var(--muted2)' }}>—</span>}
       </td>
-      <td onClick={stop} style={{ ...stickyActionsStyle('var(--surface)'), whiteSpace: 'nowrap' }}>
+      <td onClick={stop} style={{ ...actionsCellStyle('var(--surface)'), whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', gap: 2 }}>
           <button className="wl-save-btn" title="Open" onClick={() => onOpen(task.taskId)}><Icon name="open_in_new" size={16} /></button>
           {(canEdit || canDelete) && (
