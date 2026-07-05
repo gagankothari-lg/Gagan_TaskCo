@@ -2,6 +2,144 @@
 
 This report audits the real Google Apps Script source (`reference/*.gs`, `reference/app.js.html`, `reference/index.html`) against the current Next.js/NestJS rebuild, phase by phase, to find every place the two diverge. Part A is audit-only — no application code is changed.
 
+## Consolidated Summary
+
+Every finding recorded across phases A0–A9, one row per finding, ordered SECURITY → FUNCTIONAL → VISUAL. "Needs Decision?" mirrors each phase's own **NEEDS DECISION** markers; matches/confirmations are included for completeness and marked "no." Full citations (reference file:line + rebuild file:line) live in each finding's own phase section below — this table is a navigation index, not a replacement for those citations.
+
+### SECURITY
+
+| Phase | Finding | Severity | Needs Decision? |
+|---|---|---|---|
+| A1 | Role tier constants (`ADMIN_ROLES`/`MANAGER_ROLES`/`isAdmin`/`isManager`) — exact match | SECURITY | no |
+| A1 | Role-change matrix (Super Admin/Admin/Team Captain/Team Facilitator/self) — exact match, confirmed intact | SECURITY | no |
+| A1 | Import Tasks — open RBAC (no role gate) confirmed intact on both sides | SECURITY | no |
+| A1 | Task delete scoping replaced with a team-string-match model — diverges from reference's owner/assignee model in both over- and under-permission directions | SECURITY | yes — confirm whether this replacement was the pre-approved deviation or unintentional drift from `auth.gs`'s isOwner/isAssignee model |
+| A1 | Project delete scoping replaced with team-string-match, zero owner/creator check — a TC/TF project creator can lose delete rights to their own project | SECURITY | yes — same decision as Task delete scoping; no ownership check exists in the rebuild's delete path at all |
+| A1 | Function delete/update scoping restricted to team-match; reference grants any manager unrestricted org-wide delete | SECURITY | yes — rebuild is *more* restrictive than reference here; confirm which policy is intended |
+| A1 | Intern hard-blocked from updating/deleting any task — no basis found anywhere in `auth.gs` | SECURITY/FUNCTIONAL | yes — confirm whether this is an approved product rule or an unreviewed addition (inconsistent with Function update, which has no such Intern block) |
+| A2 | Import "Given By"/assigner resolution is fully decorative — rule #2's blanket assignerId-from-JWT enforcement means imported items always show the importer, never the source sheet's real historical assigner | SECURITY/FUNCTIONAL | yes — decide whether to carve out an audited exception for the import pathway |
+| A2 | DDR approval: unsourced, asymmetric Intern-approval exclusion ("RBAC matrix Row 24") in `approveDdr`, no such branch in `rejectDdr` | SECURITY | yes — no citation found anywhere in `dueDateRequests.gs`; internally asymmetric regardless |
+| A4 | Self-approval of one's own leave request: reference permits it for every manager tier including Admin/SA (bypass); rebuild blocks it unconditionally for everyone | SECURITY | yes — confirm whether blocking self-review is intentional hardening or an unreviewed behavior change |
+| A5 | Per-employee Google Calendar architecture with read-only ACL sharing is entirely absent — every employee's tasks/projects/leaves now land in one single shared calendar | SECURITY-adjacent | yes — real privacy-exposure question for leave records once Google credentials are provisioned |
+| A5 | Meeting-template authorization gates (Company template = Admin/SA only, Team template = manager-tier) — exact match | SECURITY | no |
+| A5 | Meeting cancel/delete authorization (organizer/creator or admin only) — exact match | SECURITY | no |
+| A5 | Notice Board — Announcement visibility rules + admin-only create/delete gate — exact match | SECURITY | no |
+| A8 | Ideas feature: visibility scope changed from a company-wide shared board (reference) to a personal-only, empId-filtered list (rebuild) | SECURITY | yes — citation for the "personal" framing (`LGDesk_Master_Reference.md` Part 28) cannot be verified; `.gs` source clearly implements a shared board |
+| A8 | Ideas feature: write-side RBAC — reference's Admin override on others' ideas has no rebuild equivalent (no escape hatch in `requireOwnIdea`) | SECURITY | yes — same underlying decision as the visibility-scope item above |
+
+### FUNCTIONAL
+
+| Phase | Finding | Severity | Needs Decision? |
+|---|---|---|---|
+| A0 | `tests.gs`'s assertions do not match current `reference/*.gs` return-shape contracts in 14 confirmed cases (Sessions, Tasks, Projects, Progress Updates, Work Log, Notes/Todos/Ideas, Presence, Dashboard, Migration) | FUNCTIONAL | no |
+| A0 | `testProjects()` contains an unguarded `throw` (`createProject` on non-manager) that would abort the rest of `runAllTests()` if actually executed | FUNCTIONAL | no |
+| A0 | Rebuild's uniform `{ok:true,data}` response envelope matches `tests.gs`'s assumed contract more closely than the actual current `reference/auth.gs` does (which has drifted to bare-value-or-throw for Tasks/Projects/Sessions/Progress-Updates) | FUNCTIONAL | yes — decide whether the Next.js uniform envelope is an accepted normalization over the reference's inconsistent contract, or a parity gap; unconfirmable against `LGDesk_Master_Reference.md` |
+| A0 | Whole reference modules (Intern role/Intern_Work_Log, Chat, Chat Spaces, Meet, Forms, Attachments, DDR, Weekly Summary) have zero `tests.gs` coverage — a coverage gap, not a contradiction | FUNCTIONAL | no |
+| A1 | TM/Intern self-assign core rule (assignee list empty or exactly `[self]`) — match | FUNCTIONAL | no |
+| A1 | TM/Intern "no team may be set" sub-clause — rebuild is stricter (hard 403) than reference (silent no-op) | FUNCTIONAL | no |
+| A1 | RBAC read-filters (Admin-all / TM-strict / org-chart public) — high-level shape matches | FUNCTIONAL | no |
+| A1 | WorkLog one-row-per-day — Prisma `@@unique([empId,date])` is a hard DB constraint; reference has no such enforcement (only a duplicate-detector utility) | FUNCTIONAL, schema-adjacent | yes — confirm this stricter constraint is an intentional improvement and that the submission endpoint handles the resulting conflict gracefully |
+| A1 | Task→Project/Function foreign keys rely on Prisma's implicit default `onDelete` (no explicit annotation, no migrations directory to confirm the deployed behavior) | schema-adjacent | yes — confirm actual deployed constraint or add an explicit `onDelete: SetNull` |
+| A1 | ProgressUpdate cascades on Task delete in the rebuild; reference leaves orphaned rows behind | FUNCTIONAL, low | no |
+| A1 | `TEAM_HIERARCHY` (Team → Sub-Department rollup) has no equivalent structure in `constants.ts`; all rebuild team-scoping checks are flat string matches | FUNCTIONAL | no |
+| A2 | Import — fuzzy header-alias matching is present but materially narrower (9 recognized columns vs. reference's ~16, fewer variants each) | FUNCTIONAL | no |
+| A2 | Import — structure-only row detection matches, but per-row Status/Priority/Deadline are silently dropped when creating the Function/Sub-Function row | FUNCTIONAL | no |
+| A2 | Import — employee-name resolution is narrower (3 of 5 reference key variants) and does not exclude deactivated employees | FUNCTIONAL | no |
+| A2 | Import — no special-case for the Sheets `1899-12-30` empty-date artifact; imports a bogus due date where reference correctly blanks it | FUNCTIONAL | no |
+| A2 | Import — columns silently dropped entirely (Recurring, Estimated Hours, Start Date, Function/Sub-Function Description, Links, Department/Sub-Department) | FUNCTIONAL | no |
+| A2 | Import — unmatched-name warning banners (preview-stage UX) entirely absent from the rebuild | FUNCTIONAL | no |
+| A2 | Import — rebuild expects/shows an explicit `TYPE` column with no reference counterpart (fallback inference still covers the no-column case) | FUNCTIONAL, low | no |
+| A2 | Import — Google-Sheet-URL access mechanism differs (authenticated Sheets API vs. public gviz CSV export); functionally similar end-user outcome | FUNCTIONAL | no |
+| A2 | Import RBAC-open citation mismatch: reference cites `LGDesk_Complete_Verification.md`, rebuild cites `LGDesk_Master_Reference.md` — neither file exists in this repo | FUNCTIONAL | yes — cannot verify which (if either) is the real source document; underlying RBAC-open behavior itself is confirmed correct |
+| A2 | DDR — Admin direct-change bypass present in reference (`_isAdmin` regardless of assigner), missing from rebuild's `createDdr` (only exempts the actual assigner) | FUNCTIONAL | yes |
+| A2 | DDR — past-date validation added in rebuild, not present in reference (stricter, not a regression) | FUNCTIONAL | no |
+| A2 | DDR — entity-not-found handling: rebuild throws, reference silently creates an unapprovable orphan request | FUNCTIONAL | no |
+| A2 | DDR — Project added as a supported entity type; reference only supports Task/Function | FUNCTIONAL | no |
+| A2 | DDR — badge count vs. list are internally inconsistent in the rebuild (list includes self-submitted requests, count does not) | FUNCTIONAL | no |
+| A3 | Core Net_Work_Mins formula — clean/whole-minute worked example: confirmed exact match (495 min both systems) | FUNCTIONAL | no |
+| A3 | Core formula with realistic sub-minute timestamps — rebuild's `Math.ceil`/`Math.floor` rounding systematically under-counts net minutes relative to reference's `Math.round` | FUNCTIONAL | no |
+| A3 | Break-total source of truth at clock-out differs (reference re-sums Work_Breaks; rebuild trusts stored cumulative field) — edge case after a manual `editBreak` override | FUNCTIONAL | no |
+| A3 | Session Notes field: reference unconditionally wipes it on every plain clock-out; rebuild preserves/appends | FUNCTIONAL | no |
+| A3 | Auto clock-out midnight-UTC boundary logic matches; stored precision differs (reference: float, 2dp; rebuild: Int minutes) | FUNCTIONAL, schema-adjacent | yes — low priority; only matters if fractional-minute payroll precision is required |
+| A3 | Manual edit-time / custom clock-out: rebuild interprets user-typed `HH:MM` as UTC instead of IST — ~5.5h offset corruption of Net_Work_Mins/OT data | FUNCTIONAL, high impact | no — correctness bug to fix, not a policy question |
+| A3 | Intern clock-derived work duration is never synced anywhere in the rebuild (always targets WorkLog, never InternWorkLog) | FUNCTIONAL, schema-adjacent | yes — fixing requires adding a `workDuration` column to `InternWorkLog`; reference's own equivalent branch may itself be a no-op in production (unconfirmable without direct sheet access) |
+| A3 | `editTime`'s `breakMins` is optional in rebuild (skips update if absent) vs. always-applied-with-default-0 in reference | FUNCTIONAL, low | no |
+| A3 | `wdEditTime`'s AUTO_CLOSED-status recompute gate is not carried over in the rebuild (arguably an improvement) | FUNCTIONAL, low | no |
+| A3 | Team Work Log Overview OT-hours formula (Σextra + EF×9 + EH×4, 1dp round) — confirmed exact match against `app.js.html`'s live client-side formula | FUNCTIONAL | no |
+| A4 | Leave-type option set missing "Emergency Leave" entirely (7 values vs. reference's 8); 5 of 7 use bare-noun stored values instead of reference's "<Type> Leave" strings | FUNCTIONAL | no |
+| A4 | Half-Day single-day rule + 0.5-day booking formula — exact match | FUNCTIONAL | no |
+| A4 | `cancelLeave` / `Cancelled` status — a whole capability added in the rebuild with no reference equivalent anywhere | FUNCTIONAL | no |
+| A4 | Manager email notification on leave submission — a rebuild-only addition, no reference equivalent | FUNCTIONAL | no |
+| A4 | Holiday `Description` field — live and wired in the reference; entirely absent (schema, DTO, UI) in the rebuild | FUNCTIONAL | yes — restoring needs a new `Holiday.description` column |
+| A4 | `getCalendarData` drops the `workLogs` collection entirely — no trace anywhere in the rebuild's calendar data contract or UI | FUNCTIONAL | no |
+| A4 | Holiday CRUD admin-gating + pending-count/list scoping — match | FUNCTIONAL | no |
+| A4 | The entire live, cross-user presence system (`presence.gs`) has no backend equivalent anywhere — only self-only, non-persistent local UI state remains | FUNCTIONAL | no — largest single gap in this phase, but not a schema/RBAC/Master-Reference question |
+| A4 | Presence status enum (online/away/dnd/offline) — matches exactly | FUNCTIONAL | no |
+| A5 | Calendar sync directionality (task/project/leave/holiday) — confirmed one-way DB→Calendar on both sides, no divergence | FUNCTIONAL | no |
+| A5 | Daily reconciliation cron covers only Tasks/Projects in the rebuild vs. all 4 entity types in reference; event-driven sync covers the primary path on both sides (backstop-only gap) | FUNCTIONAL | no |
+| A5 | "Waiting for host" premise unconfirmed anywhere in source; underlying single-fixed-identity constraint is real on both sides, but rebuild's bare service-account JWT (no domain-wide delegation) may not be able to mint Meet links at all | — | yes — open technical question, should be resolved before Google credentials are wired up |
+| A5 | Company-wide meetings are invisible to everyone except organizer/admins — `userCanSeeMeeting` has no `meetType==='company'` case at all | FUNCTIONAL, high | no — parity bug to fix, not a policy question |
+| A5 | Meeting-scheduled notification email + 5-minute pre-meeting reminder email are both entirely missing from the rebuild, and this needs no Google credentials to build | FUNCTIONAL, high | no |
+| A5 | Meeting data-store architecture: Calendar-as-sole-datastore (reference) replaced by a real Meeting DB table (rebuild) — deliberate, sound modernization | FUNCTIONAL | no |
+| A5 | `getMeetingsForRange` 10-minute TTL cache — confirmed match in purpose/timing (re-implemented per no-Redis constraint) | FUNCTIONAL | no |
+| A5 | Notice Board — Birthdays (exact-day MM-DD compare) — match | FUNCTIONAL | no |
+| A5 | Notice Board — Holidays window ([today, today+2]) — match (despite reference's own misleading comment) | FUNCTIONAL | no |
+| A5 | Notice Board — Meetings: rebuild has no `meetType` filter at all — Custom/personal meetings leak in (reference excludes them); Company meetings don't show (blocked by the visibility bug above) | FUNCTIONAL | no |
+| A5 | On Leave Today — rebuild has no alphabetical sort; reference sorts by name ascending | VISUAL/FUNCTIONAL | no |
+| A5 | Scoreboard — scope tiers, score formula, and "in-progress" (WIP-prefix) definition — confirmed exact match | FUNCTIONAL | no |
+| A5 | Scoreboard — overdue-counting: reference's literal code counts a Cancelled-but-overdue task against the score (contradicting its own documented Business Rule #6); rebuild follows the documented rule instead | FUNCTIONAL, low | no |
+| A5 | Scoreboard — rank tie-handling differs (reference: sequential ranks even for ties; rebuild: standard competition ranking) — display-only | VISUAL/FUNCTIONAL | no |
+| A6 | Real attachment targets are Task/Function(+Sub-Function)/Project — not the 4 the reference's own header comment claims; rebuild's stub type already reflects the correct 3 | FUNCTIONAL | no |
+| A6 | Storage mechanism confirmed: Drive-backed binary + Sheet-as-DB metadata, soft-delete via `Is_Active` flip — matches Business Rule #17 | FUNCTIONAL | no |
+| A6 | Credential class for Attachments (Drive, extends existing service-account pattern) is structurally simpler than Chat/Forms (new OAuth2 client + per-user tokens); CLAUDE.md currently bundles all four as one blocker | FUNCTIONAL | yes — worth deciding whether to prioritize/unblock Attachments independently |
+| A6 | Attachment schema is incomplete for 2 of 3 real targets: `projId` has no `@relation`, and there is no `functionId` field at all | FUNCTIONAL | yes — schema/migration change needed before building the controller/service |
+| A6 | No controller/service exists anywhere server-side for Attachments — confirms CLAUDE.md's TODO | FUNCTIONAL | no |
+| A6 | Frontend has more scaffolding than the one-line TODO implies (stub types, toast placeholders) but nothing functional | FUNCTIONAL | no |
+| A6 | Function/Sub-Function has zero attachment UI, not even a placeholder (unlike Task/Project) | FUNCTIONAL | no |
+| A6 | Audio-note recording (real `MediaRecorder` feature in reference) is not implemented anywhere in the rebuild | FUNCTIONAL | no |
+| A6 | Attachment-count login-payload merge is Task-only in the rebuild vs. all-entity-types in reference (downstream of the schema gap) | FUNCTIONAL | no |
+| A7 | Chat bot NL commands (`task:`/`log:`/`tasks`/`help`) — confirmed entirely unbuilt, matches CLAUDE.md | FUNCTIONAL | no |
+| A7 | Chat Spaces OAuth2 connect + auto-sync — confirmed entirely unbuilt, matches CLAUDE.md | FUNCTIONAL | no |
+| A7 | Forms OAuth2 connect + full CRUD + notice-board sharing — confirmed entirely unbuilt, matches CLAUDE.md; no `Form` model exists in schema at all | FUNCTIONAL | no |
+| A7 | `env-setup.gs` does not govern Chat/Forms credentials at all (corrects an assumption in the phase brief); real credential lookups are decentralized in `chatSpaces.gs`/`forms.gs` themselves | FUNCTIONAL | no |
+| A7 | Rebuild's provisioning docs document only Calendar's credential class; Chat/Forms's actual OAuth2-client + per-user-token + new-callback-route requirement is undocumented anywhere | FUNCTIONAL | no |
+| A7 | `appsscript.json`'s OAuth scope list omits Chat/Forms scopes — architecturally correct (manifest vs. per-user dynamic OAuth) but the distinction is undocumented in the rebuild | FUNCTIONAL | no |
+| A7 | GAP-002 (`submitFormResponse` called from client, never defined server-side) — confirmed real at the source level, but confirmed dead/unreachable in practice (only caller always passes a synthetic preview form) | FUNCTIONAL | no |
+| A7 | Real form-response flow (native Google Forms `responderUri`, read back via Forms API) confirmed as the actually-working reference mechanism | FUNCTIONAL | no |
+| A8 | `getTeamDirectory`/`getCompanyDirectory` — matches | FUNCTIONAL | no |
+| A8 | Todos sort (not-done-first, then recency) — verified equivalent via client-side reproduction, not a defect | FUNCTIONAL | no |
+| A8 | Notes secondary sort key differs: reference sorts ties by `Updated_At` desc (edited notes bubble up); rebuild sorts by `createdAt` desc (edits never bubble up) despite an unused `updatedAt` column existing | FUNCTIONAL | no |
+| A8 | Idea default `Status` value: `'Open'` (reference) vs. `'Draft'` (rebuild, both DTO and Prisma column default) | FUNCTIONAL | yes — changing the column-level default is a schema/migration change |
+| A8 | Weekly summary cron cadence matches but has no explicit `timeZone`/`TZ` pin anywhere (works today only because the container's default TZ happens to be UTC) | FUNCTIONAL | no |
+| A8 | Weekly summary AI prompt is materially thinner than reference's 9-point instruction list (no name/week context, no OT/absence/date-exclusion/coverage/grouping instructions) | FUNCTIONAL | no |
+| A8 | Weekly summary frontend-facing endpoints (get/save/generate/MIS) — all four match, including MIS-access gating | FUNCTIONAL | no |
+| A8 | `nightlyArchive` (2 AM IST cold-storage archival to a backup spreadsheet) has zero rebuild equivalent — no archival/retention mechanism exists for any table | FUNCTIONAL | yes — building one requires a Postgres-native archival strategy decision (new archive tables vs. `isArchived`/`archivedAt` columns) |
+| A8 | `dailyCalendarSync`/`wdAutoClockOut` cron cadence — matches | FUNCTIONAL | no |
+| A8 | `cleanupExpiredTokens` cron — a reasonable rebuild-only addition with no reference trigger equivalent (Postgres hygiene for tables that don't exist as such in the reference) | FUNCTIONAL | no |
+| A9 | Week-glance widget DOM position matches reference; separate visibility bug already diagnosed in CLAUDE.md (not re-diagnosed here) | FUNCTIONAL | no |
+| A9 | Import Tasks nav button — confirmed correctly gated to all roles on both sides | FUNCTIONAL | no |
+| A9 | Registrations and Profile Updates promoted to standalone top-level nav items/pages; reference has no such nav entries, embeds the same features as widgets inside Team Management/Organisation pages | FUNCTIONAL | yes — justifying citation (`LGDesk_Master_Reference.md` Parts 10/24) cannot be verified; reference's actual nav shape has no such items |
+| A9 | Two-step "verify then Enter Dashboard" login flow — confirmed a real, live reference flow (not dead code) and correctly reproduced | FUNCTIONAL | no |
+| A9 | Forgot-password 2-step flow (OTP + new/confirm password) — confirmed structurally matching | FUNCTIONAL | no |
+| A9 | Dashboard DOM — confirmed no Tasks-style dead-code restructuring; static containers are filled in place on both sides | FUNCTIONAL | no |
+| A9 | Notice Board announcements have no `type` (General/Emergency/Reminder) or `priority` (Normal/High/Urgent) field anywhere in the rebuild's schema/DTO/form — both actively drive icon + URGENT-badge rendering in reference | FUNCTIONAL | yes — restoring parity requires adding two columns to `Announcement` |
+| A9 | Calendar event-bar layout algorithm — real structural divergence: reference does multi-day-spanning bars + row-packing (cap 4) + holiday→meeting→task→project→leave stack order; rebuild buckets per-day only, caps at 3, and uses a different stack order (meeting last) | VISUAL/FUNCTIONAL | no |
+| A9 | Org Chart controls (zoom/expand/collapse/legend/viewport) — confirmed thorough match | FUNCTIONAL | no |
+| A9 | My Leaves table column set (9 columns) — confirmed exact match, plus one reasonable rebuild-only Actions column | FUNCTIONAL | no |
+| A9 | Directory live search-as-you-type by name/role/team — confirmed present, matches | FUNCTIONAL | no |
+| A9 | Self-service Profile Update field-set diverges in three ways: Designation-immediate-application scope narrower, firstName/lastName/dob are net-new fields, self-service Manager-change request has no rebuild equivalent at all | FUNCTIONAL | yes — no schema migration needed, but a product decision is needed on which Designation-immediate semantics is intended and whether to add the missing Manager-change request path |
+
+### VISUAL
+
+| Phase | Finding | Severity | Needs Decision? |
+|---|---|---|---|
+| A8 | `teamChatSpaces`/`chatSpaceLink` returned inconsistently between team-view (absent) and company-view (empty placeholder) — practically inert since Chat Spaces is blocked | VISUAL | no |
+| A8 | `isManager`/`isAdmin` flags omitted from the rebuild's team-directory payload — not observed to matter (role sourced from `useAuth()` elsewhere) | VISUAL | no |
+| A9 | Header DOM order + no presence/profile controls in header — confirmed structurally faithful, no dead-code divergence | VISUAL | no |
+| A9 | Verified-login card is missing the conditional Designation line the reference shows | VISUAL | no |
+| A9 | Calendar filter-chip/event colors (5 event types, outline-vs-solid two-tone) — exact hex match | VISUAL | no |
+| A9 | Calendar "today" cell color: reference uses a one-off Google-Calendar-style blue; rebuild substitutes the shared indigo `--p`/`--p3` tokens instead | VISUAL | no |
+
 ## A0 — tests.gs currency/reliability assessment
 
 **Scope note on citation style for this phase:** A0's job (per its brief) is to calibrate how much weight later phases (A1–A9) should give `tests.gs` as evidence of intended behavior — it is a **reference-internal consistency check** (`tests.gs` vs. the rest of `reference/*.gs`), not a reference-vs-Next.js parity check. Per-finding citations below are therefore `tests.gs:LINE` vs. the other `.gs` file:LINE it contradicts. Where a finding also bears directly on how later phases should read the Next.js code, a Next.js file:line is added as a secondary citation.
