@@ -40,6 +40,15 @@ export interface ExecuteResult {
   warnings: string[];
 }
 
+// Status/Priority/Deadline for a structure-only (Function/Sub-Fn) row — applied only when the
+// row itself creates the Function/Sub-Function record, never when a Task row is merely
+// ensuring its parent hierarchy exists (mirrors `_migInsertRows`, task-import.gs:304-311).
+interface StructureFields {
+  status?: string;
+  priority?: string;
+  deadline?: string;
+}
+
 @Injectable()
 export class ImportService {
   constructor(
@@ -250,31 +259,39 @@ export class ImportService {
     const warnings: string[] = [];
     let created = 0;
 
-    // functionName -> functionId (top-level functions created/seen this run)
-    const fnByName = new Map<string, string>();
-    // "fn|||subfn" -> functionId (sub-functions created/seen this run)
-    const subByKey = new Map<string, string>();
+    // functionName -> { functionId, fields the record was actually created with } (top-level
+    // functions created/seen this run)
+    const fnByName = new Map<string, { id: string; fields: StructureFields }>();
+    // "fn|||subfn" -> { functionId, fields } (sub-functions created/seen this run)
+    const subByKey = new Map<string, { id: string; fields: StructureFields }>();
 
     const subKey = (fn: string, sub: string): string => `${fn.toLowerCase()}|||${sub.toLowerCase()}`;
 
-    // Status/Priority/Deadline for a structure-only (Function/Sub-Fn) row — applied only when the
-    // row itself creates the Function/Sub-Function record, never when a Task row is merely
-    // ensuring its parent hierarchy exists (mirrors `_migInsertRows`, task-import.gs:304-311).
-    interface StructureFields {
-      status?: string;
-      priority?: string;
-      deadline?: string;
-    }
+    const hasAnyField = (f?: StructureFields): boolean => !!(f && (f.status || f.priority || f.deadline));
+    const fieldsDiffer = (a?: StructureFields, b?: StructureFields): boolean =>
+      (a?.status ?? undefined) !== (b?.status ?? undefined) ||
+      (a?.priority ?? undefined) !== (b?.priority ?? undefined) ||
+      (a?.deadline ?? undefined) !== (b?.deadline ?? undefined);
 
-    const ensureFunction = async (name: string, fields?: StructureFields): Promise<string> => {
+    const ensureFunction = async (name: string, fields?: StructureFields, rowLabel?: string): Promise<string> => {
       const key = name.toLowerCase();
       const existing = fnByName.get(key);
-      if (existing) return existing;
+      if (existing) {
+        // On a cache hit, this row's own explicit Status/Priority/Deadline (if any) are NOT applied
+        // to the already-created record — surface that clearly instead of silently dropping them
+        // behind an ordinary success count.
+        if (rowLabel && hasAnyField(fields) && fieldsDiffer(fields, existing.fields)) {
+          warnings.push(
+            `${rowLabel}: Function "${name}" already created earlier in this batch — Status/Priority/Deadline from this row were not applied.`,
+          );
+        }
+        return existing.id;
+      }
       const fn = await this.functions.createFunction(
         { name, projId: projectId, status: fields?.status, priority: fields?.priority, deadline: fields?.deadline },
         callerEmpId,
       );
-      fnByName.set(key, fn.functionId);
+      fnByName.set(key, { id: fn.functionId, fields: fields ?? {} });
       return fn.functionId;
     };
 
@@ -282,10 +299,18 @@ export class ImportService {
       parentName: string,
       subName: string,
       fields?: StructureFields,
+      rowLabel?: string,
     ): Promise<string> => {
       const key = subKey(parentName, subName);
       const existing = subByKey.get(key);
-      if (existing) return existing;
+      if (existing) {
+        if (rowLabel && hasAnyField(fields) && fieldsDiffer(fields, existing.fields)) {
+          warnings.push(
+            `${rowLabel}: Sub-Function "${subName}" (under "${parentName}") already created earlier in this batch — Status/Priority/Deadline from this row were not applied.`,
+          );
+        }
+        return existing.id;
+      }
       const parentId = await ensureFunction(parentName);
       const fn = await this.functions.createFunction(
         {
@@ -298,7 +323,7 @@ export class ImportService {
         },
         callerEmpId,
       );
-      subByKey.set(key, fn.functionId);
+      subByKey.set(key, { id: fn.functionId, fields: fields ?? {} });
       return fn.functionId;
     };
 
@@ -308,20 +333,29 @@ export class ImportService {
       try {
         if (row.type === 'Function') {
           if (!row.function) throw new Error('Function name is required');
-          await ensureFunction(row.function, {
-            status: this.cleanStatus(row.status, warnings, rowLabel),
-            priority: this.cleanPriority(row.priority, warnings, rowLabel),
-            deadline: this.parseDate(row.dueDate),
-          });
+          await ensureFunction(
+            row.function,
+            {
+              status: this.cleanStatus(row.status, warnings, rowLabel),
+              priority: this.cleanPriority(row.priority, warnings, rowLabel),
+              deadline: this.parseDate(row.dueDate),
+            },
+            rowLabel,
+          );
           created++;
         } else if (row.type === 'Sub-Fn') {
           if (!row.function) throw new Error('Parent function name is required');
           if (!row.subFunction) throw new Error('Sub-function name is required');
-          await ensureSubFunction(row.function, row.subFunction, {
-            status: this.cleanStatus(row.status, warnings, rowLabel),
-            priority: this.cleanPriority(row.priority, warnings, rowLabel),
-            deadline: this.parseDate(row.dueDate),
-          });
+          await ensureSubFunction(
+            row.function,
+            row.subFunction,
+            {
+              status: this.cleanStatus(row.status, warnings, rowLabel),
+              priority: this.cleanPriority(row.priority, warnings, rowLabel),
+              deadline: this.parseDate(row.dueDate),
+            },
+            rowLabel,
+          );
           created++;
         } else {
           // Task
