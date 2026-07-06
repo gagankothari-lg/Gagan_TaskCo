@@ -130,7 +130,13 @@ export class WorkDurationService {
     const data: Record<string, unknown> = { clockIn: newClockIn };
     if (dto.breakMins !== undefined) data.totalBreakMins = dto.breakMins; // manual direct set
     let newClockOut = s.clockOut;
-    if (s.clockOut && dto.endTime) {
+    // FIX C: a typed endTime must be honored whenever it's provided, not only when a clockOut
+    // already exists. Previously `s.clockOut && dto.endTime` was false for an ACTIVE session
+    // (no clockOut yet), so the endTime was silently dropped — no clockOut written, no
+    // gross/net computed — while the audit note appended below unconditionally recorded the
+    // edit as if it had been applied. Treat a typed endTime on an ACTIVE session as SETTING
+    // clockOut for the first time (transitioning the session to COMPLETED).
+    if (dto.endTime) {
       // FIX A (cross-midnight): anchor the new clock-out time to the (possibly just-
       // recomputed) clock-IN's IST calendar day — NOT the existing clockOut's day, which is
       // what silently broke any edit meant to cross midnight (e.g. clock-in 23:xx, editing
@@ -146,6 +152,7 @@ export class WorkDurationService {
         throw new BadRequestException('Clock-out time must be after clock-in');
       }
       data.clockOut = newClockOut;
+      if (!s.clockOut) data.status = 'COMPLETED';
     }
     let net = s.netMinutes;
     if (newClockOut) {
