@@ -248,8 +248,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               <Form {...sheetForm}>
                 <form onSubmit={sheetForm.handleSubmit(onPreviewSheet)}>
                   <div style={{ background: '#e3f2fd', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#1565c0', marginBottom: 16, lineHeight: 1.5 }}>
-                    Make sure the sheet is shared with{' '}
-                    <strong style={{ color: '#3949ab' }}>info@aswinibajaj.com</strong> (Viewer), or set it to
+                    Make sure the sheet is set to
                     &ldquo;anyone with the link (Viewer)&rdquo;. If you can&apos;t share it, use the{' '}
                     <button
                       type="button"
