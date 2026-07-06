@@ -402,6 +402,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                 functions={functions}
                 projects={projects}
                 employees={employees}
+                teams={teams}
                 currentUserName={currentUser?.name ?? ''}
                 currentUserEmpId={currentUser?.empId ?? ''}
               />
@@ -544,12 +545,13 @@ function isRowUntouched(row: BatchRowValues, defaults: BatchRowValues): boolean 
   );
 }
 
-function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, currentUserName, currentUserEmpId }: {
+function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, teams, currentUserName, currentUserEmpId }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   functions: WorkFunction[];
   projects: Project[];
   employees: User[];
+  teams: string[];
   currentUserName: string;
   currentUserEmpId: string;
 }) {
@@ -591,6 +593,7 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, c
         functionId: row.functionId || undefined,
         subFnId: row.subFnId || undefined,
         assigneeIds: row.assigneeIds,
+        assignedTeams: row.team ? [row.team] : undefined,
         status: row.status,
         priority: row.priority,
         dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : undefined,
@@ -653,7 +656,7 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, c
               return (
                 <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 2fr 1.15fr 0.9fr 1fr 0.9fr 0.9fr 0.9fr auto', gap: 6, alignItems: 'start' }}
+                    style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 2fr 1.15fr 0.9fr 1fr 0.9fr 0.9fr 0.9fr 0.9fr auto', gap: 6, alignItems: 'start' }}
                   >
                     <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                       <select className="fc" style={{ fontSize: 12, flex: 1, minWidth: 0 }} {...form.register(`rows.${i}.functionId` as const)}>
@@ -701,6 +704,16 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, c
                     <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.projId` as const)}>
                       <option value="">Project</option>
                       {projects.map((p) => <option key={p.projId} value={p.projId}>{p.name}</option>)}
+                    </select>
+                    {/* Team — was carried in the schema/defaults with no rendered control
+                        and never sent at submit (dead field). Wired up 2026-07-06 following
+                        the same single-select-team → assignedTeams:[team] convention already
+                        established by create-project-modal.tsx, rather than removed, since
+                        the backend (CreateTaskDto.assignedTeams) already accepts it with no
+                        migration needed. */}
+                    <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.team` as const)}>
+                      <option value="">Team</option>
+                      {teams.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                     <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.status` as const)}>
                       {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
