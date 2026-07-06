@@ -419,7 +419,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Scoreboard — hidden on mobile (<=768px) */}
-      <div id="dash-scoreboard-wrap" className="hidden md:block">
+      <div id="dash-scoreboard-wrap" className="max-md:hidden">
         <SectionTitle icon="leaderboard" title={scoreboardTitle} />
         {isLoading || !data ? (
           <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
