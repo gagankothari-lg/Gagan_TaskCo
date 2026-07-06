@@ -252,17 +252,25 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     // keyed on `functions`, so depending on it here is both correct and non-thrashing.
   }, [filtered, fnName]);
 
-  // Lazy-render page: take the first `visibleCount` task rows in the already-sorted
-  // group order, re-deriving the same [functionId, rows][] shape so partially-consumed
-  // groups still render with a correct header + count.
+  // Lazy-render page: decide how many rows of EACH group are allowed to mount, in group
+  // order, WITHOUT truncating the group's own task list. FIX A (lazy-pagination-before-
+  // sort bug): the previous version sliced each group's `list` down to `remaining` tasks
+  // BEFORE handing it to FunctionGroup, so both the header count badge and the per-group
+  // sort only ever saw the truncated slice — a group with more tasks than PAGE_SIZE showed
+  // a wrong (low) count and sorted only its first page until scrolling pulled in the rest.
+  // Now each entry carries the FULL, unsliced list plus a separate `mountCount` — the
+  // group itself sorts the complete list and slices ONLY the already-sorted output down
+  // to `mountCount` rows to render (see FunctionGroup below). `remaining` is still
+  // decremented by the group's full length (not the mounted portion) so the existing
+  // "reveal one partially-mounted group at a time while scrolling" behavior is preserved.
   const pagedFunctionGroups = useMemo(() => {
     let remaining = visibleCount;
-    const out: [string, Task[]][] = [];
+    const out: [string, Task[], number][] = [];
     for (const [fid, list] of functionGroups) {
       if (remaining <= 0) break;
-      const slice = list.slice(0, remaining);
-      if (slice.length) out.push([fid, slice]);
-      remaining -= slice.length;
+      const mountCount = Math.min(list.length, remaining);
+      out.push([fid, list, mountCount]);
+      remaining -= list.length;
     }
     return out;
   }, [functionGroups, visibleCount]);
@@ -370,11 +378,12 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                   </td>
                 </tr>
               ) : (
-                pagedFunctionGroups.map(([fid, list]) => (
+                pagedFunctionGroups.map(([fid, list, mountCount]) => (
                   <FunctionGroup
                     key={fid}
                     name={fnName(fid === '__none' ? undefined : fid)}
                     list={list}
+                    mountCount={mountCount}
                     sort={groupSort[fid]}
                     onSort={(field) => handleGroupSort(fid, field)}
                     onOpen={setDetailId}
@@ -436,9 +445,16 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
 // own sortable header row — clicking a column header here only re-sorts THIS group's
 // rows, mirroring the reference's `_tskGrpSetSort` (app.js.html:5463-5506), not a single
 // global sort applied to the whole page.
-function FunctionGroup({ name, list, sort, onSort, onOpen, onEdit }: {
+//
+// FIX A (lazy-pagination-before-sort bug): `list` is always this group's COMPLETE,
+// unsliced task set — sorting and the header count badge (`list.length`) always operate
+// on the full group, never a lazy-load page. `mountCount` is purely a "how many of the
+// already-sorted rows may mount in the DOM" cutoff — it is applied AFTER sorting, by
+// slicing `sorted`, so lazy-loading never affects sort correctness or the displayed count.
+function FunctionGroup({ name, list, mountCount, sort, onSort, onOpen, onEdit }: {
   name: string;
   list: Task[];
+  mountCount: number;
   sort?: { field: SortField; dir: 'asc' | 'desc' };
   onSort: (field: SortField) => void;
   onOpen: (id: string) => void;
@@ -454,6 +470,7 @@ function FunctionGroup({ name, list, sort, onSort, onOpen, onEdit }: {
       return sort.dir === 'asc' ? cmp : -cmp;
     });
   }, [list, sort, functions, employees]);
+  const visible = useMemo(() => sorted.slice(0, mountCount), [sorted, mountCount]);
 
   return (
     <>
@@ -483,7 +500,7 @@ function FunctionGroup({ name, list, sort, onSort, onOpen, onEdit }: {
         ))}
         <th style={{ ...thStyle, ...actionsCellStyle('#f7f8fb'), width: 34 }} />
       </tr>
-      {sorted.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} onEdit={onEdit} />)}
+      {visible.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} onEdit={onEdit} />)}
     </>
   );
 }
