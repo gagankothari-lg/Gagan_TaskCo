@@ -317,9 +317,18 @@ export class ImportService {
         } else {
           // Task
           if (!row.taskTitle) throw new Error('Task title is required');
+          // functionId always points at the top-level parent Function; subFnId (if any)
+          // points at the chosen Sub-Function — matching every other task-creation path
+          // (task-edit-modal.tsx, task-list-view.tsx's batch row), which always sets both
+          // together rather than putting the sub-function's id into functionId.
           let functionId: string | undefined;
-          if (row.subFunction) functionId = await ensureSubFunction(row.function, row.subFunction);
-          else if (row.function) functionId = await ensureFunction(row.function);
+          let subFnId: string | undefined;
+          if (row.subFunction) {
+            functionId = await ensureFunction(row.function);
+            subFnId = await ensureSubFunction(row.function, row.subFunction);
+          } else if (row.function) {
+            functionId = await ensureFunction(row.function);
+          }
 
           const assigneeNames = row.assignees ?? [];
           const assigneeIds = await this.resolveEmpIds(assigneeNames);
@@ -328,6 +337,7 @@ export class ImportService {
             {
               title: row.taskTitle,
               functionId,
+              subFnId,
               projId: projectId,
               assigneeIds: assigneeIds.length ? assigneeIds : undefined,
               status: this.cleanStatus(row.status),
