@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { Icon } from '../../ui/icon';
-import { useClockOut } from '../../../lib/api/workDuration';
+import { useClockOut, istHHMM } from '../../../lib/api/workDuration';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
@@ -38,15 +38,20 @@ export function AnalogClock({ hour, minute, size = 120 }: { hour: number; minute
   );
 }
 
-export function ChangeClockOutModal({ open, onClose, clockInIso }: { open: boolean; onClose: () => void; clockInIso?: string | null }) {
+export function ChangeClockOutModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const clockOut = useClockOut();
   const [error, setError] = useState<string | null>(null);
+
+  // AUDIT_REPORT.md A3 item 6: default to the current IST wall-clock time, not the browser's
+  // local time — `new Date().getHours()/getMinutes()` is wrong for any user whose device isn't
+  // set to IST. Reuse the same istHHMM() helper used for the IST-anchored prefill fixes elsewhere.
+  const [defaultHour, defaultMinute] = istHHMM(new Date().toISOString()).split(':').map(Number);
 
   const form = useForm<ChangeClockOutFormValues>({
     resolver: zodResolver(changeClockOutSchema),
     defaultValues: {
-      hour: new Date().getHours(),
-      minute: new Date().getMinutes(),
+      hour: defaultHour,
+      minute: defaultMinute,
       reason: '',
     },
   });
@@ -59,12 +64,6 @@ export function ChangeClockOutModal({ open, onClose, clockInIso }: { open: boole
   async function onSubmit(values: ChangeClockOutFormValues) {
     setError(null);
     const customTime = `${pad(values.hour)}:${pad(values.minute)}`;
-    if (clockInIso) {
-      const ci = new Date(clockInIso);
-      if (values.hour * 60 + values.minute <= ci.getUTCHours() * 60 + ci.getUTCMinutes()) {
-        // best-effort guard; server validates authoritatively
-      }
-    }
     try {
       await clockOut.mutateAsync({ customTime, reason: values.reason || undefined });
       onClose();

@@ -121,7 +121,7 @@ export function ClockWidget() {
             </div>
           </>
         )}
-        <ChangeClockOutModal open={customOpen} onClose={() => setCustomOpen(false)} clockInIso={session?.clockIn} />
+        <ChangeClockOutModal open={customOpen} onClose={() => setCustomOpen(false)} />
         <EditDayModal
           open={editOpen}
           onClose={() => setEditOpen(false)}
