@@ -188,7 +188,8 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
       const result = await execute.mutateAsync({ rows: chosen, projectId: selectedProjectId || undefined });
       let message = `Imported ${result.created} item(s)`;
       if (result.errors.length > 0) message += ` — ${result.errors.length} row(s) failed`;
-      toast(message, result.errors.length > 0 ? 'warn' : 'success');
+      if (result.warnings?.length > 0) message += ` — ${result.warnings.length} warning(s)`;
+      toast(message, result.errors.length > 0 || result.warnings?.length > 0 ? 'warn' : 'success');
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.invalidateQueries({ queryKey: ['functions'] });

@@ -31,6 +31,11 @@ export interface PreviewResult {
 export interface ExecuteResult {
   created: number;
   errors: string[];
+  // Non-fatal, per-row notices (e.g. an unrecognized Status/Priority value that was
+  // defaulted, or explicit fields on a Function/Sub-Function that couldn't be applied
+  // because it was already created earlier in this batch). Rows are still counted in
+  // `created` — these are not failures.
+  warnings: string[];
 }
 
 export interface PreviewSheetInput {

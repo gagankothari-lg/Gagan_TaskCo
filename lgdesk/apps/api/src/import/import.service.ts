@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FunctionsService } from '../functions/functions.service';
 import { TasksService } from '../tasks/tasks.service';
+import { TASK_STATUSES } from '../common/constants';
+import { TASK_PRIORITIES } from '../tasks/dto/create-task.dto';
 
 export interface ImportRow {
   type: 'Function' | 'Sub-Fn' | 'Task';
@@ -31,6 +33,11 @@ export interface PreviewResult {
 export interface ExecuteResult {
   created: number;
   errors: string[];
+  // Non-fatal, per-row notices — e.g. an unrecognized Status/Priority value that was
+  // defaulted, or a Function/Sub-Function's explicit fields that couldn't be applied
+  // because that record was already created earlier in the same batch. These rows
+  // still count toward `created`; they are NOT failures.
+  warnings: string[];
 }
 
 @Injectable()
@@ -240,6 +247,7 @@ export class ImportService {
   ): Promise<ExecuteResult> {
     const selected = (rows ?? []).filter((r) => r && r.selected);
     const errors: string[] = [];
+    const warnings: string[] = [];
     let created = 0;
 
     // functionName -> functionId (top-level functions created/seen this run)
@@ -296,12 +304,13 @@ export class ImportService {
 
     for (let i = 0; i < selected.length; i++) {
       const row = selected[i];
+      const rowLabel = `Row ${i + 1}`;
       try {
         if (row.type === 'Function') {
           if (!row.function) throw new Error('Function name is required');
           await ensureFunction(row.function, {
-            status: this.cleanStatus(row.status),
-            priority: this.cleanPriority(row.priority),
+            status: this.cleanStatus(row.status, warnings, rowLabel),
+            priority: this.cleanPriority(row.priority, warnings, rowLabel),
             deadline: this.parseDate(row.dueDate),
           });
           created++;
@@ -309,8 +318,8 @@ export class ImportService {
           if (!row.function) throw new Error('Parent function name is required');
           if (!row.subFunction) throw new Error('Sub-function name is required');
           await ensureSubFunction(row.function, row.subFunction, {
-            status: this.cleanStatus(row.status),
-            priority: this.cleanPriority(row.priority),
+            status: this.cleanStatus(row.status, warnings, rowLabel),
+            priority: this.cleanPriority(row.priority, warnings, rowLabel),
             deadline: this.parseDate(row.dueDate),
           });
           created++;
@@ -340,8 +349,8 @@ export class ImportService {
               subFnId,
               projId: projectId,
               assigneeIds: assigneeIds.length ? assigneeIds : undefined,
-              status: this.cleanStatus(row.status),
-              priority: this.cleanPriority(row.priority),
+              status: this.cleanStatus(row.status, warnings, rowLabel),
+              priority: this.cleanPriority(row.priority, warnings, rowLabel),
               dueDate: this.parseDate(row.dueDate),
             },
             // assigner defaults to the caller (set from JWT inside createTask).
@@ -355,7 +364,7 @@ export class ImportService {
       }
     }
 
-    return { created, errors };
+    return { created, errors, warnings };
   }
 
   // Resolve a list of "First Last" / email tokens to empIds (case-insensitive).
@@ -395,14 +404,30 @@ export class ImportService {
     return out;
   }
 
-  private cleanStatus(s?: string): string | undefined {
+  // Unlike every other task/function-creation path — which runs through a class-validator DTO
+  // (`CreateTaskDto`/`CreateFunctionDto`, `@IsIn([...TASK_STATUSES])`/`@IsIn([...TASK_PRIORITIES])`)
+  // enforced by Nest's ValidationPipe — rows here are built into plain object literals and passed
+  // straight into `FunctionsService`/`TasksService` methods, bypassing the HTTP validation pipeline
+  // entirely. So an arbitrary spreadsheet string (e.g. "In Progress", which is not a real status)
+  // would otherwise persist verbatim. Validate here instead: match case-insensitively against the
+  // real enum, fall back to a sensible default on a miss, and record a per-row warning rather than
+  // silently accepting or silently dropping the value.
+  private cleanStatus(s: string | undefined, warnings: string[], rowLabel: string): string | undefined {
     const v = s?.trim();
-    return v ? v : undefined;
+    if (!v) return undefined;
+    const match = (TASK_STATUSES as readonly string[]).find((t) => t.toLowerCase() === v.toLowerCase());
+    if (match) return match;
+    warnings.push(`${rowLabel}: Status "${v}" is not a recognized status — defaulted to "Not Started".`);
+    return 'Not Started';
   }
 
-  private cleanPriority(p?: string): string | undefined {
+  private cleanPriority(p: string | undefined, warnings: string[], rowLabel: string): string | undefined {
     const v = p?.trim();
-    return v ? v : undefined;
+    if (!v) return undefined;
+    const match = TASK_PRIORITIES.find((t) => t.toLowerCase() === v.toLowerCase());
+    if (match) return match;
+    warnings.push(`${rowLabel}: Priority "${v}" is not a recognized priority — defaulted to "Medium".`);
+    return 'Medium';
   }
 
   // Accept ISO and common date strings; return ISO-8601 or undefined.
