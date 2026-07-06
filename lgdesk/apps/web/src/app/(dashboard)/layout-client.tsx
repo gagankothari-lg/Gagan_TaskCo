@@ -218,7 +218,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <button
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           onClick={() => setCollapsed((v) => !v)}
-          className="hidden md:flex"
+          className="flex max-md:hidden"
           style={{
             position: 'absolute', top: 78, right: -12, zIndex: 10,
             width: 24, height: 24, borderRadius: '50%',
