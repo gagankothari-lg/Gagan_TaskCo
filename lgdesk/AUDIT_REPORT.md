@@ -1388,3 +1388,55 @@ correctly surfaces the one pre-existing unprefixed employee record as expected.
 
 **Status: FIXED.** No items deferred to a "needs decision" list — the two pre-existing data anomalies
 above are a known, deliberately-unreconciled state per explicit instruction, not an open question.
+
+---
+
+## PFIX-IMPORT-TASKS-MODAL — Import modal: CSV upload bug + copy fix (2026-07-06)
+
+Standalone fix task, logged here per its own instruction ("if AUDIT_REPORT.md exists... log both fixes
+there"). Two independent issues in the "Import Functions, Sub-Functions & Tasks" modal
+(`apps/web/src/components/modules/import/import-modal.tsx`), two separate commits.
+
+### Issue 1 — Upload CSV tab: file selection never registered (FIXED, `9a9edd1`)
+
+**Finding:** clicking "Choose CSV File" and selecting a real file never cleared the "Choose a CSV file
+first." validation error and never advanced to "Preview CSV" — isolated to the Upload CSV tab (the
+Google Sheet URL tab was unaffected).
+
+**Diagnosis, via live browser reproduction (not code review alone) — three genuinely distinct root
+causes, each confirmed by a separate live reproduction pass after the previous fix attempt looked
+correct on paper but failed live:**
+1. `csvForm`'s `useForm({defaultValues})` never declared `csvFile` (only `projectId` was present) —
+   react-hook-form's `Controller` fell back to an ungoverned `''` default for the undeclared field.
+2. The `<input type="file">` only wired `onChange`, omitting `ref`/`name`/`onBlur` — deviating from
+   react-hook-form's own documented Controller-file-input pattern.
+3. Even with both of the above fixed, `field.onChange(File)` from Controller's `render` prop was
+   confirmed via live instrumentation to actually execute with the correct `File` object, yet never
+   persisted it into RHF's tracked `_formValues` — while manually calling
+   `csvForm.setValue('csvFile', file, {shouldValidate:true, shouldDirty:true})` on the same live control
+   instance worked instantly and reliably. The final fix bypasses `field.onChange` entirely in favor of
+   driving the value through `setValue()`.
+
+**Verification:** `npx tsc --noEmit` and full `next build` clean after each layer. Live-verified across
+two independent full click-to-preview trials (different files, modal closed/reopened between them, real
+`page.on('filechooser')` + `chooser.setFiles()` simulating an actual OS file picker — not a
+`setInputFiles()` bypass): file selection now shows the filename, clears the validation error, and
+"Preview CSV" correctly advances to the parsed-rows table. Confirmed via served-bundle inspection that
+the fix was actually live, not a stale cache. No test data was imported/executed during any verification
+pass.
+
+### Issue 2 — Via Google Sheet URL tab: redundant helper-note copy (FIXED, `2b5e167`)
+
+**Finding:** the helper note told users to share the sheet with a specific email address, redundant with
+the very next clause ("anyone with the link (Viewer)") that already covers that case.
+
+**Fix:** trimmed to `Make sure the sheet is set to "anyone with the link (Viewer)". If you can't share
+it, use the Upload CSV tab instead.` — copy-only change, confirmed via diff to touch nothing else in the
+component. This tab's import logic was already working and is unaffected.
+
+**Verification:** full regression suite re-run clean (health 200, Helmet headers present, login succeeds,
+zero `passwordHash` occurrences, rate limiting 429 after burst, frontend reachable). Live-confirmed the
+Sheet-URL tab's helper text reads correctly post-edit.
+
+**Status: BOTH FIXED.** No items deferred — this was a pure UI/form-wiring bug plus a copy trim, no
+schema/migration or security-policy question involved.
