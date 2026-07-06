@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -140,7 +140,16 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
   useEffect(() => { const t = setTimeout(() => setQuery(rawQuery.trim().toLowerCase()), 220); return () => clearTimeout(t); }, [rawQuery]);
 
   const teams = useMemo(() => Array.from(new Set(employees.map((e) => e.team).filter(Boolean))) as string[], [employees]);
-  const fnName = (id?: string | null) => functions.find((f) => f.functionId === id)?.name ?? 'No Function';
+  // FIX B (stale fnName dependency): wrapped in useCallback (deps: [functions]) instead of
+  // a plain inline arrow function, so it has a stable identity that only changes when
+  // `functions` itself changes — that lets `functionGroups` below correctly depend on
+  // `fnName` without either (a) an exhaustive-deps warning (a plain closure can't safely be
+  // listed — it's a new reference every render) or (b) recomputing group order on every
+  // unrelated re-render.
+  const fnName = useCallback(
+    (id?: string | null) => functions.find((f) => f.functionId === id)?.name ?? 'No Function',
+    [functions],
+  );
   const empName = (id: string) => { const u = employees.find((e) => e.empId === id); return u ? `${u.firstName} ${u.lastName}` : id; };
   const teamOf = (empId?: string | null) => (empId ? employees.find((e) => e.empId === empId)?.team : undefined);
 
@@ -235,7 +244,13 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
       return an.localeCompare(bn);
     });
     return entries;
-  }, [filtered]);
+    // FIX B (stale fnName dependency): `fnName` closes over `functions` (from useAuth()) to
+    // alphabetize groups by function name. It was previously omitted from this array, so
+    // after a function rename group ORDER could go stale (each group's own displayed label
+    // still refreshed correctly via the separate fnName(fid) call at the JSX call site,
+    // which re-runs every render). `fnName` is now a useCallback with a stable identity
+    // keyed on `functions`, so depending on it here is both correct and non-thrashing.
+  }, [filtered, fnName]);
 
   // Lazy-render page: take the first `visibleCount` task rows in the already-sorted
   // group order, re-deriving the same [functionId, rows][] shape so partially-consumed
