@@ -1440,3 +1440,88 @@ Sheet-URL tab's helper text reads correctly post-edit.
 
 **Status: BOTH FIXED.** No items deferred — this was a pure UI/form-wiring bug plus a copy trim, no
 schema/migration or security-policy question involved.
+
+---
+
+## PFIX-REGISTRATION-MANAGER-EMAIL — Registration form: Manager's Email never auto-resolved (2026-07-07)
+
+Standalone fix task, logged here per its own instruction. On the public Registration form,
+"Manager's Email" showed placeholder text "Auto-resolved on approval" but was a plain,
+always-editable, always-required text input with no resolution logic behind it — blocking
+submission for Team Member / Team Facilitator / Intern applicants who had no way to know whose
+email to type.
+
+### Design question resolved: auto-populate-at-registration IS correct (not deferred-to-approval)
+
+Confirmed directly from source, not from the placeholder copy: `reference/auth.gs:1523-1585`
+(`getTeamCaptainByTeam`, explicitly commented "Public — no auth required (called before the user
+has an account)") and `reference/app.js.html:7776-7877` (`_REG_MANUAL_ROLES`, `onRegRoleChange`,
+`_regAutoFillManager`) show the real GAS app resolves a real manager address at registration time
+for Team Member/Team Facilitator/Intern applicants, with Super Admin/Admin/Team Captain typing
+their own "Reports-to Email" manually. Resolution order: sub-department Team Captain → team-wide
+Team Captain → configured default manager → any active Super Admin → any active Admin → block
+registration entirely if nobody is found.
+
+### Root cause: the backend logic already existed correctly — it just wasn't reachable or wired
+
+- `apps/api/src/users/users.service.ts:419-440`'s `getTeamCaptainByTeam` already correctly
+  implements this fallback chain (sub-dept TC → team TC → Super Admin → Admin → null; the
+  "configured default manager" step is a pre-existing, documented, deliberately-deferred
+  simplification — P03 scope note, `setDefaultManager` is a no-op stub — acceptable since the
+  Super Admin fallback covers the real-world need). It was ALSO already being called
+  automatically, server-side, during `submitRegistration` (`users.service.ts:145`) — meaning the
+  backend has always correctly resolved and stored the real manager on every registration,
+  completely independent of whatever the frontend's `managerEmail` field held (confirmed: this
+  field is never even sent to the API — see `RegisterRequestInput` in `lib/api/auth.ts`).
+- The one thing actually missing: `GET /api/users/team-captain` (the endpoint the frontend needs
+  to call, purely so the applicant can SEE who will review their request before submitting) lived
+  on `UsersController`, which applies `@UseGuards(JwtAuthGuard, RolesGuard)` at the controller
+  level to every route — an anonymous registration visitor could never reach it. The frontend also
+  had zero lookup logic wired at all — a plain required text input with a misleading placeholder.
+- The "two failed `me` fetch requests" noted in the bug report were investigated and confirmed
+  **unrelated** to this feature: `AuthProvider`'s bootstrap effect only calls `fetchMe()` when a
+  token already exists in `localStorage`; live-reproduced with a deliberately-stale token and
+  confirmed exactly 2 requests fire — React 18 StrictMode double-invoking the mount effect in dev,
+  a pre-existing, harmless, unrelated dev-mode artifact.
+- A genuine, honest data observation (not a blocker, not something to fix): **no employee in the
+  live dataset currently has role "Team Captain"** — every team/sub-department combination
+  currently falls through to the Super Admin fallback. This is exactly the scenario the
+  reference's own fallback chain is designed to handle gracefully, not a data-entry gap requiring
+  a decision — flagging it here for visibility, not as a stop-and-ask item.
+
+### Fix
+
+- Moved the endpoint from `UsersController` to `AuthController` (unguarded, matching this
+  codebase's own established convention for selectively-public routes — e.g. `/auth/register/request`
+  already lives there ungated) — `apps/api/src/auth/auth.controller.ts`, `apps/api/src/users/users.controller.ts`.
+- Added `getTeamCaptain`/`useTeamCaptain` to `apps/web/src/lib/api/auth.ts` and wired
+  `registration-modal.tsx`: for Team Member/Team Facilitator/Intern, Manager's Email now auto-calls
+  the lookup on Team Division/Sub-Department change, goes read-only once resolved (with a
+  "✓ Auto-filled: {name} (Manager)" hint), shows "Looking up manager…" while in flight (clearing
+  any stale previous value first — no flicker from a prior selection lingering), blocks submission
+  with a clear message if nobody is found, and "fails open" (editable, generic placeholder, submit
+  unblocked) on a genuine network/request error rather than a definitive "not found" — matching the
+  reference's distinct handling of these two cases. Super Admin/Admin/Team Captain roles are
+  unaffected (still manual, unchanged labels/placeholders); switching into a manual role clears any
+  stale auto-filled value.
+- Updated the stale comment in `registration-modal.schema.ts` that had documented this as a known,
+  unfixed gap.
+
+### Verification
+
+`npx tsc --noEmit` and full builds clean for both workspaces. Live-verified end-to-end (real
+browser, anonymous session, no auth bypass): auto-fill resolves correctly (Team Member + any team
+→ `info@aswinibajaj.com`, confirmed via genuine keyboard-typing tests that the field is truly
+read-only, not just visually so); switching to a manual role (Admin) correctly clears and unblocks
+the field; switching back re-resolves; changing Team Division while in auto-fill mode clears the
+stale value before re-resolving (no lingering-previous-value glitch); an actual test registration
+submission succeeded end-to-end (`201 Created`) with the auto-resolved manager attached — left
+as a genuine pending registration request in the dev database, not approved/rejected, per
+instructions not to clean it up; the network-failure "fail open" path was also reproduced and
+confirmed correct. Full regression suite re-run clean (health 200, Helmet headers present, login
+succeeds, zero `passwordHash` occurrences, rate limiting 429 after burst, frontend reachable).
+
+**Status: FIXED.** No schema/migration change was needed (the resolution + storage logic already
+existed correctly server-side); no head/manager data was invented — the Super Admin fallback that
+every team currently resolves to is the reference's own designed behavior, not something added to
+paper over missing data.
