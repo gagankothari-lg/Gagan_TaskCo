@@ -130,6 +130,48 @@ Role-change matrix (`users.service.ts` `changeRole`, mirrored in `rbac.ts` `allo
 - **Team Facilitator** — no capability at all. No code branch exists or should exist for TF changing anyone's role.
 - Nobody may change their own role (enforced server-side before any role branch).
 
+## Team → Sub-Department org hierarchy — source of truth (corrected 2026-07-06, PFIX-ORG-STRUCTURE-DATA)
+
+The 8-team org structure, confirmed directly with the founder and matching `reference/setupSheets.gs`'s
+`TEAM_HIERARCHY` (lines 67-76) exactly, including the numeric prefixes (real stored-data values, not
+doc-only numbering):
+
+| Team | Sub-Departments |
+|---|---|
+| 1. Founder's Office | 1a. MIS, Data & Strategy · 1b. Innovation (R&D) |
+| 2. Student Success | 2a. Student Counselling (Sales) · 2b. Student Support (Customer Support) · 2c. Partnerships & Outreach |
+| 3. Knowledge | *(none — correct as empty)* |
+| 4. Growth (Marketing) | 4a. Vision & Voice · 4b. Creative Hub |
+| 5. Tech | 5a. Product · 5b. Development · 5c. Maintenance |
+| 6. Consulting | 6a. Client Delivery · 6b. Research |
+| 7. Operations - PP & Admin | 7a. People & Performance (HR) · 7b. Admin |
+| 8. Operations - FP&A | 8a. Financial Planning & Analysis |
+
+**Single source of truth in the rebuild:** `TEAM_HIERARCHY` in
+`apps/web/src/components/modules/users/registration-modal.schema.ts`. `org-chart/page.tsx` imports this
+same constant directly — one edit fixes both the Registration form's Sub-Department dropdown and the
+Org Chart. No backend copy exists (`register-request.dto.ts`'s `subDepartment` field accepts any string;
+no enum validation server-side).
+
+**This is a separate taxonomy from Task's Function/Sub-Function** — confirmed via `setupSheets.gs`'s
+`Functions`/`Tasks` sheet schemas (`Function_ID`/`Parent_Fn_ID` self-referencing hierarchy, project-scoped,
+user-created via the UI) and zero references to `TEAM_HIERARCHY` in `task-import.gs`. Do not conflate the
+two or attempt to keep them in sync.
+
+**Prior data was wrong** — the previous `TEAM_HIERARCHY` had course/product-name-looking values under
+Student Success (CFA L1/L2/L3, FRM, CA, CMA, CFA Scholarships, CUET) and other placeholder-looking labels
+elsewhere, not the real org structure. Verified this is now fixed live in both the Registration form
+(all 8 divisions' dropdowns checked) and Org Chart.
+
+**Known, deliberately-unreconciled pre-existing data** (per explicit instruction: no production data
+changes as part of this fix) — will surface as the Org Chart's "Unassigned" bucket (a synthetic,
+by-design grouping for any employee whose stored `subDepartment` doesn't match a canonical entry, not a
+bug):
+- One existing Team-5 employee has `subDepartment: "Product"` (pre-fix, unprefixed) instead of
+  `"5a. Product"`.
+- Several pending Registration Requests reference `team: "Tech"` (doesn't match any canonical division,
+  before or after this fix) with unprefixed sub-departments.
+
 ## API Response Shape — enforced by ResponseInterceptor
 
 ```typescript

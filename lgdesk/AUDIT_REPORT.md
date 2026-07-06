@@ -1333,3 +1333,58 @@ This section reconciles five "NEEDS DECISION" items (drawn from A1, A6, A9, A4, 
 | 3 | Weekly summary AI prompt: 9-point instruction list vs. rebuild's thinner prompt | STILL OPEN — Part 19 and Appendix E both corroborate only the high-level "5–10 past-tense bullets, specific" shape (already matched by the rebuild); neither addresses the granular name/week/OT/absence/date-exclusion/grouping/no-numbering instructions the original finding is built from |
 | 4 | `nightlyArchive` cold-storage archival has no rebuild equivalent | STILL OPEN on the Postgres-strategy decision — Part 63 exhaustively confirms the reference-side mechanism (90-day closed-record cutoff, 5,000-row size trigger, backup-spreadsheet process) is real and intended, but is entirely Sheets-native and recommends no Postgres-side archival pattern (new table vs. `isArchived` column) |
 | 5 | Task `Recurring` field: 5-option cadence vs. rebuild's plain boolean | RESOLVED — Part 13's 21-column Task schema and Part 30's Change #34 import column list both confirm `Recurring_Task`/"Recurring" is a real, first-class, scaffolded field — not an edge case — supporting the `recurrencePattern` migration as confirmed, expected Task Management work |
+
+---
+
+## PFIX-ORG-STRUCTURE-DATA — Team → Sub-Department hierarchy data bug (2026-07-06)
+
+Standalone fix task, run outside the PVERIFY-FULL-APP-PARITY audit sequence per its own cover note
+("doesn't need to wait on the audit gate... log this finding into it once done"). Logged here so it
+isn't re-discovered by a future audit pass.
+
+**Finding (FUNCTIONAL, not previously in the Consolidated Summary above):** the Team → Sub-Department
+hierarchy (`TEAM_HIERARCHY` in `apps/web/src/components/modules/users/registration-modal.schema.ts`,
+consumed directly by both the public Registration form's Sub-Department dropdown and `/org-chart`) held
+incorrect sub-department names for 6 of the 8 teams — course/product names for Student Success (CFA
+L1/L2/L3, FRM, CA, CMA, CFA Scholarships, CUET) that appear to be leaked from the Aswini Bajaj Classes
+side of the business, plus wrong/missing lists for Founder's Office (empty, should have 2), Growth
+(6 wrong values instead of 2 real ones), Consulting (empty, should have 2), Operations - PP & Admin
+(2 of 4 close, 2 extra/wrong), and Operations - FP&A (1 of 3 roughly right, "MIS" incorrectly listed
+under Team 8 instead of its real home under Team 1).
+
+**Diagnostic findings:**
+- Single shared source confirmed (`org-chart/page.tsx` imports `TEAM_HIERARCHY`/`DIVISIONS` directly from
+  the registration schema file) — one fix covers both surfaces, no duplicate hardcoded copy existed.
+- `reference/setupSheets.gs` (lines 67-76) is the authoritative source and matches the founder-confirmed
+  target table exactly, including the "1a./2a./5a." numeric prefixes — confirmed these are real stored
+  data (used as literal `Sub_Department` dropdown-validation values via `SUB_DEPARTMENTS`, and rewritten
+  onto live employee records by the reference's own `fixTeamAndSubDepartmentData()`/
+  `migrateOperationsTeams()` migration functions), not just documentation numbering.
+- Task's Function/Sub-Function is a **confirmed separate taxonomy** — `setupSheets.gs`'s `Functions`/
+  `Tasks` sheet schemas use a self-referencing `Function_ID`/`Parent_Fn_ID` hierarchy that is
+  project-scoped and user-created, with zero references to `TEAM_HIERARCHY` anywhere in
+  `task-import.gs`. Left untouched, as instructed.
+- No backend copy or enum validation exists (`register-request.dto.ts`'s `subDepartment` accepts any
+  string) — the fix is entirely frontend/data, one file.
+- The Org Chart's "Unassigned" bucket (`org-chart/page.tsx`) is a synthetic, by-design grouping for any
+  employee whose stored `subDepartment` doesn't match a canonical entry for their team — confirmed
+  working as intended, not a rendering bug.
+- **Existing data check (live, via the authenticated API, not a DB script):** one existing Team-5
+  employee has `subDepartment: "Product"` (unprefixed, pre-fix) vs. two teammates already on the
+  correct `"5a. Product"`; several pending Registration Requests reference `team: "Tech"` (matches no
+  canonical division, before or after this fix) with unprefixed sub-departments. **Explicit instruction
+  received: no production data changes** — both are left as-is; the Team-5 employee will now correctly
+  surface under the Org Chart's "Unassigned" bucket instead of silently matching a wrong dropdown entry.
+
+**Fix:** `TEAM_HIERARCHY` corrected to the founder-confirmed table (see CLAUDE.md's "Team →
+Sub-Department org hierarchy" section for the full table and citations). One file changed.
+
+**Verification:** `apps/web` build clean. Regression suite re-run: health check 200, Helmet security
+headers present, login succeeds, zero `passwordHash` occurrences in API responses, rate limiting
+returns 429 after burst, frontend reachable. Live-verified (authenticated browser session, read-only —
+no form submission, no data written) that all 8 divisions' Sub-Department options now render exactly per
+the target table in both the Registration form and `/org-chart`, and that the "Unassigned" bucket
+correctly surfaces the one pre-existing unprefixed employee record as expected.
+
+**Status: FIXED.** No items deferred to a "needs decision" list — the two pre-existing data anomalies
+above are a known, deliberately-unreconciled state per explicit instruction, not an open question.
