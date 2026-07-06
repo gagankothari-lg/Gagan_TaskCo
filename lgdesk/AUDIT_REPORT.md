@@ -1525,3 +1525,100 @@ succeeds, zero `passwordHash` occurrences, rate limiting 429 after burst, fronte
 existed correctly server-side); no head/manager data was invented — the Super Admin fallback that
 every team currently resolves to is the reference's own designed behavior, not something added to
 paper over missing data.
+
+---
+
+## PFIX-CLOCK-IN-OUT — Dashboard header clock widget structural rebuild (2026-07-07)
+
+Standalone fix task, logged here per its own instruction, feeding directly into the Work Log &
+Duration module (A3) of the larger verification pass.
+
+### Step 0 findings — settled from source, several contrary to initial assumptions
+
+- **Collapsed-pill content is a live elapsed/duration ticker, NOT a raw clock-in timestamp** —
+  confirmed via `reference/app.js.html:15309-15336` (`_wdUpdateHeaderBtn`/`_wdHdrTimerText`):
+  ACTIVE shows net elapsed (`elapsed − breakMs`, ticking); ON_BREAK shows the break duration
+  specifically ("Show break duration in header, not total elapsed"); COMPLETED shows the static
+  final net total. **The rebuild's pre-existing "elapsed number" was already reference-correct** —
+  the bug report's suspicion that this should be a timestamp was not borne out by source.
+- **"Pause" and "Break" are the same concept, reference uses "Pause" as the button LABEL only** —
+  the backend function names (`wdStartBreak`/`wdEndBreak`, `Break_Start`/`Break_Mins`/
+  `Total_Break_Mins`) are "Break" throughout in both the reference `.gs` and the rebuild's own
+  backend (already correctly named `startBreak`/`endBreak` — no backend renaming needed); only the
+  reference's UI **button text** says "Pause" (to start) / "Resume" (to end). The rebuild's button
+  was labeled "Break" — a pure UI copy mismatch, now corrected.
+- **"Edit today's times" is NOT a rebuild deviation from an inline-edit-pencil pattern — it IS the
+  reference's own current design.** `reference/app.js.html:15912-15915`'s `_wdShowEditForm(field)`
+  contains the comment "Replaced by the 'Edit working day' modal which handles both Clock_In and
+  Clock_Out" and delegates to `_wdOpenEditDayModal()` — the reference itself already consolidated
+  three separate inline pencil-triggered forms into one shared modal, matching
+  `wdEditTime(email, startTime, endTime, breakMins, reason)`'s single combined backend call
+  exactly. The rebuild's pre-existing `EditDayModal` (start+end+break in one form) was already the
+  correct match; it needed to be reachable from more places (the popup's pencils), not replaced.
+- **Genuine functional gap confirmed: the rebuild had NO way to clock out while ON_BREAK** — the
+  reference exposes the identical clock-out split-button (+ "Change clock-out time" dropdown) in
+  BOTH the ACTIVE and ON_BREAK states (`app.js.html:15592-15631`); the rebuild's ON_BREAK branch
+  only rendered a "Resume" button, forcing a detour through ACTIVE before clocking out. This was
+  the most significant confirmed gap, not just a structural/cosmetic one.
+- **Missing status dot + popup container confirmed as a real structural gap**, not an
+  intentional-and-approved alternate design (no CLAUDE.md note, no code comment, no prior decision
+  found justifying the flattened always-visible inline bar) — rebuilt to match.
+- **Core net-minutes formula (gross elapsed − total break = net) confirmed identical between
+  reference and rebuild** — `netWorkMs = totalElapsedMs − breakMs` (`app.js.html:15638`) matches
+  the rebuild backend's already-correct, already-fixed-in-an-earlier-round formula exactly. No
+  historical-hours-altering change was needed or made.
+- **Auto-clockout cron confirmed not to conflict with manual actions** — it only targets sessions
+  with `date < today` (UTC), structurally excluding the current day's own session from any
+  same-day manual clock action; the only theoretical overlap is a narrow overnight-crossing window
+  already covered by the earlier cross-midnight fix, unrelated to this UI-focused task.
+- **WorkLog/dashboard sync gap investigated and confirmed to be an inherited, faithful match to
+  the reference — not a bug to fix here.** `syncWorkLog` (`work-duration.service.ts:300-302`) only
+  `updateMany`s an existing `WorkLog` row for that date; if none exists yet, the clock session's
+  net minutes are never reflected in the Work Log page or the header's weekly-hours widget.
+  Verified this is intentional by reading `reference/work-duration.gs:763-804`
+  (`_updateWorkLogDuration`): it does the exact same thing — finds a matching `Work_Log` row,
+  logs a message and returns if none exists, never creates one. Confirmed via a live click-through
+  that this is exactly what happens in the rebuild too — not a regression, a faithfully-ported
+  limitation of the original two-separate-systems design.
+- **Secondary check (scope intentionally not expanded per the task's own instruction): the header
+  week-glance widget's summary format differs from the reference.** Reference format
+  (`app.js.html:1306-1317`): `"{startDate}–{endDate} | {totalHrs}h · {daysLogged} logged"` with
+  prev/next week navigation buttons. Rebuild currently shows just `"{totalHrs}h this week"` with no
+  date range, no logged-day count, and no week navigation. Confirmed, not fixed — flagged as a
+  separate, still-open finding for a future pass.
+
+### Fix
+
+Rebuilt `apps/web/src/components/modules/work-duration/clock-widget.tsx`: the collapsed pill now
+shows a status dot (gray/idle, green/active, orange/break, indigo/done) alongside its (already-
+correct) live content, and clicking it opens a popup matching the reference's 4-state structure
+(IDLE/ACTIVE/ON_BREAK/COMPLETED) — status row with label + "|" + timer, a separate Break-duration
+row, and the two primary actions per state. Edit pencils in the popup open the existing
+`EditDayModal` (confirmed correct match, see above); "Change clock-out time" opens the existing
+`ChangeClockOutModal`. The ACTIVE-state break-start button is now labeled "Pause" (was "Break").
+**ON_BREAK now includes the same Clock-out split-button as ACTIVE** — the confirmed functional gap
+— so clocking out no longer requires resuming first. Added a `pause` icon mapping to
+`lib/icons.ts` (previously unmapped, would have silently fallen back to a generic help icon).
+
+### Verification
+
+`npx tsc --noEmit` and full builds clean. Live-verified the complete cycle end-to-end (real
+browser session): IDLE (plain button, no dot/popup) → clock in (green dot, live-ticking net-
+elapsed timer, confirmed incrementing over a real 3-second wait) → popup content matches spec →
+Pause (orange dot, break duration now ticking; popup's work timer confirmed FROZEN by reading it
+twice ~3s apart with no change; **both Resume and a working Clock-out split-button confirmed
+simultaneously present and clickable from ON_BREAK — the core fix**) → Resume (returns to ACTIVE,
+timer continues forward, not reset) → Edit Day modal opens with correct pre-filled values from
+both ACTIVE and ON_BREAK → Clock out (confirm dialog appears and works) → COMPLETED (correct dot,
+label, final timer, editable In:/Out: row, Clock-in-again button). One cosmetic bug found and
+fixed during this pass: the collapsed pill's COMPLETED-state dot rendered plain white instead of
+the popup's correct indigo/primary color — corrected. Zero console errors throughout. Full
+regression suite re-run clean (health 200, Helmet headers present, login succeeds, zero
+`passwordHash` occurrences, rate limiting 429 after burst, frontend reachable).
+
+**Status: FIXED.** No historical hours/OT calculation logic was touched (the net-minutes formula
+was already correct and identical to the reference); no stop-and-ask conditions were triggered —
+the paused-time exclusion math was never in question, and the collapsed-state content ambiguity
+was fully resolved by source. The week-glance widget format mismatch is logged above as a
+deliberately out-of-scope, still-open finding for a future task, per this task's own instruction
+not to let it expand this fix's scope.
