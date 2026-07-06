@@ -68,10 +68,18 @@ export function canEditProject(user: Caller, project: Project): boolean {
   return false;
 }
 
+// Mirrors projects.service.ts `canDelete` exactly (LGDesk_Master_Reference.md Part 5
+// Row 6, restored 2026-07-06 per PVERIFY-FULL-APP-PARITY): isAdmin unconditionally, OR
+// isManager AND (own-team match OR the project's own assigner OR one of its owners) —
+// a manager's team-match and assigner/owner status are independently sufficient; a
+// project's own creator/owner never loses delete rights just because their team string
+// doesn't happen to match assignedTeams.
 export function canDeleteProject(user: Caller, project: Project): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
-  if (isManager(user.role) && user.team && project.assignedTeams.includes(user.team)) return true;
+  if (!isManager(user.role)) return false;
+  if (user.team && project.assignedTeams.includes(user.team)) return true;
+  if (project.assignerId === user.empId || project.ownerIds.includes(user.empId)) return true;
   return false;
 }
 
@@ -80,19 +88,29 @@ export function canCreateFunction(user: Caller): boolean {
   return !!user; // Managers always; TM/Intern allowed too — gated to self-assign-only at submit time.
 }
 
+// Mirrors functions.service.ts `canModify` exactly (LGDesk_Master_Reference.md Part 5
+// Row 8 / Part 14 FR-2, reconciled 2026-07-06 per PVERIFY-FULL-APP-PARITY): any manager
+// (TC/TF/Admin/SA) may edit any function org-wide — NO team qualifier anymore (the
+// prior team-restricted check was an unapproved over-restriction). Non-managers still
+// qualify via assigner/assignee match.
 export function canEditFunction(user: Caller, fn: WorkFunction): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
+  if (isManager(user.role)) return true;
   if (fn.assignerId === user.empId) return true; // assignerId === createdById at creation; never changes.
   if (fn.assigneeIds.includes(user.empId)) return true;
-  if (isManager(user.role) && user.team && fn.assignedTeams.includes(user.team)) return true;
   return false;
 }
 
+// Mirrors functions.service.ts `canDelete` exactly (LGDesk_Master_Reference.md Part 5
+// Row 9 / Part 14 "Delete: Managers only", reconciled 2026-07-06 per
+// PVERIFY-FULL-APP-PARITY): any manager (TC/TF/Admin/SA) may delete any function
+// org-wide — NO team qualifier, unlike Project delete's team/assigner/owner scoping.
 export function canDeleteFunction(user: Caller, fn: WorkFunction): boolean {
   if (!user) return false;
+  void fn; // signature kept 2-arg for call-site symmetry with canEditFunction; unused per current backend canDelete (isAdmin/isManager only, no entity check).
   if (isAdmin(user.role)) return true;
-  if (isManager(user.role) && user.team && fn.assignedTeams.includes(user.team)) return true;
+  if (isManager(user.role)) return true;
   return false;
 }
 

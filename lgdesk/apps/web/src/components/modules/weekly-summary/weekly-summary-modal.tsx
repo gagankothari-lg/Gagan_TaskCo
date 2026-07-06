@@ -20,10 +20,19 @@ export function WeeklySummaryModal({ open, onClose, weekLabel, weekStart }: { op
   const [savedHint, setSavedHint] = useState(false);
   const draftRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sync local bullets from server when not actively editing.
+  // Sync local bullets from server, but ONLY when `summary` itself changes — not when
+  // editIdx changes. confirm()/remove() set `bullets` optimistically AND `editIdx` to
+  // null in the very same tick, before the save mutation's invalidateQueries refetch has
+  // resolved. Keying this effect on editIdx (as it used to be) re-ran it immediately
+  // against the still-stale cached `summary`, snapping the just-edited bullet back to its
+  // old text for one render before the real refetch arrived. Keying off `summary` alone
+  // means this only fires once fresh server data actually lands, so the optimistic local
+  // `bullets` persists untouched across that gap (and the eventual sync is then a no-op,
+  // since the refetched data should match what we already set).
   useEffect(() => {
     if (summary && editIdx === null) setBullets(summary.bullets);
-  }, [summary, editIdx]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary]);
 
   // Focus + select-all whenever a row enters edit mode (GAS Option-C parity).
   useEffect(() => {
