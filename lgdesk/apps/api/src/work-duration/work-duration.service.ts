@@ -149,8 +149,12 @@ export class WorkDurationService {
     }
     let net = s.netMinutes;
     if (newClockOut) {
-      const gross = Math.floor((newClockOut.getTime() - newClockIn.getTime()) / 60000);
-      net = Math.max(0, gross - (dto.breakMins ?? s.totalBreakMins));
+      // FIX B: match clockOut()/endBreak()'s AUDIT_REPORT.md A3 item 2 fix — round the raw
+      // (unrounded) elapsed float once, at the end, instead of flooring gross to a whole
+      // minute first. Math.floor here undercounted by up to 59s per edit.
+      const grossRaw = (newClockOut.getTime() - newClockIn.getTime()) / 60000;
+      const gross = Math.round(grossRaw);
+      net = Math.max(0, Math.round(grossRaw - (dto.breakMins ?? s.totalBreakMins)));
       data.grossMinutes = gross;
       data.netMinutes = net;
     }
@@ -167,8 +171,11 @@ export class WorkDurationService {
     const data: Record<string, unknown> = { totalBreakMins: dto.breakMins };
     let net = s.netMinutes;
     if (s.clockIn && s.clockOut) {
-      const gross = Math.floor((s.clockOut.getTime() - s.clockIn.getTime()) / 60000);
-      net = Math.max(0, gross - dto.breakMins);
+      // FIX B: same rounding fix as clockOut()/endBreak() — round the raw elapsed float once,
+      // don't floor gross to a whole minute first (undercounted by up to 59s per edit).
+      const grossRaw = (s.clockOut.getTime() - s.clockIn.getTime()) / 60000;
+      const gross = Math.round(grossRaw);
+      net = Math.max(0, Math.round(grossRaw - dto.breakMins));
       data.grossMinutes = gross;
       data.netMinutes = net;
     }
@@ -249,8 +256,11 @@ export class WorkDurationService {
     });
     for (const s of sessions) {
       if (!s.clockIn) continue;
-      const gross = Math.floor((today.getTime() - s.clockIn.getTime()) / 60000);
-      const net = Math.max(0, gross - s.totalBreakMins);
+      // FIX B: same rounding fix as clockOut()/endBreak() — round the raw elapsed float once,
+      // don't floor gross to a whole minute first (undercounted by up to 59s per auto-close).
+      const grossRaw = (today.getTime() - s.clockIn.getTime()) / 60000;
+      const gross = Math.round(grossRaw);
+      const net = Math.max(0, Math.round(grossRaw - s.totalBreakMins));
       const notes = this.appendNote(s.notes, `Auto-closed [${new Date().toISOString()}]: session crossed the midnight-UTC boundary.`);
       await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut: today, status: 'AUTO_CLOSED', grossMinutes: gross, netMinutes: net, autoClocked: true, notes } });
       await this.syncWorkLog(s.empId, s.date, net);

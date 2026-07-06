@@ -155,7 +155,7 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
       <td className={COL_HIDE.subFn}>{subFnName ? <span>{subFnName} <span style={{ color: 'var(--muted2)', fontFamily: 'monospace', fontSize: 10 }}>{task.subFnId}</span></span> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
       <td className={COL_HIDE.task}>
         <div style={{ fontWeight: 600, color: closed ? 'var(--muted)' : 'var(--text)', textDecoration: closed ? 'line-through' : 'none' }}>{task.title}</div>
-        <div style={{ fontSize: 11, color: 'var(--muted2)', fontFamily: 'monospace' }}>{task.taskId}{task.links?.length ? ` · +${task.links.split('\n').filter(Boolean).length} link` : ''}</div>
+        <div style={{ fontSize: 11, color: 'var(--muted2)', fontFamily: 'monospace' }}>{task.taskId}{task.links?.length ? ` · +${task.links.split(',').filter(Boolean).length} link` : ''}</div>
       </td>
       <td className={COL_HIDE.assignee}>{task.assigneeIds.length ? <AvatarStack ids={task.assigneeIds} /> : <span style={{ color: 'var(--muted2)' }}>—</span>}</td>
       <td className={COL_HIDE.assigner} style={{ whiteSpace: 'nowrap' }}>
