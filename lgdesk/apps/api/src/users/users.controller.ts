@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -35,12 +35,6 @@ export class UsersController {
   @Get('org-tree')
   getOrgTree() {
     return this.users.getOrgTree();
-  }
-
-  @Get('team-captain')
-  async getTeamCaptain(@Query('team') team?: string, @Query('subDept') subDept?: string) {
-    const tc = await this.users.getTeamCaptainByTeam(team, subDept);
-    return tc ? { email: tc.email, name: `${tc.firstName} ${tc.lastName}` } : null;
   }
 
   @Roles(...MANAGER_ROLES)

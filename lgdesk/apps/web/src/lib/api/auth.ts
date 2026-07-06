@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiFetch } from './client';
 import type { InitialPayload, LoginResponse } from '../types';
 
@@ -47,6 +47,32 @@ export interface RegisterRequestInput {
 
 export function registerRequest(dto: RegisterRequestInput): Promise<void> {
   return apiFetch<void>('/auth/register/request', { method: 'POST', body: dto });
+}
+
+export interface TeamCaptain {
+  email: string;
+  name: string;
+}
+
+/**
+ * Resolves the manager who will review a registration request for a given Team Division
+ * (+ optional Sub-Department) — mirrors reference/auth.gs's getTeamCaptainByTeam (public,
+ * no auth required, since this is called before the applicant has an account): sub-dept
+ * Team Captain -> team-wide Team Captain -> any active Super Admin -> any active Admin ->
+ * null (nobody found at all).
+ */
+export function getTeamCaptain(team: string, subDept?: string): Promise<TeamCaptain | null> {
+  return apiFetch<TeamCaptain | null>('/auth/team-captain', { params: { team, subDept } });
+}
+
+/** Auto-fill lookup for the Registration form's Manager's Email field (TM/TF/Intern roles only). */
+export function useTeamCaptain(team: string, subDept: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['team-captain', team, subDept],
+    queryFn: () => getTeamCaptain(team, subDept),
+    enabled: enabled && !!team,
+    staleTime: 30_000,
+  });
 }
 
 // ─── Mutations ──────────────────────────────────────

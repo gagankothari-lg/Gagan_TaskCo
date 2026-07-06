@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Icon } from '../../ui/icon';
 import { apiErrorMessage } from '../../../lib/api/client';
-import { registerRequest } from '../../../lib/api/auth';
+import { registerRequest, useTeamCaptain } from '../../../lib/api/auth';
 import { Spinner } from '../../ui/spinner';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -51,9 +51,48 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
 
   const role = form.watch('role');
   const team = form.watch('team');
+  const subDepartment = form.watch('subDepartment');
   const managerManual = MANUAL_MANAGER_ROLES.includes(role as (typeof MANUAL_MANAGER_ROLES)[number]);
   const subDeptOptions = subDepartmentsFor(team);
   const hasSubDepts = subDepartmentRequired(team);
+
+  // PFIX-REGISTRATION-MANAGER-EMAIL: mirrors reference/app.js.html's _regAutoFillManager —
+  // Team Member / Team Facilitator / Intern get Manager's Email auto-resolved (team's Team
+  // Captain, falling back to any Super Admin then any Admin) and read-only; Super Admin /
+  // Admin / Team Captain type it manually (managerManual, handled by the existing label/
+  // placeholder switch below). The lookup itself (GET /auth/team-captain) is public/no-auth,
+  // matching the reference's own "called before the user has an account" design.
+  const autoFillEnabled = !managerManual && !!team;
+  const tcQuery = useTeamCaptain(team ?? '', subDepartment ?? '', autoFillEnabled);
+  const managerNotFound = autoFillEnabled && tcQuery.isSuccess && tcQuery.data === null;
+  const managerLookupFailed = autoFillEnabled && tcQuery.isError;
+  const managerLoading = autoFillEnabled && tcQuery.isFetching;
+  // Read-only whenever auto-fill applies AND the lookup hasn't "failed open" (reference:
+  // a network/script error un-blocks the field so the user can type manually rather than
+  // getting stuck) — resolved value, in-flight loading, and the team-not-selected-yet
+  // idle state are all read-only; only manual roles and lookup failures are editable.
+  const managerReadOnly = !managerManual && !managerLookupFailed;
+
+  // Switching INTO a manual role clears any stale auto-filled address so the user starts
+  // from a blank field they actually typed, rather than one that looks resolved but isn't.
+  useEffect(() => {
+    if (managerManual) form.setValue('managerEmail', '', { shouldValidate: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [managerManual]);
+
+  useEffect(() => {
+    if (managerManual) return; // manual roles keep whatever the user typed
+    if (!team) { form.setValue('managerEmail', '', { shouldValidate: form.formState.isSubmitted }); return; }
+    // Clear during an in-flight lookup too — otherwise a stale previously-resolved email
+    // (e.g. from a different Sub-Department) would linger visible while a new one loads,
+    // instead of showing the "Looking up manager…" placeholder against an empty value.
+    if (tcQuery.isFetching) { form.setValue('managerEmail', '', { shouldValidate: false }); return; }
+    if (tcQuery.isError) { form.setValue('managerEmail', '', { shouldValidate: form.formState.isSubmitted }); return; }
+    if (tcQuery.isSuccess) {
+      form.setValue('managerEmail', tcQuery.data?.email ?? '', { shouldValidate: form.formState.isSubmitted });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [managerManual, team, tcQuery.isFetching, tcQuery.isError, tcQuery.isSuccess, tcQuery.data]);
 
   async function onSubmit(values: RegistrationFormValues) {
     setError(null);
@@ -262,15 +301,43 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
               <FormField
                 control={form.control}
                 name="managerEmail"
-                render={({ field }) => (
-                  <FormItem className="fg">
-                    <FormLabel>{role === 'Super Admin' ? 'Reports-to Email (optional)' : managerManual ? 'Reports-to Email' : "Manager's Email"}</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder={managerManual ? 'manager@company.com' : 'Auto-resolved on approval'} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const managerPlaceholder = managerManual
+                    ? 'manager@company.com'
+                    : !team
+                      ? 'Select a Team Division first'
+                      : managerLoading
+                        ? 'Looking up manager…'
+                        : managerNotFound
+                          ? 'No manager assigned for this team'
+                          : managerLookupFailed
+                            ? 'Enter manager email manually'
+                            : '';
+                  return (
+                    <FormItem className="fg">
+                      <FormLabel>{role === 'Super Admin' ? 'Reports-to Email (optional)' : managerManual ? 'Reports-to Email' : "Manager's Email"}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder={managerPlaceholder}
+                          readOnly={managerReadOnly}
+                          style={managerNotFound ? { borderColor: 'var(--danger)' } : managerReadOnly && field.value ? { borderColor: 'var(--ok)' } : undefined}
+                          {...field}
+                        />
+                      </FormControl>
+                      {managerLoading && (
+                        <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>⏳ Fetching manager from database…</p>
+                      )}
+                      {!managerLoading && managerReadOnly && field.value && tcQuery.data && (
+                        <p style={{ fontSize: 12, color: 'var(--ok)', margin: 0 }}>✓ Auto-filled: {tcQuery.data.name} (Manager)</p>
+                      )}
+                      {managerNotFound && (
+                        <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>No manager is assigned for this team yet. Please contact the admin.</p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               <FormField
@@ -287,7 +354,11 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
 
               {error && <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={form.formState.isSubmitting || managerLoading || managerNotFound}
+              >
                 {form.formState.isSubmitting && <Spinner size={14} />}{form.formState.isSubmitting ? 'Submitting…' : 'Submit Registration'}
               </Button>
             </form>

@@ -52,15 +52,18 @@ export const TEAM_HIERARCHY: Record<string, string[]> = {
 };
 export const DIVISIONS = Object.keys(TEAM_HIERARCHY);
 
-// Roles that type their reporting manager manually. Per the Master Reference
-// verification checklist ("Registration — manager resolution"): Super Admin's manager
-// field is optional ("Reports-to Email (optional)"); Admin/Team Captain must enter one
-// manually ("Reports-to Email", required); Team Facilitator/Team Member/Intern are meant
-// to have the field auto-resolved server-side from the team's Team Captain (readOnly,
-// required, submit disabled if unresolved) — that live auto-resolve call does not exist
-// in this NestJS port yet (getTeamCaptainByTeam has no equivalent endpoint here, and the
-// field isn't even part of RegisterRequestDto), so the field stays a plain editable input
-// for those roles but keeps the same "required" semantics documented for it.
+// Roles that type their reporting manager manually. Per reference/auth.gs's
+// getTeamCaptainByTeam + app.js.html's _REG_MANUAL_ROLES/_regAutoFillManager: Super
+// Admin's manager field is optional ("Reports-to Email (optional)"); Admin/Team Captain
+// must enter one manually ("Reports-to Email", required); Team Facilitator/Team
+// Member/Intern get it auto-resolved (readOnly, required, submit disabled if
+// unresolved) via GET /auth/team-captain (public, no auth — PFIX-REGISTRATION-MANAGER-
+// EMAIL, 2026-07-07), wired in registration-modal.tsx via useTeamCaptain(). The backend
+// resolution itself (UsersService.getTeamCaptainByTeam: sub-dept Team Captain -> team
+// Team Captain -> any Super Admin -> any Admin -> null) is also called independently,
+// server-side, during submitRegistration — the frontend value is never actually sent to
+// the API (see RegisterRequestInput in lib/api/auth.ts), it exists purely so the
+// applicant can see who will review their request before submitting.
 export const MANUAL_MANAGER_ROLES = ['Super Admin', 'Admin', 'Team Captain'] as const;
 
 export function subDepartmentsFor(team: string): string[] {
