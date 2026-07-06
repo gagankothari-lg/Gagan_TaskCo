@@ -104,7 +104,11 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
   });
   const csvForm = useForm<PreviewCsvFormValues>({
     resolver: zodResolver(previewCsvSchema),
-    defaultValues: { projectId: '' },
+    // csvFile must be declared here (even as undefined) or react-hook-form's Controller
+    // never registers it as a tracked field -- it silently falls back to an ungoverned ''
+    // default that field.onChange(File) can never overwrite, so the "Choose a CSV file
+    // first." error never clears no matter what file is selected.
+    defaultValues: { csvFile: undefined, projectId: '' },
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -346,11 +350,23 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                           >
                             <Icon name="attach_file" size={18} style={{ color: 'var(--p)' }} />
                             {field.value ? field.value.name : 'Choose CSV File'}
+                            {/* Empirically confirmed (live repro): Controller's field.onChange never
+                                persisted a real file selection into form state on this field, even
+                                with ref/name/onBlur wired per RHF's documented pattern -- the value
+                                stayed stuck at '' no matter what. csvForm.setValue(...) on the same
+                                control instance persisted the value instantly and reliably, so this
+                                bypasses field.onChange entirely and drives the value through setValue. */}
                             <input
                               type="file"
                               accept=".csv"
+                              name={field.name}
+                              ref={field.ref}
+                              onBlur={field.onBlur}
                               style={{ display: 'none' }}
-                              onChange={(e) => field.onChange(e.target.files?.[0] ?? null)}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] ?? null;
+                                csvForm.setValue('csvFile', file as File, { shouldValidate: true, shouldDirty: true });
+                              }}
                             />
                           </label>
                         </FormControl>
