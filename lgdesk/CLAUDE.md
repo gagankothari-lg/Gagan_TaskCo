@@ -7,6 +7,29 @@ This is a from-scratch NestJS/Next.js rebuild (npm workspaces, no pnpm, no Googl
 carry over GAS-specific gotchas from any older version of this file — everything below reflects the
 current codebase.
 
+## Verification Status — PVERIFY-FULL-APP-PARITY (Parts A/B/C complete, 2026-07-06)
+
+**Authoritative source for full audit/fix history: `lgdesk/PART_C_CONSOLIDATED_REPORT.md`.** Read it
+before assuming anything about parity state. The chain is: `AUDIT_REPORT.md` (Part A — 119 findings,
+audit-only) → Part B fix commits (`e0c0ef4..6a1bc10`) → `PART_C_CONSOLIDATED_REPORT.md` (Part C —
+per-finding status + the open-decision checklist). New contributors should also read
+`lgdesk/PROJECT_CONTEXT.md` for a cold-start orientation.
+
+Current overall state as of 2026-07-06:
+- **24 distinct audit findings fixed** across 41 substantive commits (RBAC, functional, visual, and a
+  "round 2" batch). **~19 items remain Still Open** — most need a product decision or an authorized
+  schema migration; the full checklist is in Part C, not re-derived here.
+- ⚠️ **The earlier "Part B complete" claim was WRONG and is superseded.** It relied on code review +
+  `next build`/`nest build` success + `curl` checks, which cannot catch CSS-specificity bugs
+  (`globals.css`'s `.hidden{display:none!important}` beating paired responsive re-enables), a stale
+  frontend RBAC mirror (`rbac.ts` never synced to the backend delete/update fixes), or timezone/date
+  logic bugs. A live-browser adversarial re-verification found all of these — they are the 16 commits
+  now sitting ahead of `origin/main` (which is pinned at `f4b7617`, the exact commit that embodied the
+  premature "complete" claim). **Do not trust "compiles + reviews clean" as done for anything with a
+  runtime/visual surface — verify live.** Part C's "Verification Methodology" section documents the bar.
+- **Deploy note:** those 16 round-2 commits are **not yet pushed** to `origin/main` — a deliberate pause,
+  not an oversight. Pushing/deploying is a separate decision from this verification work.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -309,6 +332,17 @@ reference's 2 mechanisms (a Function+Project toolbar, plus one rich-multi-select
 implemented): the full 5-value Recurring cadence dropdown — that still needs a `recurrencePattern` schema
 migration.
 
+⚠️ **Round-2 correction (2026-07-06): FIX A–F landed the code, but the new columns were invisible live
+until `78f6e6e`.** The FIX A column set compiled and reviewed clean, yet the six responsive columns
+(`adate`/`assignee`/`assigner`/`recurring`/`priority`/`due`) used the broken `hidden lg:table-cell`
+pattern and so were hidden at *every* width behind `globals.css`'s `!important` `.hidden` — the same
+footgun as the week-glance widget above. `78f6e6e` switched all six to `max-{bp}:hidden`; visibility was
+then confirmed live via `getComputedStyle` at 1440/800/375px. Three further task-sheet correctness fixes
+followed in round 2: `3f47eb6` (stable `fnName` so group *order* doesn't go stale after a rename),
+`6c46d87` (sort/count the full group before lazy-load pagination slices it), and `6a1bc10` (wire the dead
+Team field in the Add-Tasks batch row). Treat FIX A–F as done-and-live only *with* these round-2 commits;
+full status is in `PART_C_CONSOLIDATED_REPORT.md`.
+
 ## Table chrome renders unconditionally — never gate it on data state
 
 `task-list-view.tsx` (My/Team/All Tasks) used to have a bug where `filtered.length === 0` short-
@@ -332,15 +366,19 @@ mobile hamburger and `ClockWidget`) was a static visual placeholder (hardcoded d
 hours) since the original UI-shell phase — it's now wired to real data via the existing `useMyWorkLogs`
 hook (no new endpoint needed), showing real per-day attendance colors and a real "`<n>`h this week" total.
 
-⚠️ **Still completely invisible at every screen width, confirmed 2026-07-05 — the data-wiring fix above
-did not fix the actual visibility bug.** `week-glance-widget.tsx`'s root className uses bare Tailwind
-`hidden` paired with `sm:flex` (meant as "hidden below 640px, flex at/above it"), but `globals.css`'s
-`.hidden { display: none !important; }` (a project-wide override) always wins over `sm:flex`'s plain,
-non-`!important` `display:flex`, regardless of viewport width or media-query specificity — so the widget
-never displays, at any screen size. This is the exact footgun `layout-client.tsx`'s own nav-item code
-already documents and avoids (using `max-md:hidden` instead of `hidden md:flex`, see the mobile-sidebar
-note earlier in this file) — `week-glance-widget.tsx` just wasn't written to follow that same rule. Fix
-is a one-line className change (e.g. to `max-sm:hidden ... flex`); not yet applied as of this note.
+✅ **FIXED 2026-07-06 (round 2, commit `84bc0e4`) — verified live via `getComputedStyle`.** This was the
+canonical instance of the `hidden`/`{bp}:{display}` footgun: `week-glance-widget.tsx`'s root className
+used bare Tailwind `hidden` paired with `sm:flex`, and `globals.css`'s `.hidden { display: none
+!important; }` (a project-wide override) always beat `sm:flex`'s plain, non-`!important` `display:flex` —
+so the widget never displayed, at any screen width, even though the source diff and the build both looked
+correct. This is exactly the class of bug the premature "Part B complete" claim missed (see Verification
+Status at the top of this file). The fix flips the base display to `flex` with `max-sm:hidden` handling
+the below-640px hide, matching the `max-md:hidden` convention `layout-client.tsx`'s nav items and the
+sidebar toggle already use. The same footgun was fixed in the same round for the task-sheet columns
+(`78f6e6e`), the dashboard Scoreboard (`d8eef15`), and the sidebar collapse button (`e04c4e5`). **Rule:
+never use bare `hidden` with a paired `{bp}:{display}` re-enable — use `max-{bp}:hidden` with a non-`hidden`
+base display class, so the generated class name is never the bare `hidden` utility the global override can
+touch.**
 
 ## Task creation — inline batch add, not a modal
 
