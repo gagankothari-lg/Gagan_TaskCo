@@ -64,15 +64,15 @@ export function taskPriorityDisplay(priority: string): { icon: string; color: st
 // At <768px only Sub-Function, Task, Status, Actions remain — 4 columns + Actions,
 // matching the reference's mobile comment.
 export const COL_HIDE = {
-  adate: 'hidden lg:table-cell',
+  adate: 'max-lg:hidden',
   subFn: '',
   task: '',
-  assignee: 'hidden md:table-cell',
-  assigner: 'hidden lg:table-cell',
-  recurring: 'hidden lg:table-cell',
+  assignee: 'max-md:hidden',
+  assigner: 'max-lg:hidden',
+  recurring: 'max-lg:hidden',
   status: '',
-  priority: 'hidden md:table-cell',
-  due: 'hidden md:table-cell',
+  priority: 'max-md:hidden',
+  due: 'max-md:hidden',
 } as const;
 
 // Last (Actions) column background helper. FIX C (task-sheet rebuild): NOT sticky —
