@@ -146,8 +146,8 @@ export function ClockWidget() {
       <EditDayModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        initialStart={session?.clockIn ? new Date(session.clockIn).toISOString().slice(11, 16) : undefined}
-        initialEnd={session?.clockOut ? new Date(session.clockOut).toISOString().slice(11, 16) : undefined}
+        initialStart={session?.clockIn ? istHHMM(session.clockIn) : undefined}
+        initialEnd={session?.clockOut ? istHHMM(session.clockOut) : undefined}
         initialBreak={session?.totalBreakMins}
       />
     </div>
