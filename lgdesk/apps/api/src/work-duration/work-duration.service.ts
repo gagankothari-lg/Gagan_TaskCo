@@ -82,6 +82,13 @@ export class WorkDurationService {
     let clockOut: Date;
     if (dto?.customTime) {
       clockOut = this.applyTime(s.clockIn, dto.customTime);
+      if (clockOut <= s.clockIn) {
+        // FIX A (cross-midnight): a clock-out time must always be after clock-in. If applying
+        // the typed HH:MM on clock-in's own IST calendar day lands at/before clock-in, the
+        // user's intent was almost certainly to cross midnight (e.g. clocked in 20:00, typed
+        // "00:20" meaning 00:20 the NEXT day) — retry on the next IST day before giving up.
+        clockOut = this.applyTime(s.clockIn, dto.customTime, 1);
+      }
       if (clockOut <= s.clockIn) throw new BadRequestException('Clock-out time must be after clock-in');
     } else {
       clockOut = new Date();
@@ -124,7 +131,20 @@ export class WorkDurationService {
     if (dto.breakMins !== undefined) data.totalBreakMins = dto.breakMins; // manual direct set
     let newClockOut = s.clockOut;
     if (s.clockOut && dto.endTime) {
-      newClockOut = this.applyTime(s.clockOut, dto.endTime);
+      // FIX A (cross-midnight): anchor the new clock-out time to the (possibly just-
+      // recomputed) clock-IN's IST calendar day — NOT the existing clockOut's day, which is
+      // what silently broke any edit meant to cross midnight (e.g. clock-in 23:xx, editing
+      // end time to "00:35" means the NEXT day, not 00:35 the same day, which would land
+      // before clock-in). Roll forward one IST day if the same-day value isn't after
+      // clock-in, then hard-reject if it's still not — never silently store a negative
+      // grossMinutes/zeroed netMinutes.
+      newClockOut = this.applyTime(newClockIn, dto.endTime);
+      if (newClockOut <= newClockIn) {
+        newClockOut = this.applyTime(newClockIn, dto.endTime, 1);
+      }
+      if (newClockOut <= newClockIn) {
+        throw new BadRequestException('Clock-out time must be after clock-in');
+      }
       data.clockOut = newClockOut;
     }
     let net = s.netMinutes;
@@ -275,14 +295,23 @@ export class WorkDurationService {
   // and build the instant from an ISO string with an explicit +05:30 offset so the Date
   // constructor resolves the IST->UTC conversion correctly and unambiguously, instead of the
   // previous `d.setUTCHours(h, m, 0, 0)`, which silently shifted every manual edit by ~5.5h.
-  private applyTime(base: Date, hhmm: string): Date {
+  //
+  // FIX A: `base` alone only tells you WHICH day's wall-clock the edit is relative to (e.g.
+  // clock-in's day) — it can't by itself say whether a given HH:MM means that day or the next.
+  // Callers that need a "did this cross midnight?" resolution (clockOut()'s custom-time flow,
+  // editTime()'s endTime flow) pass `dayOffset=1` on a retry once they've detected the same-day
+  // result lands at/before the time it must be after. `dayOffset` shifts the anchor by whole
+  // 24h increments before taking its IST calendar day, which is safe here because India has no
+  // DST (every calendar day is exactly 24h in Asia/Kolkata).
+  private applyTime(base: Date, hhmm: string, dayOffset = 0): Date {
     const match = /^(\d{1,2}):(\d{2})$/.exec((hhmm ?? '').trim());
     if (!match) throw new BadRequestException(`Invalid time format "${hhmm}" — expected HH:MM`);
     const h = Number(match[1]);
     const m = Number(match[2]);
     if (h > 23 || m > 59) throw new BadRequestException(`Invalid time "${hhmm}" — hours 0-23, minutes 0-59`);
     const pad = (n: number) => String(n).padStart(2, '0');
-    const dateStr = this.istDateStr(base);
+    const anchor = dayOffset ? new Date(base.getTime() + dayOffset * 86400000) : base;
+    const dateStr = this.istDateStr(anchor);
     return new Date(`${dateStr}T${pad(h)}:${pad(m)}:00+05:30`);
   }
 
