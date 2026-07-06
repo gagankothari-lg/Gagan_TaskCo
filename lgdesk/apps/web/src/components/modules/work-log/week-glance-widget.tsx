@@ -112,7 +112,7 @@ export function WeekGlanceWidget() {
   return (
     <div
       title="This week's attendance"
-      className="hidden items-center gap-2 rounded-[14px] bg-white/[0.08] px-3 text-white sm:flex"
+      className="flex items-center gap-2 rounded-[14px] bg-white/[0.08] px-3 text-white max-sm:hidden"
       style={{ height: 46 }}
     >
       <Icon name="calendar_view_week" size={15} className="opacity-70" />
