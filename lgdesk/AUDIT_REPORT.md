@@ -1622,3 +1622,191 @@ the paused-time exclusion math was never in question, and the collapsed-state co
 was fully resolved by source. The week-glance widget format mismatch is logged above as a
 deliberately out-of-scope, still-open finding for a future task, per this task's own instruction
 not to let it expand this fix's scope.
+
+## PFIX-CLOCK-IN-OUT round 2 — IDLE (not-clocked-in) state skipped the confirm-popover (2026-07-08)
+
+The round above (2026-07-07) explicitly logged "IDLE (plain button, no dot/popup)" as the observed,
+apparently-accepted behavior when verifying the ACTIVE/ON_BREAK/COMPLETED rebuild — it never
+questioned whether IDLE should follow the same popover-confirm pattern as the other three states.
+A follow-up bug report (re-diagnosing both widget states against the live original) confirmed this
+was a real, unaddressed gap: `clock-widget.tsx`'s IDLE branch was still an early-return plain button
+(`onClick={doClockIn}`) that clocked in immediately on the first click — the only one of the four
+states that fired a state-changing action directly from the collapsed pill, no confirmation step.
+
+### Step 0 findings
+
+- **Reference's collapsed `wd-hdr-btn` always opens the popup, unconditionally across every
+  status** — `reference/index.html:1793` wires `onclick="_wdTogglePopup(event)"` directly on the
+  header button itself, with no per-status branching. `wdClockIn()` is never called from that
+  button; it's only ever wired to the "Clock in" button rendered **inside** the popup body
+  (`reference/app.js.html:15545`, `s === 'IDLE'` branch of `_wdRenderStatus`). This settles it
+  definitively from source: IDLE must go through the same click-to-preview → click-again-to-confirm
+  model as ACTIVE/ON_BREAK/COMPLETED, not a shortcut.
+- **IDLE's popup body content, confirmed from `app.js.html:15532-15549`**: a gray `wd-dot-idle` dot
+  + "Not clocked in" label, a static "Break duration: 00:00:00" row (no edit pencil — no session
+  exists yet to edit), and a single primary "Clock in" button.
+- **IDLE's collapsed-pill dot is intentionally absent, not just unstyled** — `index.html:1326-1329`
+  sets the header dot's default to `display:none`, only switched to `display:block` by
+  `.is-active`/`.is-break`/`.is-done` (none of which apply to IDLE). Matches this round's fix:
+  IDLE's collapsed pill shows the "Clock In" label + chevron only, no dot.
+
+### Fix
+
+`clock-widget.tsx`: removed the IDLE early-return plain button and folded IDLE into the same
+collapsed-pill-plus-popup structure already used by the other three states. Collapsed pill:
+no status dot for IDLE (conditionally rendered), label reads "Clock In" (not the mono-font ticker
+style used for the other states' live timers). Popup: status row shows the gray dot + "Not clocked
+in" label with the "|"-separated timer and its edit pencil both suppressed (IDLE has no session to
+show a timer or edit pencil for); break-duration row shows the same static "00:00:00" with its edit
+pencil suppressed for the same reason; actions row gains an IDLE-only "Clock in" button that is the
+only thing wired to `doClockIn()`. `STATUS_LABEL`/`DOT_CLASS` maps updated accordingly (`DOT_CLASS`
+now deliberately has no `IDLE` entry, matching the reference's collapsed-dot `display:none` rule).
+
+### Verification
+
+`npx tsc --noEmit` clean. Live-verified end-to-end in a real browser (Playwright driving system
+Chrome against the already-running dev servers): confirmed via screenshot that a single click on
+the collapsed "Clock In" pill opens the popup (gray dot, "Not clocked in", "Break duration:
+00:00:00", a separate "Clock in" button) **without** clocking in — the pill still read "Clock In"
+(not a ticking timer) after that first click, no toast fired. Clicking the popup's own "Clock in"
+button then fired the actual action (toast + live ticking green-dot timer). Continued through the
+full cycle on the resumed session: reopened popup showed "Clocked in" + ticking timer + Pause +
+Clock-out split button; Pause → "On break" (orange dot, ticking break duration); Resume → back to
+"Clocked in" (green dot, work timer continuing, not reset); chevron menu → "Edit today's times" →
+modal submitted successfully (`PATCH /work-duration/edit-time` 200) and the popup's break duration
+reflected the new value; Clock out → confirm dialog → `POST /work-duration/clock-out` succeeded,
+status confirmed COMPLETED via a direct status-endpoint check. Zero console errors throughout.
+
+**Incidental finding, NOT fixed (out of scope for this task) — flagging for a future pass:**
+`EditDayModal`'s Start-time field does not reliably prefill the session's actual current clock-in
+time. Root cause: `edit-day-modal.tsx` calls `useForm({ defaultValues: { startTime: initialStart ??
+'09:00', ... } })` *before* its `if (!open) return null` guard — since the parent (`clock-widget.tsx`)
+always renders `<EditDayModal open={editOpen} .../>` rather than conditionally mounting it, the
+component instance (and therefore its `useForm` defaultValues) is created once, the first time
+`ClockWidget` itself mounts — typically before any session data has loaded — and never re-evaluates
+defaultValues on later opens even after `initialStart` changes to a real value. Reproduced live: a
+resumed session's actual clock-in (~20:42 IST) was submitted as "09:00" because the modal's
+Start-time field silently showed the stale default and the test didn't override it, which visibly
+reset that test session's clock-in time and inflated its elapsed hours. This is a genuine,
+reproducible data-integrity risk (a user opening "Edit today's times" only to change the break
+duration could silently overwrite their own clock-in time) but is unrelated to this task's
+popover-confirm scope and touches a different file/mechanism (React Hook Form defaultValues
+lifecycle) — logged here for a dedicated future fix rather than folded into this one.
+
+**Status: FIXED** (the popover-confirm gap this round targeted). No historical hours/OT
+calculation logic was touched. No stop-and-ask conditions were triggered — the collapsed-state
+content question from round 1 already stands, and this round's IDLE-popup content was fully
+resolved by source.
+
+## PFIX-LOGIN-NETWORK-ERROR — login blocked with a generic "Network error" on some networks (2026-07-09)
+
+Triggered by a real failed login captured on mobile Android Chrome: `POST .../api/auth/login` showed
+Chrome DevTools' "Provisional headers are shown" (request never completed/was blocked pre-response),
+and the login request itself carried a stale `Authorization: Bearer` header, which shouldn't be sent
+to an unauthenticated endpoint. The task file also asked to confirm/deny whether this is the same
+unresolved thread as an earlier `PFIX-CORS-NETWORK-ERROR` prompt. **No trace of `PFIX-CORS-NETWORK-
+ERROR` exists anywhere in this repo** (grepped `AUDIT_REPORT.md`, `CHANGELOG.md`, git log, and the
+whole tree) — so there is no prior fix or log entry to reconcile against. Treating this as the first
+time this class of issue has actually been diagnosed and logged, not a re-open.
+
+### Step 0 findings, in the prescribed order
+
+1. **Confirmed real bug**: `apps/web/src/lib/api/client.ts`'s `apiFetch` attached the stored JWT
+   (`Authorization: Bearer <token>`) to **every** outgoing request unconditionally, including
+   `/auth/login` and `/auth/register/request` — so a device with a stale/expired token already in
+   `localStorage` sends it on every subsequent login attempt too, even though the user has no valid
+   session yet.
+2. **Live preflight test against production** (`lgdesk-api-production.up.railway.app`, via
+   `curl --resolve` to bypass a local DNS issue found in step 5 below): preflight for
+   `POST /api/auth/login` from the real Vercel origin succeeds identically **with or without**
+   `authorization` in `Access-Control-Request-Headers` — the deployed `Access-Control-Allow-Headers`
+   already includes `Authorization`. Not the cause.
+3. **`FRONTEND_URL` handling in `main.ts`** (`corsOrigins = [FRONTEND_URL, 'http://localhost:3000']`)
+   is a proper array-based allow-list, not a regressed single-origin string. Confirmed live: a
+   preflight from a random disallowed origin (`https://evil.example.com`) gets a 204 back but with
+   **no** `Access-Control-Allow-Origin` header — correctly rejected, not opened to `*`.
+4. **`@nestjs/throttler`**: preflight (`OPTIONS`) requests do not consume the login route's rate
+   limit — confirmed live (the `x-ratelimit-remaining-short` count only decremented on the actual
+   `POST`, never on the `OPTIONS` calls run immediately before it). Express's `cors` middleware
+   answers preflights directly and short-circuits before NestJS's guards run, so `ThrottlerGuard`
+   never sees them. Not the cause.
+5. **Genuine DNS-level blocking of the Railway domain — confirmed reproducible, not hypothetical.**
+   On the network this fix was diagnosed from, the default resolver (`10.95.59.14`) returns **"Query
+   refused"** for `lgdesk-api-production.up.railway.app` *and* for the entire `up.railway.app` zone
+   (including a nonsense subdomain), while it resolves the bare `railway.app` apex and other
+   `railway.app` subdomains (e.g. `backboard.railway.app`) completely normally — this is not a
+   dead/unregistered-domain response, it's an active refusal targeted at the `up.railway.app` wildcard
+   zone specifically (the zone Railway uses for auto-generated app subdomains). Public resolvers
+   (Google `8.8.8.8`, Cloudflare `1.1.1.1`) resolve the exact same hostname fine, to `69.46.46.41`.
+   This is the classic signature of a DNS-filtering product (corporate/security appliance, parental
+   control, or some ISP "safe browsing" filters) categorically blocking dynamic PaaS hosting zones.
+   Once resolution was bypassed (`curl --resolve ...:69.46.46.41`), every one of steps 2-4's live
+   requests above succeeded normally — the backend itself has no problem with any of these requests,
+   including one carrying a garbage `Authorization` header (see Fix/Verification below).
+
+**Conclusion**: steps 2-4 (CORS, throttler) are clean on the currently deployed backend — not the
+cause. Step 1 (frontend attaching a stale token to public auth endpoints) is a real, confirmed bug,
+required a fix regardless per the task's Step 1, but does **not** by itself explain a CORS/network-
+level failure — CORS preflight checks header *names*, not values, and the live backend returns a
+clean `401 Invalid credentials` even with a garbage Bearer token attached (verified below). Step 5's
+DNS-level block is the mechanism that actually matches the "Provisional headers are shown" /
+generic-"Network error" symptom, and is independently confirmed to be real and reproducible on at
+least one network — see **Stop and ask** below.
+
+### Fix
+
+`apps/web/src/lib/api/client.ts`:
+- `apiFetch` now resolves `isPublicAuth` (reusing the existing `PUBLIC_AUTH_PATHS` list — `/auth/login`,
+  `/auth/password-reset`, `/auth/register`) once per call and skips reading/attaching the stored token
+  for any of those paths, instead of only using that list for the post-response 401-redirect check. This
+  covers `/auth/login` and `/auth/register/request` as the task explicitly required, plus
+  `/auth/password-reset/*` for the same reason (also a pre-session flow).
+- The `fetch()` failure branch (the one that fires when no response is received at all — offline, DNS
+  failure, CORS block, or server unreachable; the Fetch API deliberately can't distinguish which) no
+  longer says "Network error — check your connection" \(which wrongly blames the user's own
+  connectivity specifically\). It now says the request may have been blocked by the network or the
+  server may be temporarily unavailable, and `console.error`s the real caught error with the method/path
+  first, so the underlying cause is still visible in the browser console instead of being silently
+  swallowed — a real 401/403/etc. was never affected by this (that path already surfaced the server's
+  actual `{ok:false,error}` message, e.g. "Invalid credentials", untouched by this change).
+
+### Verification
+
+- `npx tsc --noEmit` clean; full `next build` clean (30/30 static pages).
+- Verified the `isPublicAuth` path-matching logic directly (Node) against every real endpoint path the
+  app calls: `/auth/login`, `/auth/password-reset/request`, `/auth/password-reset/confirm`,
+  `/auth/register/request` correctly skip the header; `/auth/logout`, `/auth/me`,
+  `/auth/change-password`, and every non-auth endpoint (`/tasks`, `/users`, `/dashboard`, `/leaves/mine`,
+  …) correctly keep it.
+- Regression checks against the live production API (bypassing the local DNS block with
+  `curl --resolve`): repeated bad logins still return `429` after 5 attempts/60s (rate limiting intact,
+  not weakened); a random outside origin's preflight still gets no `Access-Control-Allow-Origin` echoed
+  back (still rejected, not opened to `*`); a login POST **with a stale/garbage `Authorization` header
+  attached** (simulating a device with a leftover token) returns a clean `200`/`401` per real
+  credentials, not a network error — confirming the backend already tolerated this correctly and the
+  frontend fix is a hygiene/correctness improvement on top of that, not a patch for a backend crash.
+- **Not done — no browser automation tool was available in this environment**: an actual live-browser
+  check (seed `localStorage` with a stale token, attempt login, watch the Network tab confirm no
+  `Authorization` header on the request) was not performed. The logic verification above and the direct
+  production API checks are the substitute; flagging this explicitly rather than claiming full live
+  verification per this project's own "verify live, don't trust compiles-clean" standard.
+
+### Stop and ask
+
+Step 0.5's condition is met: **steps 1-4 check out clean on the live backend, and the remaining,
+independently-confirmed cause is network/DNS-level, not code.** This repo cannot fix a DNS resolver
+blocking `up.railway.app` on someone's network from inside the codebase. Two real options exist and
+both are product/infra decisions, not code changes:
+1. Put a custom domain in front of the Railway API (e.g. `api.lgdesk.<yourdomain>` via a CNAME to
+   Railway) so affected users' resolvers don't have `up.railway.app` specifically miscategorized —
+   this is the standard fix for this exact class of PaaS-wildcard-domain DNS filtering.
+2. Treat it as out of scope if it only affects networks the org doesn't control (e.g. a personal mobile
+   carrier's DNS) — in which case the frontend fix in this task (an honest error message instead of a
+   silent generic one) is the practical mitigation: affected users at least get a message that hints at
+   a network/blocking issue instead of nothing.
+
+**Status: PARTIALLY FIXED.** The two required frontend fixes (stale-token leakage to public auth
+endpoints; honest, diagnosable error messaging) are done and verified. The underlying trigger for the
+originally reported failure is most likely DNS-level filtering of Railway's `up.railway.app` zone on
+the affected network — confirmed real and reproducible on at least one network during this diagnosis,
+but not something a code change in this repo can fix. Needs a decision per **Stop and ask** above.

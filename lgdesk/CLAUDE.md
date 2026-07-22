@@ -29,6 +29,24 @@ Current overall state as of 2026-07-06:
   runtime/visual surface — verify live.** Part C's "Verification Methodology" section documents the bar.
 - **Deploy note:** those 16 round-2 commits are **not yet pushed** to `origin/main` — a deliberate pause,
   not an oversight. Pushing/deploying is a separate decision from this verification work.
+- **PTEST-FULL-APP-E2E (2026-07-08, `E2E_TEST_LOG.md`):** a live, Playwright-driven click-through pass
+  across every module as the Super Admin test account — 16/16 checks passed on the first attempt, zero
+  retries needed. Confirms the fixes above actually hold live (not just "reads correctly"). Surfaced two
+  new findings needing a product decision (self-approval leave-block already known; sidebar "My Tasks"
+  badge vs. Dashboard stat-card semantic mismatch; no search/filter on Team Members/Organisation) — see
+  that file's "Consolidated action items" table. A final human/Claude-for-Chrome visual pass is still
+  recommended, not yet done.
+- **PTEST-FULL-APP-E2E Round 2 (2026-07-09/10, `E2E_TEST_LOG.md`'s "Round 2" section):** a second,
+  independent full re-run of the same test plan/account, done via explicit user choice (not a duplicate
+  by accident) for fresh confidence. **15/16 pass; the 1 fail is the already-logged, already-deferred
+  `EditDayModal` stale-`defaultValues` bug (`PFIX-CLOCK-IN-OUT` round 2), reproduced a third time — not a
+  regression.** Corroborates Round 1 almost exactly: no contradictions, one new minor cosmetic nit
+  (Directory singular/plural copy), and the "My Tasks" badge-vs-card mismatch is now mechanically proven
+  (0→1→0 real count vs. 9→10→9 badge in lockstep with the company-wide total) rather than a single
+  observation. The run took ~6.3 hours instead of Round 1's ~43 min almost entirely due to a shared Neon
+  dev-DB outage window mid-run — every check that failed for that reason passed cleanly on retry once
+  the environment recovered; this left some redundant dev-server processes running that need a manual
+  cleanup pass. The recommended final human/Claude-for-Chrome visual pass is still not done.
 
 ## Tech Stack
 

@@ -16,8 +16,10 @@ export class ApiError extends Error {
   }
 }
 
-// Public auth endpoints whose 401s are EXPECTED (bad credentials / bad OTP) and
-// must NOT trigger a session-expiry redirect — the calling page renders the error.
+// Endpoints callable without an existing session. Used for two things: (1) their 401s
+// are EXPECTED (bad credentials / bad OTP) and must NOT trigger a session-expiry
+// redirect — the calling page renders the error; (2) they must NOT carry a stale/
+// leftover Authorization token from a previous session (PFIX-LOGIN-NETWORK-ERROR).
 const PUBLIC_AUTH_PATHS = ['/auth/login', '/auth/password-reset', '/auth/register'];
 
 export type QueryParams = Record<string, string | number | boolean | undefined | null>;
@@ -49,10 +51,13 @@ function buildUrl(path: string, params?: QueryParams): string {
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { method = 'GET', body, params } = options;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  const isPublicAuth = PUBLIC_AUTH_PATHS.some((p) => path.includes(p));
 
   const headers: Record<string, string> = {};
   if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json';
-  const token = getToken();
+  // Public auth endpoints are called before the caller has (or should use) a session —
+  // never attach a stale/leftover token from a previous session to these.
+  const token = isPublicAuth ? null : getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let res: Response;
@@ -62,8 +67,16 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
       headers,
       body: body === undefined ? undefined : isFormData ? (body as FormData) : JSON.stringify(body),
     });
-  } catch {
-    throw new ApiError('Network error — check your connection', 0);
+  } catch (err) {
+    // fetch() throws this same generic TypeError for several distinct causes (offline,
+    // DNS failure, CORS block, server unreachable) — the browser deliberately hides which
+    // one, for security reasons. Log the real error so it's still visible in the console
+    // for debugging, and don't blame "your connection" specifically since it may not be.
+    console.error(`[apiFetch] ${method} ${path} — no response received`, err);
+    throw new ApiError(
+      'Unable to reach the server. It may be temporarily unavailable, or the request may have been blocked by your network — check the browser console for details.',
+      0,
+    );
   }
 
   let json: ApiEnvelope<T> | undefined;
@@ -74,7 +87,6 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   }
 
   if (res.status === 401) {
-    const isPublicAuth = PUBLIC_AUTH_PATHS.some((p) => path.includes(p));
     if (!isPublicAuth && typeof window !== 'undefined') {
       removeToken();
       if (window.location.pathname !== '/login') window.location.href = '/login';

@@ -32,8 +32,16 @@ import { EditDayModal } from './edit-day-modal';
 //     'Edit working day' modal which handles both Clock_In and Clock_Out" — i.e. the
 //     reference itself already consolidated per-field inline edit forms into one modal,
 //     so EditDayModal is the correct match, not a deviation to "fix away".
+//   - IDLE (not-clocked-in) now goes through this SAME collapsed-pill → popover pattern
+//     instead of firing clockIn() straight off the collapsed click: reference's
+//     `wd-hdr-btn` always calls `_wdTogglePopup(event)` regardless of status
+//     (index.html:1793), and the IDLE branch of `_wdRenderStatus()` (app.js.html:15532-
+//     15549) renders a popup body — gray `wd-dot-idle` dot + "Not clocked in" + a static
+//     "Break duration: 00:00:00" row + a "Clock in" button — where `wdClockIn()` is only
+//     ever wired to that button's onclick, never to the header button itself. The
+//     previous version here special-cased IDLE with an early-return plain button that
+//     clocked in on the very first click — no confirm step, unlike every other status.
 const DOT_CLASS: Record<string, string> = {
-  IDLE: 'bg-white/40',
   ACTIVE: 'bg-[#43a047] shadow-[0_0_0_2px_rgba(67,160,71,.35)]',
   ON_BREAK: 'bg-[#fb8c00] shadow-[0_0_0_2px_rgba(251,140,0,.35)]',
   // Indigo/primary, matching the popup's own dot color for this status exactly
@@ -43,7 +51,11 @@ const DOT_CLASS: Record<string, string> = {
   AUTO_CLOSED: 'bg-[var(--p)]',
 };
 
+// IDLE has no entry: reference's collapsed `wd-hdr-btn` dot is CSS `display:none` unless
+// `.is-active`/`.is-break`/`.is-done` is set (index.html:1326-1329) — the not-clocked-in
+// collapsed pill never shows a dot, only the popup body does (`wd-dot-idle`, gray).
 const STATUS_LABEL: Record<string, string> = {
+  IDLE: 'Not clocked in',
   ACTIVE: 'Clocked in',
   ON_BREAK: 'On break',
   COMPLETED: 'Clocked out',
@@ -99,7 +111,13 @@ export function ClockWidget() {
       : '00:00:00';
 
   const collapsedContent =
-    status === 'ACTIVE' ? netElapsed : status === 'ON_BREAK' ? breakTotal : hmsFromMin(session?.netMinutes ?? 0);
+    status === 'IDLE'
+      ? 'Clock In'
+      : status === 'ACTIVE'
+        ? netElapsed
+        : status === 'ON_BREAK'
+          ? breakTotal
+          : hmsFromMin(session?.netMinutes ?? 0);
 
   function doClockIn() {
     const resuming = status === 'COMPLETED' || status === 'AUTO_CLOSED';
@@ -132,14 +150,6 @@ export function ClockWidget() {
       },
       onError: (err) => toast(apiErrorMessage(err, 'Unable to clock out'), 'error'),
     });
-  }
-
-  if (status === 'IDLE') {
-    return (
-      <button onClick={doClockIn} disabled={clockIn.isPending} className="inline-flex items-center gap-1.5 rounded-[8px] bg-white/15 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25 disabled:opacity-60">
-        <Icon name="play_arrow" size={13} /> Clock In
-      </button>
-    );
   }
 
   // The clock-out split-button + its "Change clock-out time"/"Edit today's times" menu —
@@ -187,8 +197,8 @@ export function ClockWidget() {
         onClick={() => setPopupOpen((o) => !o)}
         className="inline-flex items-center gap-2 rounded-[8px] bg-white/15 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25"
       >
-        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${DOT_CLASS[status]}`} />
-        <span className="font-mono">{collapsedContent}</span>
+        {status !== 'IDLE' && <span className={`h-2 w-2 flex-shrink-0 rounded-full ${DOT_CLASS[status]}`} />}
+        <span className={status === 'IDLE' ? '' : 'font-mono'}>{collapsedContent}</span>
         <Icon name="expand_more" size={14} className={`text-white/70 transition-transform ${popupOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -199,20 +209,24 @@ export function ClockWidget() {
             className="absolute right-0 top-full z-50 mt-2 w-[340px] rounded-[14px] p-5 shadow-2xl"
             style={{ background: 'var(--surface)', color: 'var(--text)' }}
           >
-            {/* Status row: dot + label + "|" + timer (+ Clock-In edit pencil, ACTIVE/ON_BREAK only) */}
+            {/* Status row: dot + label (+ "|" + timer + Clock-In edit pencil, everything but IDLE) */}
             <div className="mb-3.5 flex items-center gap-2.5">
               <span
                 className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                 style={{
-                  background: status === 'ACTIVE' ? '#43a047' : status === 'ON_BREAK' ? '#fb8c00' : 'var(--p)',
+                  background: status === 'ACTIVE' ? '#43a047' : status === 'ON_BREAK' ? '#fb8c00' : status === 'IDLE' ? '#bdbdbd' : 'var(--p)',
                   boxShadow: status === 'ACTIVE' ? '0 0 0 3px rgba(67,160,71,.25)' : status === 'ON_BREAK' ? '0 0 0 3px rgba(251,140,0,.25)' : undefined,
                 }}
               />
               <span className="text-[15px] font-semibold">{STATUS_LABEL[status]}</span>
-              <span style={{ color: 'var(--border)', fontWeight: 300, fontSize: 18 }}>|</span>
-              <span className="font-mono text-[22px] font-bold tracking-tight" style={{ color: 'var(--p)' }}>
-                {status === 'ON_BREAK' ? frozenNetAtBreakStart : status === 'ACTIVE' ? netElapsed : hmsFromMin(session?.netMinutes ?? 0)}
-              </span>
+              {status !== 'IDLE' && (
+                <>
+                  <span style={{ color: 'var(--border)', fontWeight: 300, fontSize: 18 }}>|</span>
+                  <span className="font-mono text-[22px] font-bold tracking-tight" style={{ color: 'var(--p)' }}>
+                    {status === 'ON_BREAK' ? frozenNetAtBreakStart : status === 'ACTIVE' ? netElapsed : hmsFromMin(session?.netMinutes ?? 0)}
+                  </span>
+                </>
+              )}
               {(status === 'ACTIVE' || status === 'ON_BREAK') && (
                 <button onClick={() => setEditOpen(true)} title="Edit clock-in time" className="text-[var(--muted)] hover:text-[var(--p)]">
                   <Icon name="edit" size={14} />
@@ -247,13 +261,25 @@ export function ClockWidget() {
               <span className="font-mono font-bold" style={{ color: 'var(--text)' }}>
                 {status === 'ON_BREAK' ? breakTotal : hmsFromMin(session?.totalBreakMins ?? 0)}
               </span>
-              <button onClick={() => setEditOpen(true)} title="Edit break duration" className="ml-auto hover:text-[var(--p)]" style={{ color: 'var(--muted)' }}>
-                <Icon name="edit" size={14} />
-              </button>
+              {status !== 'IDLE' && (
+                <button onClick={() => setEditOpen(true)} title="Edit break duration" className="ml-auto hover:text-[var(--p)]" style={{ color: 'var(--muted)' }}>
+                  <Icon name="edit" size={14} />
+                </button>
+              )}
             </div>
 
             {/* Actions */}
             <div className="flex items-center gap-2.5">
+              {status === 'IDLE' && (
+                <button
+                  onClick={doClockIn}
+                  disabled={clockIn.isPending}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-[8px] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                  style={{ background: 'var(--p)' }}
+                >
+                  <Icon name="login" size={16} /> Clock in
+                </button>
+              )}
               {status === 'ACTIVE' && (
                 <>
                   <button
