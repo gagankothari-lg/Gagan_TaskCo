@@ -9,6 +9,7 @@ import { registerRequest, useTeamCaptain } from '../../../lib/api/auth';
 import { Spinner } from '../../ui/spinner';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
+import { PasswordInput } from '../../ui/password-input';
 import { Textarea } from '../../ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
@@ -225,7 +226,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                     <FormItem className="fg">
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" autoComplete="new-password" placeholder="Min 6 characters" {...field} />
+                        <PasswordInput field={field} autoComplete="new-password" placeholder="Min 6 characters" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -238,7 +239,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                     <FormItem className="fg">
                       <FormLabel>Confirm Password</FormLabel>
                       <FormControl>
-                        <Input type="password" autoComplete="new-password" {...field} />
+                        <PasswordInput field={field} autoComplete="new-password" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, type ControllerRenderProps } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../../../hooks/use-auth';
 import { apiErrorMessage } from '../../../lib/api/client';
@@ -12,6 +12,7 @@ import { tokens } from '../../../lib/design-tokens';
 import { Card } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
+import { PasswordInput } from '../../../components/ui/password-input';
 import { Spinner } from '../../../components/ui/spinner';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../components/ui/form';
 import { RegistrationModal } from '../../../components/modules/users/registration-modal';
@@ -28,50 +29,6 @@ import {
 type Mode = 'login' | 'verified' | 'forgot1' | 'forgot2';
 
 const GRADIENT = tokens.colors.loginGradient;
-
-/** Password input with a show/hide toggle, built on the shared shadcn `Input`. */
-function PwField({
-  id,
-  field,
-  placeholder,
-  onEnter,
-  autoComplete,
-}: {
-  id: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  field: ControllerRenderProps<any, any>;
-  placeholder: string;
-  onEnter?: () => void;
-  autoComplete?: string;
-}) {
-  const [show, setShow] = useState(false);
-  return (
-    <div style={{ position: 'relative' }}>
-      <Input
-        id={id}
-        type={show ? 'text' : 'password'}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        className="pr-9"
-        {...field}
-        onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
-          if (e.key === 'Enter' && onEnter) {
-            e.preventDefault();
-            onEnter();
-          }
-        }}
-      />
-      <button
-        type="button"
-        onClick={() => setShow((s) => !s)}
-        aria-label={show ? 'Hide password' : 'Show password'}
-        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}
-      >
-        <Icon name={show ? 'visibility_off' : 'visibility'} size={18} />
-      </button>
-    </div>
-  );
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -233,7 +190,7 @@ export default function LoginPage() {
                     <FormItem className="fg">
                       <FormLabel htmlFor="login-password">Password</FormLabel>
                       <FormControl>
-                        <PwField
+                        <PasswordInput
                           id="login-password"
                           field={field}
                           placeholder="••••••••"
@@ -346,7 +303,7 @@ export default function LoginPage() {
                     <FormItem className="fg">
                       <FormLabel htmlFor="fp-newpw">New Password</FormLabel>
                       <FormControl>
-                        <PwField id="fp-newpw" field={field} placeholder="At least 6 characters" autoComplete="new-password" />
+                        <PasswordInput id="fp-newpw" field={field} placeholder="At least 6 characters" autoComplete="new-password" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -359,7 +316,7 @@ export default function LoginPage() {
                     <FormItem className="fg">
                       <FormLabel htmlFor="fp-confirmpw">Confirm Password</FormLabel>
                       <FormControl>
-                        <PwField
+                        <PasswordInput
                           id="fp-confirmpw"
                           field={field}
                           placeholder="Re-enter password"
