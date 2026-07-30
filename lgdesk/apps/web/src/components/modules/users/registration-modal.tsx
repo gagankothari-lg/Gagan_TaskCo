@@ -97,13 +97,15 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
   async function onSubmit(values: RegistrationFormValues) {
     setError(null);
     try {
-      // Only the API-whitelisted fields are persisted; role/dob/manager/message are
-      // collected for parity with the GAS form (the backend DTO would 400 on unknown keys).
+      // dob/managerEmail/message are collected for parity with the GAS form but stay
+      // client-only — the backend DTO would 400 on those unknown keys. role IS sent
+      // (PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE): RegisterRequestDto whitelists it now.
       await registerRequest({
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
         password: values.password,
+        role: values.role,
         team: values.team || undefined,
         subDepartment: values.subDepartment || undefined,
         designation: values.designation || undefined,

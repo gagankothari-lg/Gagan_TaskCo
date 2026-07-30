@@ -40,6 +40,7 @@ export interface RegisterRequestInput {
   lastName: string;
   email: string;
   password: string;
+  role: string;
   team?: string;
   subDepartment?: string;
   designation?: string;

@@ -2,13 +2,14 @@
 // Rules sourced from LGDesk_Master_Reference.md Part 11 (Module — Authentication &
 // Session Management, line 649) and Part 4 (Users, Roles & Permission Matrix).
 //
-// NOTE (backend gap — do not "fix" here): apps/api/src/auth/dto/register-request.dto.ts
-// only accepts firstName/lastName/email/password/team/subDepartment/designation
-// (ValidationPipe has forbidNonWhitelisted:true, so role/dob/managerEmail/message would
-// 400 if sent). role/dob/managerEmail are still validated client-side below for parity
-// with the legacy GAS form and so the UI matches Master Reference exactly; the submit
-// handler continues to send only the API-whitelisted subset, same as before this
-// migration.
+// NOTE (backend gap, partially fixed — PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE):
+// apps/api/src/auth/dto/register-request.dto.ts now whitelists role (validated against
+// the same ALL_ROLES list as below) in addition to firstName/lastName/email/password/
+// team/subDepartment/designation. dob/managerEmail/message are still NOT whitelisted
+// (ValidationPipe has forbidNonWhitelisted:true, so sending them would 400) — they're
+// validated client-side below purely for parity with the legacy GAS form and so the UI
+// matches Master Reference exactly; the submit handler only sends the API-whitelisted
+// subset for those three.
 import { z } from 'zod';
 
 export const ROLES = [

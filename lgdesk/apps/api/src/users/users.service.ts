@@ -156,7 +156,7 @@ export class UsersService {
         team: dto.team,
         subDepartment: dto.subDepartment,
         managerId: captain?.empId ?? null,
-        role: 'Team Member',
+        role: dto.role ?? 'Team Member',
         status: 'Pending',
       },
     });
