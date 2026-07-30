@@ -1,6 +1,6 @@
 import { getToken, removeToken } from '../auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const BASE_URL = `${API_URL}/api`;
 
 /** Backend wraps every response as one of these two shapes (ResponseInterceptor). */
