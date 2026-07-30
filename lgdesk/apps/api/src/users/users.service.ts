@@ -162,7 +162,7 @@ export class UsersService {
     });
 
     if (captain) {
-      const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk-web.vercel.app';
+      const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk.vercel.app';
       this.email.sendRegistrationSubmitted({
         managerEmail: captain.email,
         managerName: `${captain.firstName} ${captain.lastName}`,
@@ -232,7 +232,7 @@ export class UsersService {
     await this.audit(callerEmpId, 'APPROVE_REGISTRATION', 'RegistrationRequest', req.regId, null, empId);
     this.clearOrgCache();
 
-    const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk-web.vercel.app';
+    const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk.vercel.app';
     this.email.sendRegistrationApproved({
       applicantEmail: req.email,
       applicantFirstName: req.firstName,
