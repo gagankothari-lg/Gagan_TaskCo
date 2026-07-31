@@ -2160,6 +2160,23 @@ Recorded so nothing is lost, even though the orchestrating session did not place
 
 ---
 
+## Round 3 findings (2026-07-30) — fixed 2026-08-01
+
+Three genuinely new bugs (not GAS-parity divergences — these are findings from `E2E_TEST_LOG.md`'s
+Round 3 live-production pass, unrelated to the reference-vs-rebuild comparison above) were root-caused
+by direct code read and fixed via `PFIX-ROUND3-CONFIRMED-BUGS`. A fourth Round 3 finding (Function
+delete/update's unrestricted blast radius) is deliberately **not** in this batch — it's the already-
+approved parity decision annotated inline above (Item 1/2, A1 §5), not a bug, and needs its own product
+call before anyone touches it.
+
+| Finding | Status | Commit | Note |
+|---|---|---|---|
+| Sequential ID generation (`IdUtilsService.generateId`) reuses an ID after the newest row of a type is deleted — confirmed live, `TSK-00010` reissued after its E2E-test deletion | FIXED | `1b0b016` | Replaced find-last-surviving-row+increment with a persistent per-prefix `IdCounter` table, atomically read/incremented via a single Prisma `upsert`+`increment` (no raw SQL). **Schema migration + one-time backfill (`prisma/backfill-id-counters.ts`) required before this code can be deployed — not yet applied to production as of this commit; see the commit message and the script's own header for the required order of operations.** |
+| Announcements invisible to everyone, including the poster, for their entire first day (`dashboard.service.ts` compared full-timestamp `startDate`/`expiresAt` against a date-truncated `today`) | FIXED | `c4323f5` | Both call sites (`getNotices`, `getAnnouncements`) now compare against `new Date()` instead of `todayUtc()` — scoped to exactly these two checks, `todayUtc()` and its other call sites in the same file are untouched. |
+| Registration-submitted notification email always reported the applicant's role as "Team Member" regardless of what was actually selected | FIXED | `df02dd1` | `applicantRole: 'Team Member'` → `applicantRole: dto.role ?? 'Team Member'`, matching the already-correct stored-role logic on the line above it. |
+
+---
+
 ## Bottom line (Part C)
 
 The RBAC, functional, and visual parity tiers are substantially complete: **24 distinct audit findings fixed across 41 substantive commits**, with the round-2 batch independently verified live (browser + `getComputedStyle` + hand-traced logic + clean dual-workspace builds) rather than trusted from code review. The remaining work is **decisions, not undiscovered bugs**: ~14 product/schema decisions (most blocked on an authorized migration or a policy call), the presence backend and Google-integration rebuilds (out of scope), and a handful of low-severity non-remediated divergences catalogued above. The single most important process lesson — the reason this report is skeptical by construction — is that "compiles + reviews clean + curl-200" declared completeness once and was wrong; live-behavior verification is the bar that held.

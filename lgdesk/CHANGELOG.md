@@ -2,6 +2,34 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
+
+Three bugs from the E2E Round 3 pass (2026-07-30), each already root-caused by direct code read, fixed
+in three commits:
+
+- **Sequential ID generation reused IDs after deletion** (`1b0b016`) — `IdUtilsService.generateId()`
+  derived the next ID from the most-recently-created *surviving* row, so deleting the newest row of a
+  type caused the next one created to reuse its exact ID string, silently corrupting any
+  historical/audit reference (e.g. `DueDateRequest.entityId`, a plain string with no FK) still pointing
+  at the old record. Replaced with a persistent `IdCounter` table (one row per prefix, 13 in use),
+  read/incremented atomically via a single Prisma `upsert`+`increment` — no raw SQL, matching this
+  project's convention. **⚠️ Schema migration + a one-time backfill (`apps/api/prisma/backfill-id-counters.ts`)
+  must be applied to production, in that order, before this code can be deployed — not yet done as of
+  this entry.** See the commit message and the backfill script's header for the exact sequencing.
+- **Announcements invisible for their entire first day** (`c4323f5`) — `dashboard.service.ts` compared
+  full-timestamp `startDate`/`expiresAt` against a date-truncated `today`, so anything posted after
+  midnight UTC today failed the `<= today` check until the next calendar day. Fixed at both call sites
+  (`getNotices`, `getAnnouncements`) to compare against the real current instant instead — `todayUtc()`
+  itself and its other call sites in the same file are untouched.
+- **Registration notification email always said "Team Member"** (`df02dd1`) — the applicant's actual
+  selected role was already stored correctly (fixed 2026-07-30), but the manager-notification email's
+  `applicantRole` field was hardcoded regardless. Now reads `dto.role ?? 'Team Member'`, matching the
+  stored-role logic.
+
+Function delete/update's unrestricted blast radius (also surfaced in Round 3) is deliberately **not**
+included here — it's the already-approved parity decision documented in `AUDIT_REPORT.md` (Part A §5 /
+Part C Item 1-2), not a bug, and needs a separate product call before anyone touches it.
+
 ## 2026-07-30 — PTEST-FULL-APP-E2E-RENDER: first live-production E2E pass, all 5 roles
 
 Document-only E2E test pass (22 agents, 398 checks, 34 findings — 3 high, 8 medium, 23 low) — the
