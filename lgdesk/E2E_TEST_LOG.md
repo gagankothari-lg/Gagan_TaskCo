@@ -386,3 +386,171 @@ reason came back clean once the environment recovered. Net new confidence gained
 issue is now a mechanically-proven bug report instead of a single observation, and the `EditDayModal`
 bug is confirmed not to be a one-off flake. The recommended next step is unchanged from Round 1: a final
 human (or Claude-for-Chrome) visual click-through, still not done as of this writing.
+
+---
+
+# Round 3 — PTEST-FULL-APP-E2E-RENDER: live production, all 5 roles (2026-07-30)
+
+> First pass ever run against the actual **live production stack** (`lgdesk-frontend.vercel.app` +
+> `gagan-taskco.onrender.com` (Render) + Neon) rather than local dev, and the first with real
+> Super Admin / Team Captain / Team Facilitator / Team Member / Intern accounts instead of only
+> Super Admin — closing the "role-specific coverage" gap both Round 1 and Round 2 explicitly flagged.
+> API-only (curl/fetch against the REST API directly with 5 real JWTs) — no browser driving this round;
+> anything inherently visual is flagged, not guessed at (see "Not covered" below).
+
+**Method:** Two phases via a Workflow. Phase 1 — RBAC boundary matrix: 12 module agents in parallel,
+each hitting its endpoints with all 5 role tokens and confirming expected 200/403 per
+`LGDesk_Test_Suite_v2.md` and `AUDIT_REPORT.md`'s already-approved RBAC divergences (mutations only
+attempted where a 403 was expected — a correct rejection creates no data). Phase 2 — functional pass:
+10 module agents run **strictly sequentially, one at a time** (not parallel, not pipelined) — this
+app's ID generation (`IdUtilsService.generateId`: find-last-then-increment) races under concurrent
+writes and the shared Neon pool has a connection limit, both lessons learned the hard way in Round 2.
+Test data prefixed `TEST-QA-`. **Total: 22 agents, ~650K tokens, 257 tool calls.** The background run
+was interrupted once mid-way through Phase 2 (session boundary, not an app issue) and resumed cleanly
+from cached results — one orphaned test announcement from the interrupted attempt was found still live
+on the real Notice Board and deleted directly as part of wrapping up this round (see Cleanup below).
+
+**Org shape discovered:** exactly 5 employees exist in production, all on one team ("5. Tech") —
+EMP-00001 (Super Admin, display name "Leveraged Growth" — the company root, not a person),
+EMP-00002 (Team Captain, the team's only manager-with-subordinates), EMP-00003 (Team Member),
+EMP-00004 (Team Facilitator), EMP-00005 (Intern). Baseline before testing: 9 tasks, 2 projects,
+5 holidays, 6 functions, 0 meetings/notes/DDRs/pending-leaves, 1 genuine pre-existing pending
+registration (REG-00008, untouched throughout).
+
+## Results by module
+
+| Module | Phase 1 (RBAC) | Phase 2 (functional) | New findings |
+|---|---|---|---|
+| Tasks | ✅ 37/37 checks pass | ✅ (folded into Tasks+Import+Functions) | 0 |
+| Projects | ✅ 5/5 pass | ⚠️ 7/8 pass, 1 API-shape nit | 2 (low) |
+| Work Log / Work Duration | ✅ 23/23 pass | ⚠️ 17/19, 2 nits | 3 (1 medium, 2 low) |
+| Leaves / Holidays | ✅ 24/24 pass | ✅ 18/18 pass | 2 (1 medium, 1 low) |
+| Functions | ✅ 26/26 pass | — (covered under Tasks+Import+Functions) | 0 |
+| Directory / Org Chart | ✅ 19/19 pass | ✅ 16/16 pass | 2 (low) |
+| Notes | ✅ 18/18 pass | ✅ 11/11 pass | 1 (low) |
+| Registrations / Team Members | ✅ 14/15 pass | ✅ 13/14 pass | 2 (1 medium, 1 low) |
+| Calendar / Meetings / Dashboard | ✅ 15/15 pass | ⚠️ 22/26, 4 nits | 5 (1 high, 1 medium, 3 low) |
+| DDR | ✅ 16/18 pass | ⚠️ 22/23 | 2 (1 high, 1 low) |
+| Weekly Summary / MIS | ⚠️ 10/15 (docs stale) | — | 2 (1 medium, 1 low) |
+| Import Tasks | ✅ 2/2 pass | — (folded into Tasks+Import+Functions) | 2 (low) |
+| Tasks + Import + Functions (functional) | — | ⚠️ 28/31 | 4 (1 high, 1 medium, 2 low) |
+| Team-scoped views (manager lens) | — | ⚠️ 11/13 | 1 (medium — same root cause as Projects' finding, cross-confirmed) |
+
+**Totals: 398 individual checks/actions across 22 agents. 34 findings: 3 high, 8 medium, 23 low**
+(the low-severity majority is mostly `LGDesk_Test_Suite_v2.md` documentation drift and cosmetic
+API-shape noise, not functional defects). **Zero regressions** on anything either prior round already
+confirmed working.
+
+## New findings — high severity
+
+1. **Function DELETE/UPDATE authorization has drifted wide open.** Any Team Captain or Team
+   Facilitator can delete or update *any* Function company-wide — no team-match, no ownership
+   fallback at all — confirmed live via a real cross-team isolation probe (TF successfully
+   PATCH'd and DELETE'd a TC-created function with empty `assignedTeams`, no relation to TF
+   whatsoever). Tasks and Projects still require a team-match or ownership relation for delete;
+   Functions no longer does. This matches `AUDIT_REPORT.md`'s "Master Reference Reconciliation"
+   Items 1/2 being marked RESOLVED (i.e. this *is* the intended, approved fix) — flagging because
+   the blast radius (unrestricted, company-wide, any manager-tier role) is larger than "no team
+   qualifier" may have sounded when approved; worth a maintainer double-check that this is really
+   the intended scope.
+2. **Newly posted announcements are invisible to everyone — including the poster — for their
+   entire day of creation**, only appearing starting the next UTC calendar day. Reproduced live:
+   posted `TEST-QA-Announcement` as Super Admin, immediately re-fetched `GET /api/dashboard` and
+   `GET /api/announcements` as both SA and TM — absent from both. Almost certainly a date-only
+   (not date+time) comparison in the query filtering "already started" notices. Real-world impact:
+   an announcement posted today is silently a no-op until tomorrow, with no error to the poster.
+3. **Sequential business-ID generation reuses IDs after the highest-numbered row is deleted**
+   (`IdUtilsService.generateId`, `apps/api/src/common/utils/id.utils.ts:8-13` — finds the single
+   most recent *surviving* row and increments, rather than a persistent counter or `MAX()` across
+   all rows ever created). Deleting the newest record of a type means the very next record created
+   gets issued the *exact same ID string* — confirmed live: a deleted `TSK-00010` and a later
+   `DDR-00002` both ended up referencing a reused ID space. Any historical/audit reference
+   (e.g. `DueDateRequest.entityId`, a plain string with no FK) that still points at the old
+   record by that business-ID now silently resolves to a different, unrelated record. This is a
+   real data-integrity risk anywhere IDs get deleted and recreated under normal use, not just in
+   testing.
+
+## New findings — medium severity
+
+- `GET /api/weekly-summary/mis` is no longer a 404 "not implemented" (the old GAP-001) — it's now a
+  real, guarded route returning 403 "MIS access required" for every role (no one has a `MisAccess`
+  row yet). Status change, not a regression — `LGDesk_Test_Suite_v2.md` needs updating.
+- **Projects has no manager subordinate-tree widening**: Team Captain/Facilitator get an empty
+  result from every `GET /api/projects*` scope even though their own team member is assigned to
+  both existing projects — unlike Tasks' equivalent scope, which does widen correctly. Cross-confirmed
+  independently by both the `projects` and `team-scoped-views` modules.
+- Function's `status` field has **no enum validation** — accepts and persists arbitrary strings,
+  unlike Task's strict 8-value enum.
+- `GET /api/work-logs/team` **silently omits all Intern team members' work log entries** — it only
+  queries `WorkLog`, never `InternWorkLog`. A manager reviewing their team's work logs never sees
+  Intern data at all, with no indication anything is missing.
+- `PATCH /api/leaves/:id/review` has **no idempotency/state guard** — a manager can re-review an
+  already-Approved or -Rejected leave and silently flip the final decision, no error, no warning.
+- The documented meeting-cancel endpoint (`PATCH /api/meetings/:id/cancel`) **doesn't exist** —
+  live route is `DELETE /api/meetings/:id` (soft-cancel). Docs-vs-reality mismatch, not a functional bug.
+- **Registration-submitted notification emails always say the applicant's role is "Team Member"**,
+  regardless of the role actually selected — the email template/service reads a hardcoded value
+  instead of the submitted role. (Distinct from today's earlier `PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE`
+  fix, which only fixed the *stored* role, not this notification text.)
+- `GET /api/tasks/team` (and `/tasks/all` for non-admin managers) **omits tasks a subordinate
+  authored but didn't assign to anyone/a team** — the manager-scope check only recognizes the
+  caller itself as a valid "assigner," not the caller's full subordinate scope, unlike the
+  assignee-side check on the same query which correctly does use the full subordinate scope.
+
+## Cleanup
+
+All test data created this round was `TEST-QA-`-prefixed and cleaned up except where no delete
+endpoint exists at all (documented per-item, not negligence):
+- **Fully deleted/reverted:** tasks (TSK-00010, reused for 3 separate probes), function FN-00007,
+  project PRJ-00003, holiday, meeting MTG-00007 (soft-cancelled), note, 3 registration requests
+  (REG-00009/00010/00011, all Rejected), 1 profile-update request (PR-00002, Rejected, confirmed
+  no actual field change applied).
+- **Terminal-state-but-permanent (no hard-delete exists in the API for these entity types,
+  confirmed by reading every relevant controller):** leave LV-00011 (ended in `Rejected`), DDR
+  records DDR-00001/DDR-00002 (ended in `Rejected`/`Approved` respectively — approving/rejecting
+  *is* the correct/only cleanup action for a DDR).
+- **Cannot be removed via any exposed API at all:** InternWorkLog `IWL-00001` (no DELETE route
+  exists for `WorkLog` or `InternWorkLog`; best-effort scrubbed by overwriting its text fields to
+  empty via the admin upsert endpoint, but the row itself persists with `attendance: Present`) and
+  WorkDuration session `WD-00032` + its associated break row (a real, intentionally-executed
+  clock-in→break→clock-out cycle on the Intern account, per this task's own instructions — not
+  reversible, no delete/reset endpoint exists).
+- **Found and independently cleaned up by me after the workflow completed:** one orphaned
+  `TEST-QA-Announcement` (id `cms7mwbls004d6ifrr93xk1x0`) left live on the real company-wide Notice
+  Board by the *interrupted* first attempt at the `calendar-meetings-dashboard` module (that attempt
+  created it, then got cut off before its own cleanup step ran) — confirmed present via
+  `GET /api/dashboard`, deleted via `DELETE /api/announcements/:id`, re-confirmed absent.
+
+## Reconfirmed, not new (already logged in `AUDIT_REPORT.md` and/or prior rounds)
+
+Task/Project DELETE team-string-match model (not ownership); Intern hard-blocked from updating/deleting
+any task even ones they're personally assigned to; Import Tasks has no RBAC gate (product-approved);
+`GET /api/directory/org-chart` and `/directory/company` have no role guard (deliberate); DDR's
+asymmetric Intern-approval exclusion (Row 24) — **empirically reproduced live this round with a real
+record** (Intern blocked from approving a DDR on their own entity, but *can* reject the same one);
+DDR's Admin-direct-change bypass gap (Item 4a) also reconfirmed live; role-change matrix (TF zero
+capability, TC own-team-only, self-block) reconfirmed with zero regressions; Intern clock time never
+syncing to `InternWorkLog` reconfirmed live via a real clock cycle; leave self-approval unconditional
+block reconfirmed in source. Two audit findings (A5#5 company-meeting visibility, A5#6 missing
+meeting-scheduled email) appear **already fixed** in current source per code-reading, though not
+independently live-tested this round (would have required emailing all 5 real employees).
+
+## Not covered (flagged for a visual/UI pass, not guessed at)
+
+This entire round was API-only — no browser driving. Everything inherently visual is unconfirmed:
+Dashboard widget rendering/layout, Calendar's month-grid and colored event chips, Org Chart's
+tree/zoom controls, Notes' pinned-ordering and chip rendering, the Import Tasks preview table's
+actual column rendering, whether the frontend hides (vs. just errors on) admin-only buttons for
+non-admins, and how a Function with a non-canonical `status` string (see medium finding above)
+renders in the UI. A dedicated browser-driven pass (Playwright or a human click-through) covering
+all 5 roles is the natural next step this round didn't attempt.
+
+## Bottom line
+
+First real production, first real cross-role coverage — and it held up well: zero regressions on
+anything previously confirmed, the majority of new findings are low-severity documentation drift, and
+today's earlier registration-role fix (`PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE`) was independently
+confirmed holding correctly in production (a real `Intern`-role registration was submitted, stored
+with the correct role, and rejected for cleanup). The 3 high-severity findings — Function
+delete/update's unrestricted blast radius, announcements silently invisible for a full day, and
+ID-reuse-after-delete as a live data-integrity risk — are the ones worth prioritizing first.
