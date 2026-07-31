@@ -16,6 +16,10 @@ Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit �
   exclusion anywhere. (The original fix ticket cited `work-duration.service.ts` — corrected during
   this batch to the actual `work-log.service.ts getTeamWorkLogs`, which is where the Round 3 finding
   actually lives.) Now queries both tables and merges the results, sorted by date.
+- **Fix 3 — Leave review had no idempotency guard.** A manager or admin could re-review an
+  already-Approved or already-Rejected leave and silently overwrite the prior decision. Now throws
+  before any `Pending`-only leave reaches the update call; the direct-report/same-team permission
+  logic above it is untouched.
 
 ## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
 

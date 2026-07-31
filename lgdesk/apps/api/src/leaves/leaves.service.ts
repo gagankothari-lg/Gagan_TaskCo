@@ -60,6 +60,10 @@ export class LeavesService {
     const leave = await this.prisma.leave.findUnique({ where: { leaveId } });
     if (!leave) throw new NotFoundException('Leave not found');
     if (leave.empId === callerEmpId) throw new ForbiddenException('You cannot review your own leave');
+    // No idempotency guard previously existed — a manager/admin could silently re-review an
+    // already-decided leave and overwrite the prior outcome with no error or warning
+    // (PFIX-READY-BATCH-SEQUENTIAL Fix 3, confirmed live in E2E_TEST_LOG.md Round 3).
+    if (leave.status !== 'Pending') throw new ForbiddenException('This leave has already been reviewed');
 
     const caller = await this.getCaller(callerEmpId);
     if (!isAdmin(caller.role)) {
