@@ -30,6 +30,13 @@ Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit �
   assigner check only recognized the caller itself, not the caller's subordinate scope, unlike the
   assignee-side check right below it in the same function (which already used the full scope). Now
   `scopeIds.has(task.assignerId)` — a strict widening since `scopeIds` already includes the caller.
+- **Fix 6 — Function `status` accepted any string.** No enum validation existed at all. Confirmed
+  (rather than assumed) the correct vocabulary by checking the frontend: Functions actually share
+  `PROJECT_STATUSES` with Projects (`Not Started/Planning/WIP/Under Review/On Hold/Done/Cancelled`),
+  a completely different list from Task's `TASK_STATUSES` — using the latter would have broken the
+  existing UI by rejecting values it already sends (e.g. "WIP"). Added `PROJECT_STATUSES` to the
+  backend's `common/constants.ts` and applied it via `@IsIn` to both Function DTOs. Also found (not
+  fixed, out of scope): Project's own DTOs have the identical unvalidated gap.
 
 ## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
 

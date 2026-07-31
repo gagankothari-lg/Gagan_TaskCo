@@ -9,6 +9,15 @@ export const TASK_STATUSES = [
   'Backlog','Not Started','WIP - 25%','WIP - 50%','WIP - 75%','Done','Cancelled','Under Review'
 ] as const;
 
+// Shared by Projects and Functions (PFIX-READY-BATCH-SEQUENTIAL Fix 6) — a distinct vocabulary
+// from TASK_STATUSES above; confirmed against the frontend's existing PROJECT_STATUSES
+// (apps/web/.../projects/create-project-modal.schema.ts, already reused by both the Project
+// and Function modals/schemas there). Do not use TASK_STATUSES for either entity — the two
+// lists don't overlap cleanly (e.g. "WIP" here vs "WIP - 25%"/"WIP - 50%"/"WIP - 75%" there).
+export const PROJECT_STATUSES = [
+  'Not Started','Planning','WIP','Under Review','On Hold','Done','Cancelled'
+] as const;
+
 export const TASK_CLOSED_STATUSES = ['Done','Cancelled'] as const;
 
 // ─── Task status predicates ────────────────────────────────────
