@@ -44,9 +44,14 @@ export class DashboardService {
 
     // 1. Announcements within their window + visible to this role. Soft-deleted
     // (isActive=false, BR-4) announcements are excluded everywhere — never hard-deleted.
+    // Compares against the real current instant, not the date-truncated `today` above —
+    // startDate/expiresAt carry full timestamp precision, so a `<= today` (midnight UTC)
+    // comparison would hide anything posted later today until the next calendar day
+    // (PFIX-ROUND3-CONFIRMED-BUGS Fix 2).
+    const nowInstant = new Date();
     const allAnn = await this.prisma.announcement.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
     const announcements = allAnn
-      .filter((a) => (!a.startDate || a.startDate <= today) && (!a.expiresAt || a.expiresAt >= today))
+      .filter((a) => (!a.startDate || a.startDate <= nowInstant) && (!a.expiresAt || a.expiresAt >= nowInstant))
       .filter((a) => this.visibleTo(a.visibility, caller.role))
       .map((a) => ({ id: a.id, title: a.title, content: a.content, visibility: a.visibility, startDate: a.startDate?.toISOString() ?? null, expiresAt: a.expiresAt?.toISOString() ?? null }));
 
@@ -186,9 +191,11 @@ export class DashboardService {
     const caller = await this.getCaller(callerEmpId);
     const all = await this.prisma.announcement.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
     if (isAdmin(caller.role)) return all; // management view
-    const today = this.todayUtc();
+    // Real current instant, not date-truncated — see the matching comment in getNotices()
+    // (PFIX-ROUND3-CONFIRMED-BUGS Fix 2).
+    const nowInstant = new Date();
     return all
-      .filter((a) => (!a.startDate || a.startDate <= today) && (!a.expiresAt || a.expiresAt >= today))
+      .filter((a) => (!a.startDate || a.startDate <= nowInstant) && (!a.expiresAt || a.expiresAt >= nowInstant))
       .filter((a) => this.visibleTo(a.visibility, caller.role));
   }
 
