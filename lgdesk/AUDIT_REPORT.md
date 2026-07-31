@@ -2177,6 +2177,16 @@ call before anyone touches it.
 
 ---
 
+## Ready-to-fix batch (2026-08-01) — `PFIX-READY-BATCH-SEQUENTIAL`
+
+Seven confirmed bugs, each fixed one at a time (build-verify, commit, push) in the order listed.
+
+| Finding | Status | Commit | Note |
+|---|---|---|---|
+| `EditDayModal` reused stale form values on reopen — `useForm`'s `defaultValues` only apply on first mount, no reset when `initialStart`/`initialEnd`/`initialBreak` props change on a later open of the same modal instance (`AUDIT_REPORT.md`'s own `PFIX-CLOCK-IN-OUT` round 2 entry, reconfirmed 3x live across both E2E rounds) | FIXED | this commit | Added a `useEffect` calling `form.reset(...)`, keyed on `open` plus the three `initial*` props. Code + this doc update land in the same commit, so "this commit" is exact — check `git log -- edit-day-modal.tsx` if the hash itself is needed. |
+
+---
+
 ## Bottom line (Part C)
 
 The RBAC, functional, and visual parity tiers are substantially complete: **24 distinct audit findings fixed across 41 substantive commits**, with the round-2 batch independently verified live (browser + `getComputedStyle` + hand-traced logic + clean dual-workspace builds) rather than trusted from code review. The remaining work is **decisions, not undiscovered bugs**: ~14 product/schema decisions (most blocked on an authorized migration or a policy call), the presence backend and Google-integration rebuilds (out of scope), and a handful of low-severity non-remediated divergences catalogued above. The single most important process lesson — the reason this report is skeptical by construction — is that "compiles + reviews clean + curl-200" declared completeness once and was wrong; live-behavior verification is the bar that held.

@@ -2,7 +2,7 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '../../ui/icon';
 import { useEditTime } from '../../../lib/api/workDuration';
 import { apiErrorMessage } from '../../../lib/api/client';
@@ -32,6 +32,16 @@ export function EditDayModal({ open, onClose, initialStart, initialEnd, initialB
       reason: '',
     },
   });
+
+  // useForm's defaultValues only apply on first mount — without this, reopening the same
+  // modal instance with different initial* props (e.g. a different day) shows stale values
+  // from whenever it first mounted (PFIX-READY-BATCH-SEQUENTIAL Fix 1).
+  useEffect(() => {
+    if (open) {
+      form.reset({ startTime: initialStart ?? '09:00', endTime: initialEnd ?? '', breakMins: initialBreak ?? 0, reason: '' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialStart, initialEnd, initialBreak]);
 
   const start = form.watch('startTime');
   const end = form.watch('endTime');

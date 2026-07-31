@@ -2,6 +2,16 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-08-01 — PFIX-READY-BATCH-SEQUENTIAL
+
+Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit → push per item, in order):
+
+- **Fix 1 — `EditDayModal` reused stale form values on reopen.** `useForm`'s `defaultValues` only apply
+  on first mount; reopening the same modal instance with different `initialStart`/`initialEnd`/
+  `initialBreak` props showed stale data from whenever it first mounted. This is the same bug
+  `AUDIT_REPORT.md`'s `PFIX-CLOCK-IN-OUT` round 2 entry already flagged and both E2E rounds
+  reconfirmed live — now actually fixed with a `useEffect` that resets the form on every `open`.
+
 ## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
 
 Three bugs from the E2E Round 3 pass (2026-07-30), each already root-caused by direct code read, fixed
