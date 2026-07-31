@@ -37,6 +37,11 @@ Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit �
   existing UI by rejecting values it already sends (e.g. "WIP"). Added `PROJECT_STATUSES` to the
   backend's `common/constants.ts` and applied it via `@IsIn` to both Function DTOs. Also found (not
   fixed, out of scope): Project's own DTOs have the identical unvalidated gap.
+- **Fix 7 — Directory member-count copy.** Team-header count always rendered "N members," including
+  "1 members." Now singular/plural aware.
+
+This closes out the `PFIX-READY-BATCH-SEQUENTIAL` batch — all 7 items fixed, one commit each, pushed
+individually.
 
 ## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
 

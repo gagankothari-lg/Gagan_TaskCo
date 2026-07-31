@@ -138,7 +138,7 @@ export default function DirectoryPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0 8px', borderBottom: '2px solid var(--p3)', marginBottom: 14 }}>
               <Icon name="groups" size={18} style={{ color: 'var(--p)' }} />
               <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--p)' }}>{teamName}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 10 }}>{members.length} members</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 10 }}>{members.length} {members.length === 1 ? 'member' : 'members'}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
               {members.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} />)}
