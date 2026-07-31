@@ -168,7 +168,7 @@ export class UsersService {
         managerName: `${captain.firstName} ${captain.lastName}`,
         applicantName: `${dto.firstName} ${dto.lastName}`,
         applicantEmail: dto.email,
-        applicantRole: 'Team Member',
+        applicantRole: dto.role ?? 'Team Member',
         applicantTeam: dto.team ?? '',
         reviewUrl: `${frontendUrl}/team-members`,
       }).catch(() => undefined);
