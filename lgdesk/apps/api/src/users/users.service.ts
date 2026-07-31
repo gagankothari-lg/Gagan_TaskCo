@@ -125,6 +125,14 @@ export class UsersService {
     return result;
   }
 
+  // Shared manager-visibility scope: the caller themselves plus every subordinate beneath
+  // them. Extracted from TasksService (PFIX-READY-BATCH-SEQUENTIAL Fix 4) so ProjectsService
+  // can widen its own manager-scope check the same way instead of duplicating the logic.
+  async managerScopeIds(caller: { empId: string }): Promise<Set<string>> {
+    const subs = await this.getSubordinateIds(caller.empId);
+    return new Set([caller.empId, ...subs]);
+  }
+
   // ─────────────────────────────────────────────── registration
   // Canonical home for registration (delegated to from POST /auth/register/request).
   async submitRegistration(dto: RegisterRequestDto) {

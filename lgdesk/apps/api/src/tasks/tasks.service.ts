@@ -53,7 +53,7 @@ export class TasksService {
       // (the "All Tasks" nav item is shown to every manager) but must stay
       // team-scoped, same as the 'team' branch below.
       if (isAdmin(caller.role)) return rows.map((t) => this.mapTask(t));
-      const scopeIds = await this.managerScopeIds(caller);
+      const scopeIds = await this.users.managerScopeIds(caller);
       return rows.filter((t) => this.visibleToManager(t, caller, scopeIds)).map((t) => this.mapTask(t));
     }
 
@@ -66,7 +66,7 @@ export class TasksService {
     }
 
     // team scope (manager)
-    const scopeIds = await this.managerScopeIds(caller);
+    const scopeIds = await this.users.managerScopeIds(caller);
     const rows = await this.prisma.task.findMany({ orderBy: { createdAt: 'desc' } });
     return rows.filter((t) => this.visibleToManager(t, caller, scopeIds)).map((t) => this.mapTask(t));
   }
@@ -342,11 +342,6 @@ export class TasksService {
     const task = await this.prisma.task.findUnique({ where: { taskId } });
     if (!task) throw new NotFoundException('Task not found');
     return task;
-  }
-
-  private async managerScopeIds(caller: Caller): Promise<Set<string>> {
-    const subs = await this.users.getSubordinateIds(caller.empId);
-    return new Set([caller.empId, ...subs]);
   }
 
   private ownedBy(task: TaskRow, empId: string): boolean {

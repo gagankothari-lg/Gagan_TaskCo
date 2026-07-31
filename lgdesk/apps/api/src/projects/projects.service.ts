@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { CalendarService } from '../calendar/calendar.service';
+import { UsersService } from '../users/users.service';
 import { isAdmin, isManager, parseIds, joinIds } from '../common/constants';
 import { Project } from '../common/api-types';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -26,6 +27,7 @@ export class ProjectsService {
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
     private readonly calendar: CalendarService,
+    private readonly users: UsersService,
   ) {}
 
   async getAuthorizedProjects(callerEmpId: string, scope?: ProjectScope): Promise<Project[]> {
@@ -40,9 +42,15 @@ export class ProjectsService {
       // Admin/SA get the org-wide view; TC/TF can reach this same 'all' branch
       // (the "All Projects" nav item is shown to every manager) but must stay
       // team-scoped, same as the 'team' branch below.
-      visible = isAdmin(caller.role) ? all : all.filter((p) => this.visibleToManager(p, caller));
+      if (isAdmin(caller.role)) {
+        visible = all;
+      } else {
+        const scopeIds = await this.users.managerScopeIds(caller);
+        visible = all.filter((p) => this.visibleToManager(p, caller, scopeIds));
+      }
     } else if (effective === 'team') {
-      visible = all.filter((p) => this.visibleToManager(p, caller));
+      const scopeIds = await this.users.managerScopeIds(caller);
+      visible = all.filter((p) => this.visibleToManager(p, caller, scopeIds));
     } else {
       visible = all.filter((p) => this.ownedBy(p, callerEmpId));
     }
@@ -64,7 +72,7 @@ export class ProjectsService {
   async getProjectById(projId: string, callerEmpId: string) {
     const project = await this.requireProject(projId);
     const caller = await this.getCaller(callerEmpId);
-    if (!this.canView(project, caller)) throw new ForbiddenException();
+    if (!(await this.canView(project, caller))) throw new ForbiddenException();
 
     const [taskCount, subProjectCount, functionCount] = await Promise.all([
       this.prisma.task.count({ where: { projId } }),
@@ -189,15 +197,21 @@ export class ProjectsService {
     );
   }
 
-  private visibleToManager(p: ProjectRow, caller: Caller): boolean {
+  // scopeIds = caller + every subordinate beneath them (UsersService.managerScopeIds).
+  // Widens visibility to a subordinate's projects even when the caller isn't themselves the
+  // assigner/owner/assignee/team-match — same widening Tasks already had via managerScopeIds
+  // (PFIX-READY-BATCH-SEQUENTIAL Fix 4). The existing ownedBy/team checks are unchanged; this
+  // is a purely additive third condition.
+  private visibleToManager(p: ProjectRow, caller: Caller, scopeIds: Set<string>): boolean {
     if (this.ownedBy(p, caller.empId)) return true;
+    if (parseIds(p.assigneeIds).some((a) => scopeIds.has(a))) return true;
     if (caller.team && parseIds(p.assignedTeams).includes(caller.team)) return true;
     return false;
   }
 
-  private canView(p: ProjectRow, caller: Caller): boolean {
+  private async canView(p: ProjectRow, caller: Caller): Promise<boolean> {
     if (isAdmin(caller.role)) return true;
-    if (isManager(caller.role)) return this.visibleToManager(p, caller);
+    if (isManager(caller.role)) return this.visibleToManager(p, caller, await this.users.managerScopeIds(caller));
     return this.ownedBy(p, caller.empId);
   }
 

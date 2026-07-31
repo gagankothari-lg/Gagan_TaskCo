@@ -20,6 +20,12 @@ Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit �
   already-Approved or already-Rejected leave and silently overwrite the prior decision. Now throws
   before any `Pending`-only leave reaches the update call; the direct-report/same-team permission
   logic above it is untouched.
+- **Fix 4 — Projects had no manager subordinate-tree widening.** Team Captain/Facilitator got empty
+  results from every project list scope even when their own team member was assigned to it, unlike
+  Tasks' equivalent scope. `managerScopeIds` (caller + every subordinate) was private to
+  `TasksService` — extracted to `UsersService` as a shared method rather than duplicated, and
+  `ProjectsService`'s `visibleToManager` now widens its assignee check the same way Tasks does.
+  Purely additive: existing `ownedBy`/team-match visibility is unchanged.
 
 ## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
 
