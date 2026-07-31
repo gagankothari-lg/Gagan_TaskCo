@@ -177,17 +177,31 @@ export class WorkLogService {
 
   async getTeamWorkLogs(callerEmpId: string, start?: string, end?: string) {
     const caller = await this.requireManager(callerEmpId);
-    let empIds: string[] | undefined;
+    // Interns' entries live in InternWorkLog, never WorkLog (business rule 11) — querying
+    // workLog alone silently drops every Intern team member with zero explicit exclusion
+    // (PFIX-READY-BATCH-SEQUENTIAL Fix 2, confirmed live in E2E_TEST_LOG.md Round 3).
+    let regularEmpIds: string[] | undefined;
+    let internEmpIds: string[];
     if (!isAdmin(caller.role)) {
-      const members = await this.prisma.user.findMany({ where: { team: caller.team }, select: { empId: true } });
-      empIds = members.map((m) => m.empId);
+      const members = await this.prisma.user.findMany({ where: { team: caller.team }, select: { empId: true, role: true } });
+      regularEmpIds = members.filter((m) => m.role !== 'Intern').map((m) => m.empId);
+      internEmpIds = members.filter((m) => m.role === 'Intern').map((m) => m.empId);
+    } else {
+      // Admin's WorkLog query stays unfiltered (empId), matching prior behavior exactly;
+      // only the Intern-side query needs an explicit empId list.
+      const interns = await this.prisma.user.findMany({ where: { role: 'Intern' }, select: { empId: true } });
+      internEmpIds = interns.map((m) => m.empId);
     }
-    const where = { ...(empIds ? { empId: { in: empIds } } : {}), ...this.dateRange(start, end) };
-    const [logs, holidays] = await Promise.all([
-      this.prisma.workLog.findMany({ where, orderBy: { date: 'desc' } }),
+    const dateFilter = this.dateRange(start, end);
+    const [logs, internLogs, holidays] = await Promise.all([
+      this.prisma.workLog.findMany({ where: { ...(regularEmpIds ? { empId: { in: regularEmpIds } } : {}), ...dateFilter }, orderBy: { date: 'desc' } }),
+      internEmpIds.length
+        ? this.prisma.internWorkLog.findMany({ where: { empId: { in: internEmpIds }, ...dateFilter }, orderBy: { date: 'desc' } })
+        : Promise.resolve([]),
       this.prisma.holiday.findMany({ where: this.dateRange(start, end), orderBy: { date: 'asc' } }),
     ]);
-    return { logs, holidays };
+    const mergedLogs = [...logs, ...internLogs].sort((a, b) => b.date.getTime() - a.date.getTime());
+    return { logs: mergedLogs, holidays };
   }
 
   async getWeekSummary(callerEmpId: string, start: string, end: string) {

@@ -11,6 +11,11 @@ Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit �
   `initialBreak` props showed stale data from whenever it first mounted. This is the same bug
   `AUDIT_REPORT.md`'s `PFIX-CLOCK-IN-OUT` round 2 entry already flagged and both E2E rounds
   reconfirmed live — now actually fixed with a `useEffect` that resets the form on every `open`.
+- **Fix 2 — `GET /api/work-logs/team` silently omitted Interns.** Queried only the `WorkLog` table;
+  Interns' entries live in `InternWorkLog` (business rule 11), so they dropped out with no explicit
+  exclusion anywhere. (The original fix ticket cited `work-duration.service.ts` — corrected during
+  this batch to the actual `work-log.service.ts getTeamWorkLogs`, which is where the Round 3 finding
+  actually lives.) Now queries both tables and merges the results, sorted by date.
 
 ## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
 
