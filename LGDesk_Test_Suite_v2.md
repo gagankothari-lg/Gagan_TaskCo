@@ -110,7 +110,7 @@
 |---|---|---|---|---|
 | T-020 | Submit registration — valid | `POST /api/auth/register/request` | `{ ok: true, data: { reqId: "REG-XXXXX" } }` | ✅ |
 | T-021 | Registration — empty firstName | `POST /api/auth/register/request` | 400 `{ ok: false, error: "firstName is required" }` | ✅ |
-| T-022 | Registration — role/dob fields rejected | `POST /api/auth/register/request` with extra fields | 400 validation error (whitelist enforced) | ✅ |
+| T-022 | Registration — `dob` field rejected, `role` field accepted | `POST /api/auth/register/request` with `dob` + a valid `role` | `dob` → 400 (still not whitelisted); `role` → 201, persisted correctly, NOT silently defaulted to "Team Member" — **`role` acceptance corrected 2026-07-30, `PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE`; this row previously said both fields were rejected** | ✅ live-tested Round 3 |
 | T-023 | List pending registrations (admin) | `GET /api/users/registrations` | `{ ok: true, data: [...] }` | ✅ |
 | T-024 | Approve registration | `PATCH /api/users/registrations/:reqId/approve` | `{ ok: true, data: { empId: "EMP-XXXXX" } }` | ⚠️ not tested (need pending req) |
 | T-025 | Reject registration | `PATCH /api/users/registrations/:reqId/reject` | `{ ok: true }` | ⚠️ not tested |
@@ -166,7 +166,7 @@
 | # | Test | Endpoint | Expected | Status |
 |---|---|---|---|---|
 | T-040 | Get my work logs | `GET /api/work-logs/mine` | `{ ok: true, data: [...] }` — array of WL records | ✅ |
-| T-041 | Get team work logs (manager) | `GET /api/work-logs/team` | `{ ok: true, data: [...] }` | ⚠️ not tested (no team members) |
+| T-041 | Get team work logs (manager) | `GET /api/work-logs/team` | `{ ok: true, data: {...} }` — **corrected 2026-07-31 (E2E Round 3): actual shape is a nested object, not a bare array as previously documented** | ✅ live on production |
 
 ### UI Tests
 
@@ -183,19 +183,19 @@
 ---
 
 ## Module 6 — Work Duration / Clock
-> Endpoints: `GET /api/work-duration/status`, `GET /api/work-duration/team-status`, `POST /api/work-duration/clock-in`, `POST /api/work-duration/start-break`, `POST /api/work-duration/end-break`, `POST /api/work-duration/clock-out`
-> Updated: 2026-06-29
+> Endpoints: `GET /api/work-duration/status`, `GET /api/work-duration/team-status`, `POST /api/work-duration/clock-in`, `POST /api/work-duration/break/start`, `POST /api/work-duration/break/end`, `POST /api/work-duration/clock-out`
+> Updated: 2026-06-29 · **Break endpoint paths corrected 2026-07-31 (E2E Round 3): `.../start-break` and `.../end-break` both 404 in production — real routes are `.../break/start` and `.../break/end`.**
 
 ### API Tests
 
 | # | Test | Endpoint | Expected | Status |
 |---|---|---|---|---|
-| T-050 | Get work duration status | `GET /api/work-duration/status` | `{ ok: true, data: { status: "IDLE"/"ACTIVE"/"ON_BREAK"/"COMPLETED" } }` | ✅ |
+| T-050 | Get work duration status | `GET /api/work-duration/status` | `{ ok: true, data: { status: "IDLE"/"ACTIVE"/"ON_BREAK"/"COMPLETED" } }` — note: this is not a pure read, it silently creates a WorkDuration row for "today" as a side effect if the caller has none yet | ✅ |
 | T-051 | Team clock status (admin) | `GET /api/work-duration/team-status` | `{ ok: true, data: [{empId, status, ...}] }` | ✅ |
-| T-052 | Clock in | `POST /api/work-duration/clock-in` | `{ ok: true }` | ⚠️ not tested |
-| T-053 | Start break | `POST /api/work-duration/start-break` | `{ ok: true }` | ⚠️ not tested |
-| T-054 | End break | `POST /api/work-duration/end-break` | `{ ok: true }` | ⚠️ not tested |
-| T-055 | Clock out | `POST /api/work-duration/clock-out` | `{ ok: true, data: { netMinutes: N } }` | ⚠️ not tested |
+| T-052 | Clock in | `POST /api/work-duration/clock-in` | `{ ok: true }` | ✅ live-tested Round 3 |
+| T-053 | Start break | `POST /api/work-duration/break/start` | `{ ok: true }` | ✅ live-tested Round 3 |
+| T-054 | End break | `POST /api/work-duration/break/end` | `{ ok: true }` | ✅ live-tested Round 3 |
+| T-055 | Clock out | `POST /api/work-duration/clock-out` | `{ ok: true, data: { netMinutes: N } }` | ✅ live-tested Round 3 |
 | T-056 | Auto clock-out fires at midnight UTC (not 18-hr cap) | Cron `@Cron('0 * * * *')` hourly | Sessions with clockIn before midnight UTC closed at midnight | verified in code |
 
 ### UI Tests
@@ -267,7 +267,7 @@
 | # | Role | Action | Expected | Status |
 |---|---|---|---|---|
 | R-071 | TM | `POST /api/projects` | 403 Forbidden | ⚠️ need TM token |
-| R-072 | TC | `POST /api/projects` | 200 OK (managers can create) | ⚠️ need TC token |
+| R-072 | TC | `POST /api/projects` | **201 Created** (corrected 2026-07-31, E2E Round 3 — previously documented as 200 OK) (managers can create) | ✅ live-tested Round 3 |
 
 ---
 
@@ -304,7 +304,7 @@
 |---|---|---|---|---|
 | T-090 | Get meetings | `GET /api/meetings` | `{ ok: true, data: [] }` | ✅ |
 | T-091 | Create meeting | `POST /api/meetings` | `{ ok: true, data: { meetingId: "MTG-XXXXX" } }` | ⚠️ not tested |
-| T-092 | Cancel meeting | `PATCH /api/meetings/:id/cancel` | `{ ok: true }` | ⚠️ not tested |
+| T-092 | Cancel meeting | `DELETE /api/meetings/:id` (soft-cancel — **corrected 2026-07-31, E2E Round 3: the previously-documented `PATCH /api/meetings/:id/cancel` does not exist, 404s**) | `{ ok: true }` | ✅ live-tested Round 3 |
 
 ---
 
@@ -390,7 +390,7 @@
 | # | Test | Endpoint | Expected | Status |
 |---|---|---|---|---|
 | T-140 | Get weekly summary — no data yet | `GET /api/weekly-summary?weekStart=2026-06-22` | `{ ok: true, data: { found: false, weekStart, bullets: [] } }` | ✅ |
-| T-141 | MIS report endpoint | `GET /api/weekly-summary/mis` | ⚠️ **NOT IMPLEMENTED** — 404 | ❌ |
+| T-141 | MIS report endpoint | `GET /api/weekly-summary/mis` | **Status changed 2026-07-31 (E2E Round 3): no longer 404.** Now a real, guarded route returning 403 "MIS access required" for every role (no employee currently has a `MisAccess` table row). GAP-001 below is superseded by this — the endpoint exists now, it's just correctly access-gated with nobody granted access yet. | ✅ implemented, gate confirmed working |
 
 ---
 
@@ -430,13 +430,13 @@
 
 | # | Test | Endpoint | Expected | Status |
 |---|---|---|---|---|
-| T-170 | Import preview CSV | `POST /api/import/preview-csv` | `{ ok: true, data: { tasks: [...] } }` | ⚠️ not tested |
+| T-170 | Import preview CSV | `POST /api/import/preview-csv` | `{ ok: true, data: { rows: [...], stats: {...} } }` — **corrected 2026-07-31 (E2E Round 3): previously documented as `{ tasks: [...] }`.** Also note: returns HTTP 201 for a pure read-only preview that persists nothing. | ✅ live-tested Round 3 |
 
 ### RBAC Tests
 
 | # | Role | Action | Expected | Status |
 |---|---|---|---|---|
-| R-171 | TM | `POST /api/import/execute` | 403 | ⚠️ need TM token |
+| R-171 | TM | `POST /api/import/execute` | **Corrected 2026-07-31 (E2E Round 3): 201, not 403.** Import Tasks has no RBAC gate by design (`import.controller.ts`'s own comment: "Intentionally open to all roles ... Product owner confirmed 2026-06-30") — this applies identically to `execute` as it does to `preview-csv`/`preview-sheet`. The 403 previously documented here was never correct against the actual policy. | ✅ live-tested Round 3 |
 
 ---
 
@@ -444,11 +444,13 @@
 
 | ID | Severity | Description | Status |
 |---|---|---|---|
-| GAP-001 | Medium | MIS report endpoint (`GET /api/weekly-summary/mis`) not implemented | Open |
-| GAP-002 | Low | Registration DTO missing `role` and `dob` fields — admin must assign on approval | By design |
-| GAP-003 | Low | Leave submit currently does NOT send email notification to manager (uses legacy Resend inline in leaves.service, not EmailService) | Partially fixed |
-| GAP-004 | Low | RBAC tests (R-06x, R-07x, R-11x etc.) require a second non-admin test account | Open |
-| GAP-005 | Low | Google Calendar sync untested end-to-end (needs `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY` in Railway) | Open |
+| GAP-001 | Medium | MIS report endpoint (`GET /api/weekly-summary/mis`) not implemented | **Superseded 2026-07-31** — endpoint now exists, returns 403 for everyone (no `MisAccess` rows granted yet); see T-141 above |
+| GAP-002 | Low | Registration DTO missing `role` field — admin must assign on approval | **Fixed 2026-07-30** (`PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE`) — `role` is now whitelisted, sent, and persisted; live-confirmed in `E2E_TEST_LOG.md` Round 3. `dob` remains client-only by design. |
+| GAP-003 | Low | Leave submit currently does NOT send email notification to manager (uses legacy Resend inline in leaves.service, not EmailService) | Open — unchanged |
+| GAP-004 | Low | RBAC tests (R-06x, R-07x, R-11x etc.) require a second non-admin test account | **Closed 2026-07-30** — `E2E_TEST_LOG.md` Round 3 tested all 5 real roles (SA/TC/TF/TM/Intern) against production |
+| GAP-005 | Low | Google Calendar sync untested end-to-end (needs `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`) | Open — unchanged (credentials still not provisioned on Render) |
+
+> **For the current, live-production test results, see `lgdesk/E2E_TEST_LOG.md`'s Round 3 (2026-07-30)** — the table below is the original 2026-06-29 snapshot, kept for history.
 
 ---
 
@@ -473,4 +475,4 @@
 | RBAC | 2 | 2 | 0 | 0 |
 | **TOTAL** | **49** | **43** | **1** | **5** |
 
-**One confirmed FAIL:** GAP-001 — `GET /api/weekly-summary/mis` returns 404 (not implemented).
+**One confirmed FAIL at the time:** GAP-001 — `GET /api/weekly-summary/mis` returned 404 (not implemented). **Superseded 2026-07-31** — see GAP-001's row above; the endpoint exists now.

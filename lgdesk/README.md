@@ -2,12 +2,13 @@
 
 Internal task/project/work-log/leave management system for LG. NestJS API + Next.js web app, npm workspaces monorepo.
 
-- **Web (live):** https://lgdesk-web.vercel.app
-- **API (live):** https://lgdesk-api-production.up.railway.app
+- **Web (live):** https://lgdesk-frontend.vercel.app
+- **API (live):** https://gagan-taskco.onrender.com
 - Full deploy runbook: [`DEPLOY.md`](./DEPLOY.md)
 - Session rules / architecture reference for AI coding agents: [`CLAUDE.md`](./CLAUDE.md)
-- Latest correctness/verification pass (bugs fixed, known gaps): [`LGDesk_Verification_Report.md`](./LGDesk_Verification_Report.md)
-- Release history: [`CHANGELOG.md`](./CHANGELOG.md)
+- Parity audit + fix-status + security checklist: [`AUDIT_REPORT.md`](./AUDIT_REPORT.md)
+- Live E2E test history: [`E2E_TEST_LOG.md`](./E2E_TEST_LOG.md)
+- Release history (bugs fixed, known gaps): [`CHANGELOG.md`](./CHANGELOG.md)
 
 ## Tech stack
 
@@ -26,20 +27,20 @@ Internal task/project/work-log/leave management system for LG. NestJS API + Next
 | UI | Tailwind CSS v3 + shadcn/ui (hand-adapted primitives) + Lucide React icons |
 | Data fetching | TanStack Query v5 |
 | Forms | React Hook Form v7 + Zod v3 |
-| Deployment | Vercel (web, standalone deploy, Root Directory = `apps/web`) + Railway (api, Docker) |
+| Deployment | Vercel (web, standalone deploy, Root Directory = `apps/web`, project `lgdesk-frontend` — **not Git-connected, deploy with `vercel --prod`**) + Render (api, Docker, auto-deploys from GitHub `main`) |
 
-Google integrations — Drive attachments, Chat Spaces, Forms, Google Tasks sync — are **planned but blocked**: no Google service account / OAuth2 client exists on Railway yet. See "Known TODOs" below.
+Google integrations — Drive attachments, Chat Spaces, Forms, Google Tasks sync — are **planned but blocked**: no Google service account / OAuth2 client exists yet. See "Known TODOs" below.
 
 ## Monorepo layout
 
 ```
 lgdesk/
 ├── apps/
-│   ├── api/            # NestJS — port 3001 (local), Docker → Railway
+│   ├── api/            # NestJS — port 3001 (local), Docker → Render
 │   │   ├── src/
 │   │   ├── prisma/schema.prisma
 │   │   ├── .env.example              # local dev env template
-│   │   └── .env.production.example   # Railway env template (placeholders only)
+│   │   └── .env.production.example   # Render env template (placeholders only)
 │   └── web/             # Next.js — port 3000 (local), → Vercel
 │       ├── src/
 │       ├── .env.local.example        # local dev env template
@@ -76,7 +77,7 @@ cp apps/web/.env.local.example apps/web/.env.local
 | `JWT_SECRET` | Yes | Signs auth tokens (`auth/strategies/jwt.strategy.ts`). Generate with `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` |
 | `JWT_EXPIRES_IN` | No | Defaults to `7d` if unset |
 | `FRONTEND_URL` | Recommended | Added to the CORS allow-list alongside `http://localhost:3000`; unset in local dev is fine |
-| `PORT` | No | Injected by Railway; falls back to `3001` locally — don't set manually in production |
+| `PORT` | No | Injected by Render; falls back to `3001` locally — don't set manually in production |
 | `NODE_ENV` | No | Read by `/api/health` only; not otherwise load-bearing |
 | `RESEND_API_KEY` | No | Password-reset OTP email; email send silently no-ops (logs a warning) if unset |
 | `FROM_EMAIL` | No | From-address for all outbound email; read via `ConfigService.get('FROM_EMAIL')` in `email/email.service.ts`, defaults to `LG Desk <noreply@leveragedgrowth.co>` if unset |
@@ -114,14 +115,14 @@ npm run build:web
 
 ## Deploy
 
-Production topology is **Vercel (web) + Railway (api) + Neon (Postgres)** — already live, do not change this. Full step-by-step runbook, troubleshooting table, and CORS/env wiring: see [`DEPLOY.md`](./DEPLOY.md).
+Production topology is **Vercel (web) + Render (api) + Neon (Postgres)**. Full step-by-step runbook, troubleshooting table, and CORS/env wiring: see [`DEPLOY.md`](./DEPLOY.md) — note that the Vercel project has no Git integration connected, so pushing to GitHub alone does **not** redeploy the web app (see DEPLOY.md §5).
 
 ## Known TODOs
 
-- **Four Google integrations are blocked pending credentials** (no Google service account / OAuth2 client provisioned on Railway yet):
+- **Four Google integrations are blocked pending credentials** (no Google service account / OAuth2 client provisioned yet):
   1. Drive Attachments — Prisma model exists, no controller/service.
   2. Google Chat Spaces — not started.
   3. Google Forms — not started.
   4. Google Tasks sync — frontend hook (`src/lib/api/googleTasks.ts`) exists as a stub; backend not built.
   - Related: `apps/api/src/calendar/calendar.service.ts` (task/project/leave/holiday Calendar sync) and `apps/api/src/meetings/google-calendar.service.ts` (meeting invites/Meet links) are both wired to read Google env vars but no-op until credentials exist.
-- See [`LGDesk_Verification_Report.md`](./LGDesk_Verification_Report.md) → "Accepted Gaps" for the full list of deferred items from the latest correctness pass (stale-cache invalidation after role changes, missing toast feedback on several approval flows, `window.confirm()` call sites, etc).
+- See [`AUDIT_REPORT.md`](./AUDIT_REPORT.md)'s Part C "Still Open" checklist for the full, current list of deferred product/schema decisions, and `CHANGELOG.md` for everything fixed since.

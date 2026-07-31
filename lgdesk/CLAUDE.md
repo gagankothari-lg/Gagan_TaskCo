@@ -7,46 +7,39 @@ This is a from-scratch NestJS/Next.js rebuild (npm workspaces, no pnpm, no Googl
 carry over GAS-specific gotchas from any older version of this file — everything below reflects the
 current codebase.
 
-## Verification Status — PVERIFY-FULL-APP-PARITY (Parts A/B/C complete, 2026-07-06)
+## Verification Status (updated 2026-07-31)
 
-**Authoritative source for full audit/fix history: `lgdesk/PART_C_CONSOLIDATED_REPORT.md`.** Read it
-before assuming anything about parity state. The chain is: `AUDIT_REPORT.md` (Part A — 119 findings,
-audit-only) → Part B fix commits (`e0c0ef4..6a1bc10`) → `PART_C_CONSOLIDATED_REPORT.md` (Part C —
-per-finding status + the open-decision checklist). New contributors should also read
-`lgdesk/PROJECT_CONTEXT.md` for a cold-start orientation.
+**Authoritative source for full audit/fix history: `lgdesk/AUDIT_REPORT.md`'s Part C** (at the end of
+that file — it absorbed the former standalone `PART_C_CONSOLIDATED_REPORT.md` on 2026-07-31). Read it
+before assuming anything about parity state. The chain is: Part A (119 findings, audit-only) → Part B
+fix commits (`e0c0ef4..6a1bc10`) → Part C (per-finding status + the open-decision checklist). New
+contributors should also read `lgdesk/PROJECT_CONTEXT.md` for a cold-start orientation, and
+`lgdesk/CHANGELOG.md` for everything shipped since this section was last accurate.
 
-Current overall state as of 2026-07-06:
 - **24 distinct audit findings fixed** across 41 substantive commits (RBAC, functional, visual, and a
-  "round 2" batch). **~19 items remain Still Open** — most need a product decision or an authorized
-  schema migration; the full checklist is in Part C, not re-derived here.
-- ⚠️ **The earlier "Part B complete" claim was WRONG and is superseded.** It relied on code review +
-  `next build`/`nest build` success + `curl` checks, which cannot catch CSS-specificity bugs
-  (`globals.css`'s `.hidden{display:none!important}` beating paired responsive re-enables), a stale
-  frontend RBAC mirror (`rbac.ts` never synced to the backend delete/update fixes), or timezone/date
-  logic bugs. A live-browser adversarial re-verification found all of these — they are the 16 commits
-  now sitting ahead of `origin/main` (which is pinned at `f4b7617`, the exact commit that embodied the
-  premature "complete" claim). **Do not trust "compiles + reviews clean" as done for anything with a
-  runtime/visual surface — verify live.** Part C's "Verification Methodology" section documents the bar.
-- **Deploy note:** those 16 round-2 commits are **not yet pushed** to `origin/main` — a deliberate pause,
-  not an oversight. Pushing/deploying is a separate decision from this verification work.
-- **PTEST-FULL-APP-E2E (2026-07-08, `E2E_TEST_LOG.md`):** a live, Playwright-driven click-through pass
-  across every module as the Super Admin test account — 16/16 checks passed on the first attempt, zero
-  retries needed. Confirms the fixes above actually hold live (not just "reads correctly"). Surfaced two
-  new findings needing a product decision (self-approval leave-block already known; sidebar "My Tasks"
-  badge vs. Dashboard stat-card semantic mismatch; no search/filter on Team Members/Organisation) — see
-  that file's "Consolidated action items" table. A final human/Claude-for-Chrome visual pass is still
-  recommended, not yet done.
-- **PTEST-FULL-APP-E2E Round 2 (2026-07-09/10, `E2E_TEST_LOG.md`'s "Round 2" section):** a second,
-  independent full re-run of the same test plan/account, done via explicit user choice (not a duplicate
-  by accident) for fresh confidence. **15/16 pass; the 1 fail is the already-logged, already-deferred
-  `EditDayModal` stale-`defaultValues` bug (`PFIX-CLOCK-IN-OUT` round 2), reproduced a third time — not a
-  regression.** Corroborates Round 1 almost exactly: no contradictions, one new minor cosmetic nit
-  (Directory singular/plural copy), and the "My Tasks" badge-vs-card mismatch is now mechanically proven
-  (0→1→0 real count vs. 9→10→9 badge in lockstep with the company-wide total) rather than a single
-  observation. The run took ~6.3 hours instead of Round 1's ~43 min almost entirely due to a shared Neon
-  dev-DB outage window mid-run — every check that failed for that reason passed cleanly on retry once
-  the environment recovered; this left some redundant dev-server processes running that need a manual
-  cleanup pass. The recommended final human/Claude-for-Chrome visual pass is still not done.
+  "round 2" batch). **~14 items remain Still Open** — most need a product decision or an authorized
+  schema migration; the full checklist is in `AUDIT_REPORT.md`'s Part C, not re-derived here.
+- ⚠️ **A standing lesson, not just history:** an earlier "Part B complete" claim was declared and pushed,
+  and was **wrong** — code review + `next build`/`nest build` + `curl` checks cannot catch CSS-specificity
+  bugs, a stale frontend RBAC mirror, or timezone/date logic bugs. A live-browser adversarial
+  re-verification found all three classes. **Do not trust "compiles + reviews clean" as done for anything
+  with a runtime/visual surface — verify live.** `AUDIT_REPORT.md`'s Part C "Verification Methodology"
+  section documents the bar this project holds itself to.
+- **Live E2E test history is in `E2E_TEST_LOG.md`, 3 rounds so far**, each building on the last:
+  Round 1 (2026-07-08, local dev, Super Admin only) → Round 2 (2026-07-09/10, independent local-dev
+  re-run, same account, confirms no regressions) → **Round 3 (2026-07-30, `PTEST-FULL-APP-E2E-RENDER`)
+  — the current high-water mark**: first pass against actual **live production** (Vercel+Render+Neon)
+  and first with all **5 real roles** (Super Admin/TC/TF/TM/Intern) instead of Super-Admin-only,
+  closing a gap both prior rounds explicitly flagged. 398 checks, 34 findings (3 high — see that file
+  for detail), zero regressions on anything previously confirmed.
+- **Infra migration (2026-07-30):** the API moved off Railway (free trial expired) to **Render**
+  (`gagan-taskco.onrender.com`), and the web app moved to a fresh Vercel project (**`lgdesk-frontend`**,
+  not the old `lgdesk-web`). See `DEPLOY.md` for the current runbook and two real gotchas this migration
+  surfaced: `FRONTEND_URL`/CORS mismatches fail silently as browser-side errors (not 5xx), and the new
+  Vercel project has no Git integration — pushing to GitHub does not redeploy it.
+- **Registration role bug fixed (2026-07-30, `PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE`):** the
+  registration form used to always save role as "Team Member" regardless of selection (GAP-002, now
+  closed) — fixed and independently confirmed holding in production by the Round 3 E2E pass above.
 
 ## Tech Stack
 
@@ -66,7 +59,7 @@ Current overall state as of 2026-07-06:
 | AI | Gemini 2.5 Flash via raw `fetch` (weekly summaries only — no SDK) |
 | File Storage | Google Drive API (planned, blocked — see Google Integrations below) |
 | Package Manager | **npm workspaces** (`workspaces: ["apps/*"]`) |
-| Deployment | Vercel (web, standalone) + Railway (api, Docker) |
+| Deployment | Vercel (web, standalone, project `lgdesk-frontend` — not Git-connected, deploy with `vercel --prod`) + Render (api, Docker, auto-deploys from GitHub) |
 
 ## Monorepo Structure
 
@@ -401,7 +394,7 @@ then confirmed live via `getComputedStyle` at 1440/800/375px. Three further task
 followed in round 2: `3f47eb6` (stable `fnName` so group *order* doesn't go stale after a rename),
 `6c46d87` (sort/count the full group before lazy-load pagination slices it), and `6a1bc10` (wire the dead
 Team field in the Add-Tasks batch row). Treat FIX A–F as done-and-live only *with* these round-2 commits;
-full status is in `PART_C_CONSOLIDATED_REPORT.md`.
+full status is in `AUDIT_REPORT.md`'s Part C.
 
 ## Table chrome renders unconditionally — never gate it on data state
 
@@ -501,8 +494,8 @@ or more entry rows (`+ Row` adds another), each independently configurable, subm
 
 ## Google Integrations — blocked, do not implement
 
-Four integrations are planned but **blocked pending credentials that don't exist yet on Railway** (no
-Google service account, no OAuth2 client): Drive Attachments, Chat Spaces, Forms, Google Tasks sync.
+Four integrations are planned but **blocked pending credentials that don't exist yet** (no
+Google service account, no OAuth2 client provisioned on Render): Drive Attachments, Chat Spaces, Forms, Google Tasks sync.
 Treat these as a known TODO, not something to build out further this phase:
 - `apps/api/src/calendar/calendar.service.ts` (task/project/leave/holiday → Google Calendar sync) reads
   `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` and no-ops without them.
@@ -553,6 +546,8 @@ Treat these as a known TODO, not something to build out further this phase:
 - **Never hand-roll a `fetch`/`axios` call in a page or component** — add a hook to the relevant `apps/web/src/lib/api/*.ts` file and consume it via TanStack Query.
 - **Diff shadcn CLI output before accepting it.** It defaults to Tailwind v4 / `oklch()` colors, which will silently clobber the hand-adapted `var(--...)`-based versions in `apps/web/src/components/ui/*.tsx`.
 - **`npm install` from the repo root, not `pnpm install`.** This repo migrated off pnpm to npm workspaces; there is no `pnpm-lock.yaml` anymore, only `package-lock.json`.
+- **CORS is driven solely by `FRONTEND_URL` on Render — there is no code-level fallback.** `main.ts`'s `corsOrigins` array is exactly `[FRONTEND_URL, http://localhost:3000]`; the hardcoded fallback strings in `users.service.ts` are unrelated (only used for registration-approval email links). A mismatch shows up as a **browser-side CORS error**, not a 5xx, and a plain `curl` GET/POST can look totally fine while the browser is blocked — the failure only appears on the preflight `OPTIONS` request. Always verify with a real preflight check after any Vercel domain change (see `DEPLOY.md` §4 for the exact command).
+- **The `lgdesk-frontend` Vercel project has no Git repository connected.** Pushing to GitHub does **not** redeploy the web app — every deploy needs an explicit `vercel --prod` from `apps/web`. This has already caused a "why isn't my fix live" confusion once; don't assume a push went live without checking `vercel ls`/redeploying.
 - Never use raw SQL — Prisma only.
 - Never return `passwordHash` — omit via Prisma `select` or manual delete.
 - Never create test files unless a test prompt explicitly requests them.

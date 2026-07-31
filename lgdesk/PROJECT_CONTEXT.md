@@ -13,50 +13,63 @@ projects, work-functions, work-duration/clock, leaves, meetings, dashboard, dire
 todos/ideas, due-date-requests, weekly summaries, task import) on **NestJS 10 + Prisma + PostgreSQL
 (Neon)** for the API and **Next.js 14 App Router + TanStack Query + Tailwind** for the web app, in an npm
 workspaces monorepo (`apps/api`, `apps/web`). Design is a light-indigo GAS-derived theme (not dark mode).
-**Deployment:** the web app runs on **Vercel** (standalone) and the API on **Railway** (Docker); it went
-**live on 2026-06-28**. Several Google integrations (Drive Attachments, Chat Spaces, Forms, per-employee
+**Deployment:** the web app runs on **Vercel** (standalone, project `lgdesk-frontend` — not Git-connected,
+deploy with `vercel --prod`) and the API on **Render** (Docker, auto-deploys from GitHub `main`); it went
+live on 2026-06-28 (originally on Railway, migrated to Render 2026-07-30 after the free trial expired —
+see `CHANGELOG.md`). Several Google integrations (Drive Attachments, Chat Spaces, Forms, per-employee
 Calendar sync) remain **blocked pending Google credentials** and are intentionally unbuilt. A few
-post-launch hardening tasks (rotate the Neon password, delete CLI tokens, change the seeded admin
-password) were noted as pending — confirm their status before assuming they're done.
+post-launch hardening tasks (rotate the Neon password, delete old CLI tokens, confirm the current admin
+password) were noted as pending — confirm their status before assuming they're done; see `DEPLOY.md`'s
+"Outstanding post-deploy follow-ups."
 
 ## The key documents (what each is for)
 
 - **`CLAUDE.md`** (repo: `lgdesk/CLAUDE.md`) — the deep technical/architecture reference. Tech stack,
   monorepo layout, the 6 roles + full RBAC matrix, the 22 critical business rules, design tokens, file-
   location conventions, and every hard-won gotcha. **Read at the start of every session; all rules live
-  here.** It opens with a "Verification Status" section pointing at Part C.
-- **`AUDIT_REPORT.md`** (`lgdesk/AUDIT_REPORT.md`, ~1335 lines) — Part A of PVERIFY-FULL-APP-PARITY: an
-  audit-only, finding-by-finding comparison of the rebuild against the real GAS source, phases A0–A9,
-  plus 4 Master-Reference reconciliation clusters. 119 findings, ordered SECURITY → FUNCTIONAL → VISUAL.
-  This is *what diverged and why* — no code changes.
-- **`PART_C_CONSOLIDATED_REPORT.md`** (`lgdesk/PART_C_CONSOLIDATED_REPORT.md`) — Part C: the fix-status
-  answer to every Part A finding (Fixed + commit hash / Still Open — needs decision / Still Open — out of
-  scope / Partial), plus the verification methodology and the open-decision checklist. **This is the
-  authoritative "what's the state of parity" document.** Start here for status questions.
+  here.**
+- **`AUDIT_REPORT.md`** (`lgdesk/AUDIT_REPORT.md`, ~2260 lines) — the full parity-audit document in two
+  parts, merged into one file 2026-07-31 (formerly split across `AUDIT_REPORT.md` +
+  `PART_C_CONSOLIDATED_REPORT.md`): **Part A** is an audit-only, finding-by-finding comparison of the
+  rebuild against the real GAS source, phases A0–A9 plus 4 Master-Reference reconciliation clusters (119
+  findings, ordered SECURITY → FUNCTIONAL → VISUAL — *what diverged and why*). **Part C** (at the end of
+  the same file) is the fix-status answer to every Part A finding (Fixed + commit hash / Still Open —
+  needs decision / Still Open — out of scope / Partial), plus the verification methodology and the
+  curated open-decision checklist. **Part C is the authoritative "what's the state of parity" section —
+  start there for status questions.** An appendix at the very end holds the original security-audit
+  checklist (formerly standalone `SECURITY-REPORT.md`).
+- **`E2E_TEST_LOG.md`** — dated rounds of live, driven (not just code-reviewed) end-to-end test passes.
+  Round 3 (2026-07-30) is the current high-water mark: first pass against actual live production
+  (Vercel+Render+Neon) and first with all 5 real roles instead of Super-Admin-only.
+- **`CHANGELOG.md`** — dated, newest-first log of everything shipped, including deploy/infra changes.
 - **`LGDesk_Master_Reference.md`** (one level up, at `Gagan_TaskCo/LGDesk_Master_Reference.md`, ~7000
-  lines) — a merged PRD + verification document. Useful, but **sometimes stale or self-contradictory**;
-  when it disagrees with the actual legacy source below, the source wins.
+  lines) — a merged PRD + verification document, dated 2026-07-01 and not actively maintained since.
+  Useful for original product intent, but **sometimes stale or self-contradictory** with the docs above,
+  which reflect actual current state; when it disagrees with the actual legacy source below, the source
+  wins, and when it disagrees with `AUDIT_REPORT.md`/`CHANGELOG.md` on current behavior, those win.
 - **`reference/*.gs` + `reference/app.js.html` + `reference/index.html`** (inside `lgdesk/reference/`) —
   the **actual legacy Google Apps Script source**: the single source of truth for how the original app
   behaved. `app.js.html` (the real interactive logic) **outranks** the static `index.html`/
   `lgdesk-gas-source.html` markup, which is partly dead code the JS deletes at runtime (see CLAUDE.md's
   task-sheet dead-code section). When Master Reference and the `.gs`/`app.js.html` source disagree, trust
-  the source.
+  the source. Note: this folder was removed from git tracking (2026-07-30, still present on disk,
+  gitignored) — it's legacy-only reference material, not part of the live app.
 
 ## If you're starting fresh, read in this order
 
 1. **This file** (`PROJECT_CONTEXT.md`) — orientation.
 2. **`CLAUDE.md`** — architecture, RBAC, the 22 business rules, conventions, gotchas.
-3. **`PART_C_CONSOLIDATED_REPORT.md`** — current parity status + the open-decision checklist + the
-   verification-methodology bar (and why "compiles + reviews clean" is not "done").
-4. **`AUDIT_REPORT.md`** — only when you need the full reasoning behind a specific finding.
-5. **`reference/app.js.html` + `reference/*.gs`** — when doing real parity work on a specific module,
+3. **`AUDIT_REPORT.md`'s Part C** (end of the file) — current parity status + the open-decision checklist
+   + the verification-methodology bar (and why "compiles + reviews clean" is not "done").
+4. **`E2E_TEST_LOG.md`** — what's actually been live-tested and when, most recent round first.
+5. **`AUDIT_REPORT.md`'s Part A** — only when you need the full reasoning behind a specific finding.
+6. **`reference/app.js.html` + `reference/*.gs`** — when doing real parity work on a specific module,
    grep the relevant `id="view-…"` / function and read the actual source. `LGDesk_Master_Reference.md`
    (one level up) as a secondary cross-check, never as the sole authority.
 
-## Still Open — Requires Product/Human Decision (one line each; detail in Part C)
+## Still Open — Requires Product/Human Decision (one line each; detail in AUDIT_REPORT.md's Part C)
 
-Full detail and citations are in `PART_C_CONSOLIDATED_REPORT.md` → "Still Open — Requires Product/Human
+Full detail and citations are in `AUDIT_REPORT.md`'s Part C → "Still Open — Requires Product/Human
 Decision." Condensed:
 
 1. **Recurring task cadence** — full 5-value schema needs a `recurrencePattern` migration; only a Yes/No

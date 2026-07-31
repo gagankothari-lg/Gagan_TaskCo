@@ -1,8 +1,17 @@
 # LG Desk — Master Reference
 
-> **Authoritative single source of truth** for LG Desk.  
-> Merges `LGDesk_PRD.md` (product intent) and `LGDesk_Complete_Verification.md` (verified implementation) into one document.  
-> All claims verified against `src/` on **2026-07-01**.
+> **Authoritative single source of truth** for LG Desk **product intent** — merges the (now-deleted,
+> fully-absorbed) `LGDesk_PRD.md` and `LGDesk_Complete_Verification.md` into one document.
+> All claims verified against `src/` (the original Google Apps Script source) on **2026-07-01**, and
+> **not actively maintained since** — this document has not been updated to reflect anything that's
+> happened in the NestJS/Next.js rebuild after that date.
+>
+> **For current, live state, prefer these instead** (all actively maintained): `lgdesk/CLAUDE.md`
+> (architecture/conventions/business rules), `lgdesk/AUDIT_REPORT.md`'s Part C (parity/fix status),
+> `lgdesk/E2E_TEST_LOG.md` (what's actually been live-tested and when), `lgdesk/CHANGELOG.md` (everything
+> shipped since). Use this document for **original product intent** when those disagree with the actual
+> legacy `.gs` source, or when you need the "why" behind a decision — not as a source of current
+> implementation state.
 
 ---
 

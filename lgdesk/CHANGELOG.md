@@ -2,6 +2,66 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-07-30 — PTEST-FULL-APP-E2E-RENDER: first live-production E2E pass, all 5 roles
+
+Document-only E2E test pass (22 agents, 398 checks, 34 findings — 3 high, 8 medium, 23 low) — the
+first ever run against the actual live production stack (Vercel + Render + Neon) and the first with
+real Team Captain/Facilitator/Member/Intern accounts instead of Super-Admin-only. Zero regressions on
+anything either prior E2E round had confirmed. Full detail: `E2E_TEST_LOG.md`'s "Round 3" section.
+
+Top findings worth prioritizing: Function delete/update authorization has no team-match or ownership
+check at all (any manager-tier role can delete any function company-wide); newly posted announcements
+are invisible to everyone, including the poster, for their entire first day (date-only comparison bug);
+deleted record IDs get reused by the next record of the same type (`find-last-then-increment` ID
+generation), a real data-integrity risk. See `AUDIT_REPORT.md`'s Part C for how these interact with
+already-tracked findings.
+
+## 2026-07-30 — PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE
+
+Two bugs, two commits. **Bug 1:** the registration form always saved role as "Team Member" regardless
+of what was selected — `RegisterRequestDto` didn't whitelist a `role` field (so `ValidationPipe`'s
+`forbidNonWhitelisted` would 400 if the frontend sent it), so it silently fell through to the Prisma
+schema default. Added `role` to the DTO (validated against `ALL_ROLES`), wired it through
+`UsersService.submitRegistration`, and the frontend now actually sends it — independently confirmed
+holding in production by the E2E pass above. **Bug 2:** registration's two password fields had no
+show/hide toggle (the login page already did). Extracted the login page's local toggle into a shared
+`components/ui/password-input.tsx`, now used in 5 places instead of duplicated state/logic.
+
+## 2026-07-30 — PDEPLOY-VERCEL-NEW-PROJECT + PFIX-LOGIN-CORS-DOMAIN-MISMATCH + PDEPLOY-RENDER-FREE-SIMPLE
+
+Three linked deploy-infra tasks, same day. **Root migration:** the Railway free trial expired, so
+`apps/api` moved to Render (`gagan-taskco.onrender.com`), auto-deploying from GitHub `main` — unlike
+Vercel, which for this project only deploys on an explicit `vercel --prod`, not on push (a real gotcha:
+pushing to GitHub alone does **not** redeploy the frontend). **CORS bug found & fixed:** after the
+migration, login failed with a browser-side CORS error — `FRONTEND_URL` on Render didn't match either
+Vercel domain in play, and there turned out to be two: the documented-but-stale `lgdesk-web.vercel.app`
+(23+ days stale, still pointed at the dead Railway URL) and an undocumented `lgdesk.vercel.app` (fresh,
+correctly wired, actually in use) — leftover confusion from an earlier mis-linked deploy. Rather than
+pick a winner, created a clean, deliberately-named **`lgdesk-frontend`** Vercel project, updated
+`FRONTEND_URL` on Render and the two hardcoded fallback strings in `users.service.ts` to match, and
+left the two old projects flagged (not deleted) for a later cleanup decision — `lgdesk` still has raw
+backend secrets sitting in its env vars from the earlier mis-setup, worth removing when convenient.
+Also added a client-side keep-alive ping (`components/keep-alive-ping.tsx`, mounted in the root layout)
+that pings `/api/health` every 10 minutes while the app is open, to help mitigate Render free-tier
+cold starts (does nothing overnight — an external uptime monitor would be needed for round-the-clock
+coverage, not set up).
+
+## 2026-07-06 through 2026-07-09 — PFIX diagnostic/fix passes
+
+Five targeted passes, each fully documented in `AUDIT_REPORT.md` under its own dated section (linked
+below rather than duplicated here):
+- **PFIX-ORG-STRUCTURE-DATA** (07-06) — corrected the Team → Sub-Department hierarchy constant, which
+  had been populated with wrong placeholder-looking data.
+- **PFIX-IMPORT-TASKS-MODAL** (07-06) — fixed CSV file-selection never registering, plus a copy fix.
+- **PFIX-REGISTRATION-MANAGER-EMAIL** (07-07) — wired up the Manager's-Email auto-resolve on the
+  registration form, which existed server-side but was never reachable.
+- **PFIX-CLOCK-IN-OUT**, rounds 1 and 2 (07-07, 07-08) — structural rebuild of the dashboard header
+  clock widget, then a follow-up fixing the IDLE state skipping its confirm popover.
+- **PFIX-LOGIN-NETWORK-ERROR** (07-09) — diagnosed a generic "Network error" on login as DNS-level
+  filtering of Railway's `up.railway.app` zone on some networks (moot since the 2026-07-30 Render
+  migration above); frontend was still fixed to stop attaching a stale `Authorization` header to the
+  public auth endpoints and to show an honest, diagnosable error instead of a silent generic one.
+
 ## 2026-07-05 — PFIX-TASKS-EXACT-PARITY diagnostic pass (task-sheet exact-parity audit vs. production GAS app)
 
 Diagnosis-only pass — **no code was changed in this pass.** An exact-parity audit of the My/Team/All
@@ -102,13 +162,11 @@ documentation inaccuracies.
   `ConfigService` in `email.service.ts`, not "hardcoded in auth.service.ts").
 - `DEPLOY.md` — "Scheduled jobs" now lists all four `@Cron` jobs (added `dailyCalendarSync` and
   `generateWeeklySummaries`).
-- `LGDesk_Verification_Report.md` — corrected the Stale-UI root cause and marked it fixed; recategorized
-  the Meetings gap; fixed the `window.confirm()` count (8→9); added the Team Tasks vs Projects
-  visibility-scope asymmetry note, the Attachments object-storage nuance, the weekly-summary MIS
-  `ForbiddenException`-masking fix and the work-duration `applyTime` time-validation fix (the two minor
-  fixes appended to the "Verification Round 2" table — not to be confused with "Group 2" earlier in the
-  same report, which refers to the unrelated registration-duplicate-email bug), and the
-  `forms/page.tsx` coming-soon placeholder.
+- `LGDesk_Verification_Report.md` (at the time, since merged into this changelog on 2026-07-31) —
+  corrected the Stale-UI root cause and marked it fixed; recategorized the Meetings gap; fixed the
+  `window.confirm()` count (8→9); added the Team Tasks vs Projects visibility-scope asymmetry note, the
+  Attachments object-storage nuance, the weekly-summary MIS `ForbiddenException`-masking fix and the
+  work-duration `applyTime` time-validation fix, and the `forms/page.tsx` coming-soon placeholder.
 
 ### Verification
 
@@ -143,24 +201,44 @@ a dedicated correctness/verification sweep. Highlights:
   Facilitator, Team Member, Intern) enforced consistently across backend services
   (`apps/api/src/common/constants.ts` + per-service checks) and mirrored on the frontend
   (`apps/web/src/lib/rbac.ts`).
-- **Verification sweep — real bugs found and fixed.** See
-  [`LGDesk_Verification_Report.md`](./LGDesk_Verification_Report.md) for the full list; notable fixes:
-  - Admin could edit another Admin's role (should be Super-Admin-only) — fixed.
-  - No guard against a user changing their own role — fixed (now blocked for every role, including
-    Super Admin).
-  - Tasks module had zero self-assign enforcement for Team Members (business rule #22) — fixed, ported
-    the existing Functions-module pattern.
-  - Work Log status/comment-update routes were missing the team-scope clamp applied elsewhere — fixed.
-  - `Task.subFnId` had no Prisma FK relation — added.
-  - Rejected registration applicants could never re-register (blanket unique constraint on email) —
-    fixed at both the app layer (Pending-only duplicate check) and schema (dropped the blanket
-    `@unique`, not yet pushed to the live DB — see below).
-  - Team Clock Status showed "—" and never subtracted break time for on-break members — fixed.
-  - "My Profile" sidebar menu item was dead (just a toast) — now opens the real profile modal.
-  - Task due-date filter leaked tasks with no due date — fixed.
-  - Modal/dropdown/popover entrance/exit animations were dead app-wide (Radix `data-state` mismatch
-    with the old `data-open:`/`data-closed:` Tailwind variants) — fixed across `dialog.tsx`,
-    `dropdown-menu.tsx`, `popover.tsx`, `select.tsx`.
+- **Verification sweep — real bugs found and fixed.** Full detail (merged in from the former standalone
+  `LGDesk_Verification_Report.md`, 2026-07-31):
+
+  **Group 1 — Security / RBAC (`apps/api`):**
+
+  | Item | Note |
+  |---|---|
+  | Admin could edit another Admin's role | `users.service.ts:377-379` — Admin branch now blocks `isAdmin(target.role)` (both `Admin` and `Super Admin`) instead of only `Super Admin`. Super Admin's own path is untouched. |
+  | No guard against changing your own role | `users.service.ts:369-371` — early `if (callerEmpId === targetEmpId) throw ForbiddenException(...)`, before any role-specific branch, applies to every role including Super Admin. |
+  | Tasks module had zero self-assign enforcement (Rule 22) | Ported the `FunctionsService` pattern: `TasksService.isTmSelfAssign()` (`tasks.service.ts:39-42`), enforced in `createTask` (`:104-111`) and the reassign block of `updateTask` (`:178-185`). Non-managers' assignees must be empty or exactly `[self]`, and no team may be set. Managers unaffected. |
+  | Work Log status/comment-update routes missing team clamp | `work-log.service.ts:127-135` (`setWorkLogStatus`) and `:142-155` (`setWorkLogComment`) now apply the same `if (!isAdmin(caller.role) && target.team !== caller.team) throw` clamp as `getMemberWorkLogs`/`adminSubmitWorkLog`. |
+  | `Task.subFnId` had no FK relation | Added `subFunction WorkFunction? @relation("SubFunctionTasks", ...)` on `Task` and the back-relation on `WorkFunction`. `prisma generate` run; no `db push`. |
+
+  **Group 2 — Registration bug:**
+
+  | Item | Note |
+  |---|---|
+  | Rejected applicants could never re-register | App-level: duplicate check now `findFirst({ where: { email, status: 'Pending' } })`, so only a still-pending request blocks a new submission. DB-level: dropped the blanket `@unique` on `RegistrationRequest.email` (this migration was pushed live in a later session — see `AUDIT_REPORT.md`). |
+
+  **Group 3 — Frontend bugs (`apps/web`):**
+
+  | Item | Note |
+  |---|---|
+  | Team Clock Status showed "—" and never subtracted break time for on-break members | `team-clock-status.tsx:67-73` — `live` now computes for `ACTIVE`/`ON_BREAK`; elapsed = `now − clockInTs − totalBreakMins*60000`, clamped at 0. |
+  | "My Profile" menu item was dead (toast) | `layout-client.tsx` — now opens the real `ProfileModal`. |
+  | Task due-date filter leaked tasks with no due date | `filter-bar.tsx:110` — guard now excludes tasks with no `dueDate` when a due-by filter is active. |
+  | Modal/dropdown/popover entrance/exit animations dead app-wide | Radix sets `data-state="open"/"closed"`, but the code used the non-matching `data-open:`/`data-closed:` Tailwind variants. Rewrote to `data-[state=open]:…`/`data-[state=closed]:…` across `dialog.tsx`, `dropdown-menu.tsx`, `popover.tsx`, `select.tsx`. |
+
+  **Verification Round 2 (2026-07-02) — additional fixes found by a follow-up 4-way parallel audit** (doc-accuracy, regression-check, deep re-audit, build-safety), confirming zero regressions in Groups 1-3 and closing:
+
+  | Item | Note |
+  |---|---|
+  | Change-Password minLength mismatch | Client Zod schema enforced `min(8)` vs. backend's `@MinLength(6)`, needlessly rejecting valid 6-7 char passwords. Aligned to `min(6)` in both schema and placeholder text. |
+  | Meetings Google Calendar/Meet-link integration was a disconnected stub | Was gated on an unused `GOOGLE_CALENDAR_CREDENTIALS` env var present in no `.env*` file. Rewired to reuse `calendar.service.ts`'s authenticated-client pattern and the real `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_CALENDAR_ID` vars — still non-functional until real credentials exist, but no longer silently mis-wired. |
+  | Missing toast/confirm feedback on 3 approval-flow pages | Leave-Approvals, Registrations, and Profile-Requests now all emit success toasts; all three Approve actions gained a `confirm()` guard. |
+  | Stale members roster after Change-Role/registration approval | Root cause corrected: the mutation hooks *do* invalidate `['users']` — the real cause was `MembersView` reading from `AuthContext.payload` (a one-shot boot state outside TanStack Query). Fixed by calling `AuthContext.refresh()` in both mutations' `onSuccess`. |
+  | Weekly Summary MIS error masking | `getMisSummaries` threw a raw `Error('FORBIDDEN')` that the controller remapped to `ForbiddenException` for *any* error, hiding real 500s behind a 403. Now throws the specific exception directly; controller no longer remaps. |
+  | Work Duration malformed-time coercion | `applyTime` silently coerced malformed `HH:MM` to `00:00`; now validates format + range and throws `BadRequestException`. |
 - **Known, accepted gaps** (deferred, not bugs to silently "fix" — see the Verification Report for full
   rationale on each): Meetings Google Calendar/Meet-link integration remains a stub; Team Tasks/Projects
   visibility scope diverges from spec pending product sign-off; several flows are missing toast/confirm
