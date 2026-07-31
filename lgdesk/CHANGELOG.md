@@ -26,6 +26,10 @@ Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit �
   `TasksService` — extracted to `UsersService` as a shared method rather than duplicated, and
   `ProjectsService`'s `visibleToManager` now widens its assignee check the same way Tasks does.
   Purely additive: existing `ownedBy`/team-match visibility is unchanged.
+- **Fix 5 — `tasks/team` omitted subordinate-authored, unassigned tasks.** `visibleToManager`'s
+  assigner check only recognized the caller itself, not the caller's subordinate scope, unlike the
+  assignee-side check right below it in the same function (which already used the full scope). Now
+  `scopeIds.has(task.assignerId)` — a strict widening since `scopeIds` already includes the caller.
 
 ## 2026-08-01 — PFIX-ROUND3-CONFIRMED-BUGS
 

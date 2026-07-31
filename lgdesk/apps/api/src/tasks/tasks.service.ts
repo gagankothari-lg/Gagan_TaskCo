@@ -349,7 +349,11 @@ export class TasksService {
   }
 
   private visibleToManager(task: TaskRow, caller: Caller, scopeIds: Set<string>): boolean {
-    if (task.assignerId === caller.empId) return true;
+    // scopeIds already includes caller.empId itself (UsersService.managerScopeIds), so this
+    // is a strict widening: a task authored by a subordinate (not just the caller) is now
+    // visible too, matching the assignee-side check below which already used the full
+    // subordinate scope (PFIX-READY-BATCH-SEQUENTIAL Fix 5, confirmed live in Round 3).
+    if (scopeIds.has(task.assignerId)) return true;
     if (parseIds(task.assigneeIds).some((a) => scopeIds.has(a))) return true;
     if (caller.team && parseIds(task.assignedTeams).includes(caller.team)) return true;
     return false;
