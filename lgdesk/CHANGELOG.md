@@ -2,6 +2,31 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-08-01 — PFIX-ID-COUNTER-MIGRATION-CLEANUP
+
+Two process gaps in how the `IdCounter` migration (`PFIX-ROUND3-CONFIRMED-BUGS` Fix 1) actually ran,
+closed without re-running anything against live data:
+
+- **Migration history retroactively tracked.** It went out as `prisma db push`, no `prisma/migrations`
+  history. Generated `prisma/migrations/20260731234922_add_id_counter/` via `prisma migrate diff`
+  (confirmed to contain *only* the `id_counters` table, nothing else), marked applied via
+  `prisma migrate resolve --applied` — no SQL re-run. `prisma migrate status` clean; zero remaining
+  drift confirmed via a follow-up diff.
+- **Reuse-gap risk closed.** The backfill seeded from current survivors only, not full historical
+  issuance. Checked `AuditLog`'s highest-ever-seen ID per prefix against each counter, across all 13
+  prefixes: `TSK`, `PRJ`, and `FN` had real gaps (would have reissued `TSK-00011`, `PRJ-00003`, and as
+  low as `FN-00007` respectively — all already used). `DDR` was confirmed never actually at risk: it
+  has no delete endpoint, so survivors already equal its complete history, regardless of audit
+  coverage. Bumped exactly the three affected counters (`apps/api/prisma/bump-id-counters-past-audit-max.ts`)
+  — a targeted fix, not a backfill rerun. Live-confirmed afterward: a real task creation correctly got
+  `TSK-00012`.
+- **Disclosed, not resolved here:** the original schema push/backfill went directly against production,
+  no Neon branch tested first; backup/PITR coverage for this change couldn't be confirmed from this
+  session (no access to Neon's control plane, only `DATABASE_URL`) — check the Neon dashboard directly.
+- **Standing process change** (see `CLAUDE.md`'s gotchas): anything held back pending a human go-ahead
+  now belongs on its own branch, not a committed-but-unpushed commit on `main` — this is exactly what
+  let the original `IdCounter` commit get swept into an unrelated push.
+
 ## 2026-08-01 — PFIX-READY-BATCH-SEQUENTIAL
 
 Seven confirmed bugs, fixed and pushed one at a time (build-verify → commit → push per item, in order):

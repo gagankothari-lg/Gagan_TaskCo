@@ -2193,6 +2193,58 @@ Seven confirmed bugs, each fixed one at a time (build-verify, commit, push) in t
 
 ---
 
+## `PFIX-ID-COUNTER-MIGRATION-CLEANUP` (2026-08-01)
+
+Closes two process gaps in how the `IdCounter` migration (Fix 1 of `PFIX-ROUND3-CONFIRMED-BUGS`) actually
+ran, discovered by inspecting the repo directly: it went out as `prisma db push` with no
+`prisma/migrations` history, and the backfill seeded from current survivors only, not full historical
+issuance — leaving a narrow reuse-gap window open for prefixes with real delete capability.
+
+**Disclosed, not fixed here (infra/process, not code):**
+- The schema push and backfill were applied directly against production — no Neon branch was tested
+  against first.
+- Backup/point-in-time-recovery coverage for this change could not be confirmed from here — this
+  session only has Postgres-protocol access via `DATABASE_URL`, not Neon's control plane. Check the
+  Neon dashboard directly.
+
+**Migration history retroactively tracked:** generated `prisma/migrations/20260731234922_add_id_counter/`
+via `prisma migrate diff` against the pre-`IdCounter` schema (confirmed to contain *only* the
+`id_counters` `CREATE TABLE`, nothing else), then `prisma migrate resolve --applied` against production
+— no SQL was re-run. `prisma migrate status` now reports clean, and a follow-up `migrate diff` against
+the live database confirms zero remaining drift from `schema.prisma`. This establishes tracking from
+this point forward; it does not retroactively capture history for the other ~25 tables that predate any
+migration tooling in this project (they were never tracked to begin with).
+
+**Reuse-gap risk closed for the prefixes that actually had one:** `apps/api/prisma/check-audit-log-max-ids.ts`
+compares the highest ID ever referenced in `AuditLog` (any action, not just `CREATE`, since some
+entities — DDR — are only audited on approve/reject) against each prefix's current `id_counters` value,
+across all 13 prefixes, not just the three named in the ticket. Confirmed `DDR` was never actually at
+risk regardless of audit coverage — it has no delete endpoint at all, so its survivors already equal its
+complete history. Real gaps existed for `TSK` (would have reissued `TSK-00011`, already used), `PRJ`
+(would have reissued `PRJ-00003`), and `FN` (would have reissued as low as `FN-00007`, but IDs up to
+`FN-00013` had already been used — a 6-ID gap, the widest of the three). All other prefixes (`WL`, `IWL`,
+`MTG`, `REG`, `PR`, `EMP`, `WD`, `UPD`, `LV`) checked clear. `apps/api/prisma/bump-id-counters-past-audit-max.ts`
+applied a targeted `nextValue` update to exactly the three affected prefixes — not a rerun of the full
+backfill. Re-verified clear immediately after, and live-confirmed afterward: a real task creation
+correctly returned `TSK-00012`, not a repeat of the already-used `TSK-00011`.
+
+**nextValue before → after (Step 3):**
+
+| Prefix | Audit-log max ever seen | `nextValue` before | `nextValue` after | Bumped? |
+|---|---|---|---|---|
+| TSK | 11 | 11 | 12 | Yes |
+| PRJ | 3 | 3 | 4 | Yes |
+| FN | 13 | 7 | 14 | Yes |
+| DDR | 2 | 3 | 3 | No — already clear (no delete endpoint exists, structurally gap-free) |
+
+**Standing process note (added to `CLAUDE.md`'s gotchas):** anything deliberately held back pending a
+human go-ahead should live on its own branch, not a committed-but-unpushed commit on `main` — a branch
+can't be accidentally swept up by an unrelated `git push origin main` the way a local commit can. This
+is exactly what happened with the original `IdCounter` commit (see `PFIX-ROUND3-CONFIRMED-BUGS`'s own
+entry above and the incident note in the prior session's summary).
+
+---
+
 ## Bottom line (Part C)
 
 The RBAC, functional, and visual parity tiers are substantially complete: **24 distinct audit findings fixed across 41 substantive commits**, with the round-2 batch independently verified live (browser + `getComputedStyle` + hand-traced logic + clean dual-workspace builds) rather than trusted from code review. The remaining work is **decisions, not undiscovered bugs**: ~14 product/schema decisions (most blocked on an authorized migration or a policy call), the presence backend and Google-integration rebuilds (out of scope), and a handful of low-severity non-remediated divergences catalogued above. The single most important process lesson — the reason this report is skeptical by construction — is that "compiles + reviews clean + curl-200" declared completeness once and was wrong; live-behavior verification is the bar that held.
