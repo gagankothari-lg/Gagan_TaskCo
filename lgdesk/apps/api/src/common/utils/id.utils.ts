@@ -5,11 +5,27 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class IdUtilsService {
   constructor(private prisma: PrismaService) {}
 
-  async generateId(model: string, idField: string, prefix: string): Promise<string> {
-    const last = await (this.prisma as any)[model].findFirst({ orderBy: { createdAt: 'desc' } });
-    if (!last) return `${prefix}-00001`;
-    const n = parseInt(last[idField].split('-').pop(), 10);
-    return `${prefix}-${String(n + 1).padStart(5, '0')}`;
+  /**
+   * Issues the next sequential ID for `prefix` from a persistent counter (the `IdCounter`
+   * table), never derived from surviving business rows. The prior find-last-row+increment
+   * approach silently reused an ID whenever the highest-numbered row of a type was deleted —
+   * confirmed live (PFIX-ROUND3-CONFIRMED-BUGS Fix 1). `model`/`idField` are no longer read
+   * from; kept in the signature so every existing call site is unchanged — `prefix` alone
+   * identifies the counter (each prefix already maps 1:1 to one model+idField in this repo).
+   * `nextValue` always means "the next value to store after this issuance"; the value actually
+   * issued is always `nextValue - 1` on the returned row, in both branches:
+   *  - first-ever call for a prefix: `create` stores 2 → issued = 2-1 = 1.
+   *  - subsequent calls: `update`'s atomic `increment` stores old+1 → issued = (old+1)-1 = old.
+   * `upsert` on a single @id field compiles to one atomic `INSERT ... ON CONFLICT DO UPDATE`
+   * on Postgres, so concurrent callers serialize correctly with no separate transaction needed.
+   */
+  async generateId(_model: string, _idField: string, prefix: string): Promise<string> {
+    const counter = await this.prisma.idCounter.upsert({
+      where: { prefix },
+      create: { prefix, nextValue: 2 },
+      update: { nextValue: { increment: 1 } },
+    });
+    return `${prefix}-${String(counter.nextValue - 1).padStart(5, '0')}`;
   }
 
   /**

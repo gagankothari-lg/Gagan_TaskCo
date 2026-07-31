@@ -498,3 +498,15 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+// Persistent, monotonic per-prefix counters for IdUtilsService.generateId()
+// (PFIX-ROUND3-CONFIRMED-BUGS Fix 1). Replaces the prior find-last-surviving-row+increment
+// approach, which silently reused an ID whenever the highest-numbered row of a type was
+// deleted. nextValue is always "the next number to issue" — read and incremented atomically
+// via a single UPDATE...RETURNING in id.utils.ts, never derived from surviving business rows.
+model IdCounter {
+  prefix    String @id
+  nextValue Int    @default(1)
+
+  @@map("id_counters")
+}
