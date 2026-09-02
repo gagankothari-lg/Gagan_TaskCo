@@ -2,6 +2,20 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-03 — PFIX-ROUND4-BATCH-3
+
+Batch 3 of the Round 4 fix series -- 3 items chosen specifically because none need a schema change
+(F4/F11 and the schema-blocked "Still Open" items are being consolidated into a separate migration
+prompt instead). Same discipline as Batches 1-2: one item at a time, build clean before moving on.
+
+- **Fix 1 (Round4-F8) — MIS Report defaulted to the current (unsummarized) week instead of last week.**
+  The weekly-summary batch job (`generateWeeklySummaries`) targets `Date.now() - 7*86400000`'s Monday --
+  last week -- but `mis-report/page.tsx`'s week-picker state defaulted to `new Date()`, so every
+  MIS-access user opening the page saw "0/N submitted" with every row badged "Missing" until manually
+  clicking "←" once. Changed the initial `anchor` state to `addDays(new Date(), -7)`, mirroring the
+  cron's own last-week pattern exactly. The "This week" quick-nav button is untouched (still jumps to
+  the actual current week on demand) -- only the default first-load view changed.
+
 ## 2026-09-03 — PFIX-ROUND4-BATCH-2
 
 Batch 2 of the Round 4 fix series -- 3 independent bugs (S5, S3, F6) plus one that touches who can

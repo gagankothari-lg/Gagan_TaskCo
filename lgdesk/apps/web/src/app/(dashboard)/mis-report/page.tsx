@@ -21,7 +21,12 @@ const iso = (d: Date) => { const x = new Date(d); x.setMinutes(x.getMinutes() - 
 // layout-client.tsx; this page additionally handles a direct-URL visit by a
 // not-in-MIS_Access caller (backend 403 -> friendly message, not a crash).
 export default function MisReportPage() {
-  const [anchor, setAnchor] = useState(() => new Date());
+  // Round4 F8: reference's renderMisReport() defaults the week picker to LAST week's
+  // Monday, matching what the weekly-summary batch job actually generates (see
+  // weekly-summary.service.ts's generateWeeklySummaries: `Date.now() - 7*86400000`,
+  // mirrored here) — the rebuild previously defaulted to the current week, so every
+  // MIS-access user saw "0/N submitted" on first load until manually clicking back.
+  const [anchor, setAnchor] = useState(() => addDays(new Date(), -7));
   const weekStart = iso(mondayOf(anchor));
   const weekEnd = addDays(mondayOf(anchor), 6);
 
