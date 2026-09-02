@@ -7,7 +7,7 @@ import { Icon } from '../../ui/icon';
 import { useAuth } from '../../../hooks/use-auth';
 import { isAdmin } from '../../../lib/auth';
 import { canDeleteFunction, canEditFunction } from '../../../lib/rbac';
-import { useFunction, useUpdateFunction, useDeleteFunction } from '../../../lib/api/functions';
+import { useFunction, useFunctions, useUpdateFunction, useDeleteFunction } from '../../../lib/api/functions';
 import { useTasks } from '../../../lib/api/tasks';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { toast } from '../../../lib/toast';
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialo
 import { DdrModal } from '../tasks/ddr-modal';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
 import { EmployeeMultiSelect, fieldClass, TASK_PRIORITIES } from '../tasks/create-task-modal';
-import { PROJECT_STATUSES } from '../projects/create-project-modal';
+import { FUNCTION_STATUSES } from './create-function-modal.schema';
 import { updateFunctionSchema, type UpdateFunctionFormValues } from './function-detail-modal.schema';
 
 export function FunctionDetailModal({ functionId, onClose }: { functionId: string | null; onClose: () => void }) {
@@ -25,6 +25,11 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
   const update = useUpdateFunction();
   const del = useDeleteFunction();
   const { data: tasks } = useTasks();
+  // Round4 F38: parent-function re-parenting options, mirroring create-function-modal's
+  // top-level-only filter (F39 is a separate, out-of-scope finding -- match, don't exceed,
+  // what the create side already does) plus excluding the function being edited itself.
+  const { data: allFunctions } = useFunctions(fn?.projId);
+  const parentOptions = (allFunctions ?? []).filter((f) => !f.parentFnId && f.functionId !== functionId);
 
   const [error, setError] = useState<string | null>(null);
   const [ddrOpen, setDdrOpen] = useState(false);
@@ -34,8 +39,10 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
     defaultValues: {
       name: '',
       description: '',
-      status: 'Not Started',
+      status: 'Yet to Start',
       priority: 'Medium',
+      parentFnId: '',
+      startDate: '',
       deadline: '',
       links: '',
       assigneeIds: [],
@@ -49,6 +56,8 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
         description: fn.description ?? '',
         status: fn.status as UpdateFunctionFormValues['status'],
         priority: fn.priority as UpdateFunctionFormValues['priority'],
+        parentFnId: fn.parentFnId ?? '',
+        startDate: fn.startDate ? fn.startDate.slice(0, 10) : '',
         deadline: fn.deadline ? fn.deadline.slice(0, 10) : '',
         links: (fn as { links?: string }).links ?? '',
         assigneeIds: fn.assigneeIds,
@@ -77,6 +86,8 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
           description: values.description,
           status: values.status,
           priority: values.priority,
+          parentFnId: values.parentFnId || undefined,
+          startDate: values.startDate ? new Date(values.startDate).toISOString() : undefined,
           deadline: values.deadline ? new Date(values.deadline).toISOString() : undefined,
           assigneeIds: values.assigneeIds,
           links: (values.links ?? '').split('\n').map((l) => l.trim()).filter(Boolean),
@@ -145,7 +156,7 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
                             <FormLabel className="mb-1 block text-xs text-muted">Status</FormLabel>
                             <FormControl>
                               <select className={fieldClass} {...field}>
-                                {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                                {FUNCTION_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                               </select>
                             </FormControl>
                             <FormMessage />
@@ -163,6 +174,35 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
                                 {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
                               </select>
                             </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {/* Round4 F38: backend already accepted parentFnId on update; no
+                          edit-form control existed to send it. */}
+                      <FormField
+                        control={form.control}
+                        name="parentFnId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="mb-1 block text-xs text-muted">Parent Function</FormLabel>
+                            <FormControl>
+                              <select className={fieldClass} {...field}>
+                                <option value="">No parent function</option>
+                                {parentOptions.map((f) => <option key={f.functionId} value={f.functionId}>{f.functionId} — {f.name}</option>)}
+                              </select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="startDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="mb-1 block text-xs text-muted">Start date</FormLabel>
+                            <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}

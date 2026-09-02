@@ -18,6 +18,17 @@ export const PROJECT_STATUSES = [
   'Not Started','Planning','WIP','Under Review','On Hold','Done','Cancelled'
 ] as const;
 
+// Round4 F5: Functions were being validated against PROJECT_STATUSES, but the legacy
+// reference's VALIDATIONS.Functions.Status (setupSheets.gs:101-104) is a distinct
+// 10-value list matching Projects' own reference vocabulary, not the rebuild's
+// PROJECT_STATUSES constant (they share only 'Done'/'Cancelled'/'Planning' -- none of
+// the WIP-percentage/'Yet to Start'/'Review' values overlapped, so no real Function
+// status was ever selectable through the old validator). New Functions default to
+// 'Yet to Start' per the reference (auth.gs createFunction).
+export const FUNCTION_STATUSES = [
+  'Yet to Start','Planning','WIP (0%-25%)','WIP (25%-50%)','WIP (50%-75%)','WIP (75%-100%)','Review','On Hold','Cancelled','Done'
+] as const;
+
 export const TASK_CLOSED_STATUSES = ['Done','Cancelled'] as const;
 
 // ─── Task status predicates ────────────────────────────────────

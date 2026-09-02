@@ -18,6 +18,7 @@ export interface CreateFunctionInput {
   assignedTeams?: string[];
   status?: string;
   priority?: string;
+  startDate?: string;
   deadline?: string;
   links?: string[];
 }

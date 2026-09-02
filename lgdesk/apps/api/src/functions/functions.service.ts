@@ -95,8 +95,15 @@ export class FunctionsService {
         createdById: callerEmpId, // ← from JWT
         assigneeIds: joinIds(assigneeIds),
         assignedTeams: joinIds(teams),
-        status: dto.status ?? 'Not Started',
+        // Round4 F5: reference default is 'Yet to Start' (auth.gs createFunction),
+        // not 'Not Started' -- the schema-level DB default is 'Not Started' but this
+        // explicit service-level default takes precedence whenever the DTO omits
+        // status. See FUNCTION_STATUSES in common/constants.ts.
+        status: dto.status ?? 'Yet to Start',
         priority: dto.priority ?? 'Medium',
+        // Round4 F36: startDate column existed and was already returned by
+        // mapFunction, but neither the DTO nor this create call ever wrote it.
+        startDate: dto.startDate ? new Date(dto.startDate) : null,
         deadline: dto.deadline ? new Date(dto.deadline) : null,
         links: dto.links ? joinIds(dto.links) : null,
         assignmentHistory: JSON.stringify(history),
@@ -118,7 +125,7 @@ export class FunctionsService {
 
     const data: {
       name?: string; description?: string | null; projId?: string | null; parentFnId?: string | null;
-      status?: string; priority?: string; deadline?: Date | null;
+      status?: string; priority?: string; startDate?: Date | null; deadline?: Date | null;
       assigneeIds?: string; assignedTeams?: string; links?: string | null;
     } = {};
     if (dto.name !== undefined) data.name = dto.name;
@@ -127,6 +134,8 @@ export class FunctionsService {
     if (dto.parentFnId !== undefined) data.parentFnId = dto.parentFnId;
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.priority !== undefined) data.priority = dto.priority;
+    // Round4 F36: startDate write path completes the existing schema column/DTO field.
+    if (dto.startDate !== undefined) data.startDate = dto.startDate ? new Date(dto.startDate) : null;
     if (dto.deadline !== undefined) data.deadline = dto.deadline ? new Date(dto.deadline) : null;
     if (dto.assigneeIds !== undefined) data.assigneeIds = joinIds(dto.assigneeIds);
     if (dto.assignedTeams !== undefined) data.assignedTeams = joinIds(dto.assignedTeams);

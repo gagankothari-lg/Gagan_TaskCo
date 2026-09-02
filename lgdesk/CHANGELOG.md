@@ -33,6 +33,24 @@ before starting the next.
   IST browser at 2026-09-06T02:00 IST (2026-09-05T20:30Z, i.e. inside the failure window) previously
   classified as OVERDUE client-side while the Scoreboard said NOT overdue; after the fix both agree
   (dueUtc === todayUtc -> "Today", not overdue).
+- **Fix 4 (Round4-F5/F36/F38) — Functions edit-surface completion.** Three related gaps in the same
+  create/edit modals, fixed together: **(F5)** Functions were validated against `PROJECT_STATUSES` (7
+  values), but the reference's real vocabulary for Functions (`setupSheets.gs` `VALIDATIONS.Functions.Status`)
+  is a distinct 10-value list (`Yet to Start`/`Planning`/`WIP (0%-25%)`.../`Review`/`On Hold`/`Cancelled`/`Done`)
+  sharing only 3 values with `PROJECT_STATUSES` -- none of the real values were ever selectable. Added
+  `FUNCTION_STATUSES` to both `apps/api/src/common/constants.ts` and
+  `create-function-modal.schema.ts` (frontend's single source, re-used by the edit modal), wired into
+  both DTOs' `@IsIn` and both modals' dropdowns; new Functions now default to `'Yet to Start'` (was
+  `'Not Started'`), matching the reference's `createFunction`. **(F36)** `WorkFunction.startDate` had a
+  DB column and was already returned by `mapFunction`, but no DTO field or modal control ever wrote it --
+  added `startDate` to both DTOs, both service methods' create/update payloads, and both modals (same
+  `<input type="date">` pattern as the existing Deadline field). **(F38)** No "Parent Function"
+  re-parenting control existed on the edit form despite `update-function.dto.ts` already accepting
+  `parentFnId` -- added a Parent Function select to the edit modal, filtered to top-level functions
+  (excluding the function being edited itself), matching the create modal's existing filter -- not
+  wider (F39, a separate over-inclusion finding in the create modal, was left exactly as-is, not fixed
+  or worsened here). No `prisma/schema.prisma` changes -- both `startDate` and the status *string*
+  column already existed; only the DTO/validation/UI layers changed.
 
 ## 2026-08-22 (retroactive) — documentation/dependency housekeeping (previously unlogged)
 

@@ -13,8 +13,7 @@ import { Spinner } from '../../ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
 import { EmployeeMultiSelect, fieldClass, TASK_PRIORITIES } from '../tasks/create-task-modal';
-import { PROJECT_STATUSES } from '../projects/create-project-modal';
-import { createFunctionSchema, type CreateFunctionFormValues } from './create-function-modal.schema';
+import { createFunctionSchema, FUNCTION_STATUSES, type CreateFunctionFormValues } from './create-function-modal.schema';
 import type { WorkFunction } from '../../../lib/types';
 
 interface CreateFunctionModalProps {
@@ -43,15 +42,16 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
       projId: defaultProjId ?? '',
       parentFnId: defaultParentFnId ?? '',
       assigneeIds: [],
-      status: 'Not Started',
+      status: 'Yet to Start',
       priority: 'Medium',
+      startDate: '',
       deadline: '',
     },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({ name: '', description: '', projId: defaultProjId ?? '', parentFnId: defaultParentFnId ?? '', assigneeIds: [], status: 'Not Started', priority: 'Medium', deadline: '' });
+      form.reset({ name: '', description: '', projId: defaultProjId ?? '', parentFnId: defaultParentFnId ?? '', assigneeIds: [], status: 'Yet to Start', priority: 'Medium', startDate: '', deadline: '' });
       setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,6 +71,7 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
         assigneeIds: finalAssignees,
         status: values.status,
         priority: values.priority,
+        startDate: values.startDate ? new Date(values.startDate).toISOString() : undefined,
         deadline: values.deadline ? new Date(values.deadline).toISOString() : undefined,
       });
       onCreated?.(created);
@@ -162,7 +163,7 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="status"
@@ -170,7 +171,7 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
                     <FormItem>
                       <FormControl>
                         <select className={fieldClass} {...field}>
-                          {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                          {FUNCTION_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </FormControl>
                       <FormMessage />
@@ -193,9 +194,21 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
                 />
                 <FormField
                   control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <label className="mb-1 block text-xs text-muted">Start date</label>
+                      <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="deadline"
                   render={({ field }) => (
                     <FormItem>
+                      <label className="mb-1 block text-xs text-muted">Deadline</label>
                       <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
