@@ -352,6 +352,40 @@ no-migration-needed batch like this one and Batch 1 were — recommend confirmin
 starting Batch 3 whether that authorization is granted for this next pass, the same way Batch 1/2's
 prompts explicitly stated "never modify prisma/schema.prisma" for their own scope.
 
+---
+
+## Round 4 Fix Status — Batch 3 (PFIX-ROUND4-BATCH-3, 2026-09-03)
+
+Same capability gap as Batches 1-2 (no live browser tool, no role credentials this session) — every
+item below is `FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING`, not a bare `FIXED`.
+
+| # | Finding | Status | Commit | What was confirmed vs. still pending |
+|---|---|---|---|---|
+| 1 | F8 — MIS Report defaulted to the current week instead of last week | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `38903e3` | Confirmed: initial `anchor` state now mirrors `generateWeeklySummaries`'s own `Date.now() - 7*86400000` last-week pattern exactly; clean web build. Pending: not observed rendering the populated week on first load in a live browser. |
+| 2 | F3 — `WorkLog.attendance` used the deprecated pre-migration vocabulary | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `7855b8c` | **Schema stop-and-check result: `attendance` is a plain `String`, not a Prisma `enum`** — proceeded without a migration, as instructed. Confirmed: backend `ATTENDANCE_TYPES` + DTOs + fallback updated to the real 11-value WFO/WFH vocabulary (`setupSheets.gs` ground truth); discovered mid-fix that the frontend independently hardcodes the same pre-migration vocabulary in 7 more files (the actual dropdowns, an hours-based auto-classifier, 2 color maps, an exact-match switch, 2 duplicated hours calculators) — all updated too, since a backend-only fix would have broken every real attendance submission; `month-member-card.tsx`'s aggregation already does fuzzy substring matching and needed no change (confirmed by reading it, not assumed); clean api+web builds. Pending: not exercised via a real clock-in/attendance submission in a running app. |
+| 3 | F7 — Import execute-result detail was computed but never shown, only an auto-dismissing toast count | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `0d91070` | Confirmed: new `'result'` modal stage renders the full backend-returned error/warning list with an explicit Close button instead of auto-closing; query invalidation still fires immediately; clean web build. Pending: not exercised via a real import execution with actual failing/warning rows in a running app. |
+
+**Final build state**: `npm run build:api` and `npm run build:web` both exit 0 with no errors after all
+3 Batch-3 fixes are applied together.
+
+**Note on F3's actual scope vs. the prompt's estimate**: the prompt anticipated a narrow,
+backend-constants-only change. Re-reading the current code (per the process) surfaced a much larger
+blast radius — 7 additional frontend files independently hardcode the same attendance vocabulary for
+dropdowns, an hours-based auto-classifier, and display color maps. Fixing only the backend would have
+been a net regression (every real attendance submission from the live UI would 400 against the updated
+validator). The full fix stayed within "no schema change, no new feature" — it does not add a WFO/WFH
+*choice* UI beyond what already existed structurally (the reference itself has no separate toggle
+either; WFO/WFH are just two more entries in the same flat dropdown) — but the fix touched more files
+than a "plain thinking" estimate suggested. Flagging this pattern for future batch-sizing: a vocabulary
+change to a value used in both a DTO validator and a `<select>` should be assumed to have frontend
+duplicates until grep confirms otherwise, not assumed to be backend-only from the finding's original
+one-paragraph description.
+
+**Remaining proposed Batch 4+ scope**: everything already flagged as needing schema-migration
+authorization (F4, F11, F35, plus Still-Open checklist items #1/#6/#7/#8) — per the separate
+consolidation plan already in motion. No other no-migration-needed High-severity Round 4 findings
+remain unaddressed after this batch; the next fix pass is the schema-migration batch.
+
 **D2 — DISPUTED (1/2 refuted): My Leaves' extra Cancel column (F53).** One skeptic found `AUDIT_REPORT.md` already triaged this exact divergence as **"ACCEPTED — net-new feature"** (the rebuild's own code even cites "Master Reference leaves.gs cancelLeaveRequest" as its stated source, i.e. it claims to follow a written spec rather than being an accidental addition). **Recommendation: treat as already-accepted, not a new open item.**
 
 ---
