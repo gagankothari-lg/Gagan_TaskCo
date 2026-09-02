@@ -2,6 +2,34 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-03 — PFIX-ROUND4-BATCH-1
+
+Fixing the batch `AUDIT_REPORT_ROUND4_2026-09-02.md`'s "Recommendation for the next prompt" named first:
+two broken-affordance RBAC bugs, a UTC-vs-local "today" unification, and completing the Functions edit
+surface to the same standard as Tasks/Projects. Fixed one at a time, each built + committed + pushed
+before starting the next.
+
+- **Fix 1 (Round4-S1) — DDR Approve/Reject buttons shown to the DDR's own requester.** `getDdrs` includes
+  DDRs the caller submitted (so they can track status), but `assertCanReview` never granted requesters
+  review rights -- a non-admin requester saw live-looking buttons on their own pending request that
+  403'd on click. Added `canReviewDdr(user, entityAssignerId)` to `rbac.ts`, mirroring `assertCanReview`
+  exactly; `members-view.tsx` now resolves the entity's assigner and only renders the buttons when
+  `canReview` is true (the card itself still shows for the requester).
+
+## 2026-08-22 (retroactive) — documentation/dependency housekeeping (previously unlogged)
+
+Three commits identified by `AUDIT_REPORT_ROUND4_2026-09-02.md`'s drift-check as having landed with no
+changelog entry since the 2026-08-01 entry below -- backfilled here for the historical record, not
+because any of them need further action:
+
+- `d483daf` (2026-08-22): moved `lgdesk/CLAUDE.md` → repo-root `CLAUDE.md` and `lgdesk/README.md` →
+  repo-root `README.md` (pure file relocation, no content change).
+- `2a34895` (2026-08-05): removed erroneous root-level `next`/`react`/`react-dom` from the workspace-root
+  `package.json` — fixed a real production Vercel build failure (`Couldn't find any pages or app
+  directory`, then a dual-React `useContext` crash).
+- `89187f0` (2026-08-03): the commit that introduced those erroneous root-level dependencies in the first
+  place (superseded by `2a34895` two days later).
+
 ## 2026-08-01 — PFIX-ID-COUNTER-MIGRATION-CLEANUP
 
 Two process gaps in how the `IdCounter` migration (`PFIX-ROUND3-CONFIRMED-BUGS` Fix 1) actually ran,
