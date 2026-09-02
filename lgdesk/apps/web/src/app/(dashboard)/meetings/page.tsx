@@ -86,8 +86,12 @@ function MeetingsPageInner() {
     window.open(url, '_blank');
   };
 
+  // Round4 S2: matches meetings.service.ts cancelMeeting exactly (admin or the
+  // organizer, nothing else) -- a bare `|| manager` clause used to show Cancel to
+  // every Team Captain/Facilitator on every visible meeting, including ones they
+  // didn't organize, which the backend correctly 403'd on click.
   const canCancel = (organizerId: string) =>
-    !!currentUser && (organizerId === currentUser.empId || admin || manager);
+    !!currentUser && (organizerId === currentUser.empId || admin);
 
   async function onCancel(meetingId: string) {
     if (!confirm('Cancel this meeting?')) return;

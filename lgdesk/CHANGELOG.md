@@ -15,6 +15,11 @@ before starting the next.
   403'd on click. Added `canReviewDdr(user, entityAssignerId)` to `rbac.ts`, mirroring `assertCanReview`
   exactly; `members-view.tsx` now resolves the entity's assigner and only renders the buttons when
   `canReview` is true (the card itself still shows for the requester).
+- **Fix 2 (Round4-S2) — Meeting Cancel (X) button shown to every manager, not just the organizer.**
+  `meetings.service.ts`'s `cancelMeeting` only allows admin or the organizer; the frontend's `canCancel`
+  had a bare `|| manager` clause showing Cancel to every Team Captain/Facilitator on every visible
+  meeting (including company-wide ones they didn't organize), which 403'd on click. Removed the
+  `|| manager` clause -- `canCancel` now matches the backend exactly.
 
 ## 2026-08-22 (retroactive) — documentation/dependency housekeeping (previously unlogged)
 
