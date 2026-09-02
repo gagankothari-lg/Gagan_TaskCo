@@ -10,12 +10,19 @@ interface DotStyle {
 }
 
 // Keyed by the full attendance string returned in WorkLogEntry.attendance.
+// Round4 F3: 11-value WFO/WFH-split vocabulary. WFO keeps this component's existing
+// (rebuild-only) week-strip hex; WFH reuses the reference's actual WL_ATTENDANCE_STYLES
+// hex (app.js.html:1858,1865,1867) since no reference-specific week-strip WFH shade exists
+// to port instead.
 const DOT_STYLES: Record<string, DotStyle> = {
-  Present: { abbr: 'P', bg: '#c8e6c9', fg: '#2e7d32' },
+  'Present-WFO': { abbr: 'P-WFO', bg: '#c8e6c9', fg: '#2e7d32' },
+  'Present-WFH': { abbr: 'P-WFH', bg: '#e0f2fe', fg: '#0369a1' },
   'Leave Half Day': { abbr: 'LH', bg: '#ffccbc', fg: '#bf360c' },
   'Leave Full Day': { abbr: 'LF', bg: '#ffcdd2', fg: '#b71c1c' },
-  'Extra Full Day': { abbr: 'EF', bg: '#b2dfdb', fg: '#004d40' },
-  'Extra Half Day': { abbr: 'EH', bg: '#b2ebf2', fg: '#006064' },
+  'Extra Full Day-WFO': { abbr: 'EF-WFO', bg: '#b2dfdb', fg: '#004d40' },
+  'Extra Full Day-WFH': { abbr: 'EF-WFH', bg: '#1e3a5f', fg: '#ffffff' },
+  'Extra Half Day-WFO': { abbr: 'EH-WFO', bg: '#b2ebf2', fg: '#006064' },
+  'Extra Half Day-WFH': { abbr: 'EH-WFH', bg: '#581c87', fg: '#ffffff' },
   'Week Off': { abbr: 'W', bg: '#f8bbd0', fg: '#880e4f' },
   'Alternate Week Off': { abbr: 'AW', bg: '#fce4ec', fg: '#880e4f' },
   Holiday: { abbr: 'H', bg: '#bbdefb', fg: '#0d47a1' },

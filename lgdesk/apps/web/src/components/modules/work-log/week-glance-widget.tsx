@@ -40,9 +40,13 @@ type DayVisual = 'ok' | 'warn' | 'danger' | 'off' | 'empty';
 // only rendered neutral/'empty'.
 function classify(attendance: string | null | undefined): DayVisual {
   switch (attendance) {
-    case 'Present':
-    case 'Extra Full Day':
-    case 'Extra Half Day':
+    // Round4 F3: WFO/WFH-split vocabulary (was the pre-migration bare Present/Extra*).
+    case 'Present-WFO':
+    case 'Present-WFH':
+    case 'Extra Full Day-WFO':
+    case 'Extra Full Day-WFH':
+    case 'Extra Half Day-WFO':
+    case 'Extra Half Day-WFH':
       return 'ok';
     case 'Leave Half Day':
       return 'warn';

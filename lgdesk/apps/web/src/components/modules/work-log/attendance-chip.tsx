@@ -1,12 +1,19 @@
+// Round4 F3: 11-value WFO/WFH-split vocabulary (setupSheets.gs VALIDATIONS.Work_Log.Attendance) --
+// was the pre-migration 8-value set. WFH variants get the reference's own distinct hex
+// (app.js.html:1856-1868 WL_ATTENDANCE_STYLES) since this component's existing CSS-var
+// palette has no separate "home" shade to reuse.
 const MAP: Record<string, { abbr: string; cls: string }> = {
-  Present: { abbr: 'P', cls: 'bg-[var(--ok)]/20 text-[var(--ok)]' },
+  'Present-WFO': { abbr: 'P-WFO', cls: 'bg-[var(--ok)]/20 text-[var(--ok)]' },
+  'Present-WFH': { abbr: 'P-WFH', cls: 'bg-[#e0f2fe] text-[#0369a1]' },
   'Leave Full Day': { abbr: 'LF', cls: 'bg-[var(--danger)]/20 text-[var(--danger)]' },
   'Leave Half Day': { abbr: 'LH', cls: 'bg-[var(--warn)]/20 text-[var(--warn)]' },
   'Alternate Week Off': { abbr: 'AW', cls: 'bg-[var(--warn)]/15 text-[var(--warn)]' },
   'Week Off': { abbr: 'W', cls: 'bg-[var(--bg)] text-[var(--muted)]' },
   Holiday: { abbr: 'H', cls: 'bg-[var(--p3)] text-[var(--p)]' },
-  'Extra Full Day': { abbr: 'EF', cls: 'bg-[var(--ok)]/25 text-[var(--ok)]' },
-  'Extra Half Day': { abbr: 'EH', cls: 'bg-[var(--ok)]/15 text-[var(--ok)]' },
+  'Extra Full Day-WFO': { abbr: 'EF-WFO', cls: 'bg-[var(--ok)]/25 text-[var(--ok)]' },
+  'Extra Full Day-WFH': { abbr: 'EF-WFH', cls: 'bg-[#1e3a5f] text-white' },
+  'Extra Half Day-WFO': { abbr: 'EH-WFO', cls: 'bg-[var(--ok)]/15 text-[var(--ok)]' },
+  'Extra Half Day-WFH': { abbr: 'EH-WFH', cls: 'bg-[#581c87] text-white' },
 };
 
 export function attendanceAbbr(attendance: string): string {

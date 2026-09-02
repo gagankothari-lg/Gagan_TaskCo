@@ -22,7 +22,7 @@ export function WeekRow({ date, entry, save, showStatusComment, durationHms }: W
   const iso = date.toISOString().slice(0, 10);
   const [form, setForm] = useState<WorkLogInput>({
     date: iso,
-    attendance: entry?.attendance ?? 'Present',
+    attendance: entry?.attendance ?? 'Present-WFO', // Round4 F3
     work1stHalf: entry?.work1stHalf ?? '',
     work2ndHalf: entry?.work2ndHalf ?? '',
     extraHours: entry?.extraHours ?? 0,

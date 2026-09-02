@@ -59,8 +59,14 @@ export const joinIds  = (a?: string[] | null): string => (a ? a.filter(Boolean).
 // widening — leaveType is a plain String column, no DB enum, see schema.prisma).
 export const LEAVE_TYPES = ['Annual','Sick','Casual','Maternity','Paternity','Unpaid Leave','Half Day','Emergency Leave'] as const;
 
+// Round4 F3: reference ground truth is setupSheets.gs VALIDATIONS.Work_Log.Attendance
+// (11 values, WFO/WFH split) — this previously reproduced the ENTIRE pre-migration
+// vocabulary that the reference's own one-time migrateAttendanceWfoWfh() function exists
+// specifically to eliminate. New Work Log rows default to 'Present-WFO' (the reference's
+// own auto-classify-from-hours function, app.js.html:2729, defaults ambiguous/inferred
+// "present" cases to -WFO, matching the migration's own bare-Present->'-WFO' mapping).
 export const ATTENDANCE_TYPES = [
-  'Present','Leave Full Day','Leave Half Day','Alternate Week Off','Week Off','Holiday','Extra Full Day','Extra Half Day'
+  'Present-WFO','Present-WFH','Leave Full Day','Leave Half Day','Alternate Week Off','Week Off','Holiday','Extra Full Day-WFO','Extra Full Day-WFH','Extra Half Day-WFO','Extra Half Day-WFH'
 ] as const;
 
 export const CLOCK_STATES = ['IDLE','ACTIVE','ON_BREAK','COMPLETED'] as const;

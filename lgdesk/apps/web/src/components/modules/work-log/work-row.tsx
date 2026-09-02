@@ -15,28 +15,35 @@ import { Icon } from '../../ui/icon';
 import { Form, FormControl, FormField, FormItem } from '../../ui/form';
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
 import { workRowSchema, type WorkRowFormValues } from './work-row.schema';
-import { defaultAttendanceFor, isInternOff, isoDate, LEAVE_REQUESTED_OPTIONS, LEAVE_TYPE_OPTIONS } from '../../../lib/attendance';
+import { attBaseCategory, defaultAttendanceFor, isInternOff, isoDate, LEAVE_REQUESTED_OPTIONS, LEAVE_TYPE_OPTIONS } from '../../../lib/attendance';
 import { useSetWorkLogComment, useSetWorkLogStatus } from '../../../lib/api/workLog';
 import { ApiError, apiErrorMessage } from '../../../lib/api/client';
 import { toast } from '../../../lib/toast';
 import type { WorkLogEntry, WorkLogInput } from '../../../lib/types';
 
 // ─── Attendance source of truth (GAS WL_ATTENDANCE_STYLES) ──────────────
+// Round4 F3: 11-value WFO/WFH-split vocabulary + exact reference colors
+// (app.js.html:1856-1868 WL_ATTENDANCE_STYLES) -- was reproducing the entire
+// pre-migration 8-value set the reference's own migrateAttendanceWfoWfh() exists to
+// eliminate.
 type AttGroup = 'working' | 'leave' | 'off' | 'ot';
 interface AttStyle { abbr: string; bg: string; fg: string; group: AttGroup }
 export const WL_ATTENDANCE_STYLES: Record<string, AttStyle> = {
-  'Present':            { abbr: 'P',  bg: '#dcfce7', fg: '#15803d', group: 'working' },
+  'Present-WFO':        { abbr: 'P-WFO',  bg: '#dcfce7', fg: '#15803d', group: 'working' },
+  'Present-WFH':        { abbr: 'P-WFH',  bg: '#e0f2fe', fg: '#0369a1', group: 'working' },
   'Leave Full Day':     { abbr: 'LF', bg: '#fecdd3', fg: '#be123c', group: 'leave' },
   'Leave Half Day':     { abbr: 'LH', bg: '#fed7aa', fg: '#c2410c', group: 'leave' },
   'Alternate Week Off': { abbr: 'AW', bg: '#fde68a', fg: '#92400e', group: 'off' },
   'Week Off':           { abbr: 'W',  bg: '#fce7f3', fg: '#9d174d', group: 'off' },
   'Holiday':            { abbr: 'H',  bg: '#bfdbfe', fg: '#1d4ed8', group: 'off' },
-  'Extra Full Day':     { abbr: 'EF', bg: '#14532d', fg: '#ffffff', group: 'ot' },
-  'Extra Half Day':     { abbr: 'EH', bg: '#065f46', fg: '#ffffff', group: 'ot' },
+  'Extra Full Day-WFO': { abbr: 'EF-WFO', bg: '#14532d', fg: '#ffffff', group: 'ot' },
+  'Extra Full Day-WFH': { abbr: 'EF-WFH', bg: '#1e3a5f', fg: '#ffffff', group: 'ot' },
+  'Extra Half Day-WFO': { abbr: 'EH-WFO', bg: '#065f46', fg: '#ffffff', group: 'ot' },
+  'Extra Half Day-WFH': { abbr: 'EH-WFH', bg: '#581c87', fg: '#ffffff', group: 'ot' },
 };
 export const ATTENDANCE_OPTIONS = Object.keys(WL_ATTENDANCE_STYLES);
 const OFF_TYPES = ['Alternate Week Off', 'Week Off', 'Holiday'];
-const ALWAYS_OT = ['Extra Full Day', 'Extra Half Day'];
+const ALWAYS_OT = ['Extra Full Day-WFO', 'Extra Full Day-WFH', 'Extra Half Day-WFO', 'Extra Half Day-WFH'];
 const LEAVE_TYPES = ['Leave Full Day', 'Leave Half Day'];
 const STATUS_OPTIONS = ['', 'Tentative', 'On Time', 'Late', 'Absent', 'Half Day'];
 
@@ -54,21 +61,26 @@ function statusBadgeClass(s?: string | null): string {
 // Effective hours implied by a saved attendance + extra hours (used to pre-fill the Hrs
 // quick-entry box for saved rows — Part 37 "Hrs input pre-fills from saved _attEffHours").
 function effHoursFor(att: string, extra: number): number {
-  const base = att === 'Present' || att === 'Extra Full Day' ? 9 : att === 'Extra Half Day' || att === 'Leave Half Day' ? 4 : 0;
-  return base + (extra || 0);
+  const base = attBaseCategory(att);
+  const baseHrs = base === 'Present' || base === 'Extra Full Day' ? 9 : base === 'Extra Half Day' || att === 'Leave Half Day' ? 4 : 0;
+  return baseHrs + (extra || 0);
 }
 
-// Reverse of the §4.3 hours table.
+// Reverse of the §4.3 hours table. Round4 F3: auto-classification from hours defaults to
+// the -WFO variant (matching the reference's own _wlCalcFromHrs, app.js.html:2704-2731,
+// which does the same — there is no WFO/WFH toggle anywhere in either app; -WFO is the
+// reference's own chosen default for an hours-inferred "present"/"extra day", the same
+// assumption migrateAttendanceWfoWfh() makes for ambiguous legacy data).
 function calcFromHrs(hrs: number, base: string): { att: string; extra: number } {
   const isOff = OFF_TYPES.includes(base);
   if (isOff) {
     if (hrs < 4) return { att: base, extra: hrs };
-    if (hrs < 9) return { att: 'Extra Half Day', extra: +(hrs - 4).toFixed(1) };
-    return { att: 'Extra Full Day', extra: +(hrs - 9).toFixed(1) };
+    if (hrs < 9) return { att: 'Extra Half Day-WFO', extra: +(hrs - 4).toFixed(1) };
+    return { att: 'Extra Full Day-WFO', extra: +(hrs - 9).toFixed(1) };
   }
   if (hrs < 4) return { att: 'Leave Full Day', extra: hrs };
   if (hrs < 9) return { att: 'Leave Half Day', extra: +(hrs - 4).toFixed(1) };
-  return { att: 'Present', extra: +(hrs - 9).toFixed(1) };
+  return { att: 'Present-WFO', extra: +(hrs - 9).toFixed(1) };
 }
 
 // Live preview text for the Hrs quick-entry box (Part 16 "Hours Calculator").
@@ -78,7 +90,7 @@ function hrsPreview(raw: string, isOff: boolean, attendance: string): string {
   if (isNaN(n) || n < 0 || n > 19) return '→ invalid';
   const snapped = Math.round(n * 2) / 2;
   if (snapped !== n) return `→ round to ${snapped}h`;
-  const base = isOff ? (attendance || 'Week Off') : (attendance || 'Present');
+  const base = isOff ? (attendance || 'Week Off') : (attendance || 'Present-WFO');
   const { att, extra } = calcFromHrs(snapped, base);
   return extra > 0 ? `→ ${att} +${extra}h` : `→ ${att}`;
 }
@@ -288,7 +300,7 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
     const n = parseFloat(hrsInput);
     if (isNaN(n) || n < 0 || n > 19) { setHrsInput(''); return; }
     const snapped = Math.round(n * 2) / 2;
-    const base = isOff ? (attendance ?? '') : (attendance || 'Present');
+    const base = isOff ? (attendance ?? '') : (attendance || 'Present-WFO');
     const { att, extra } = calcFromHrs(snapped, base);
     form.setValue('attendance', att, { shouldDirty: true });
     form.setValue('extraHours', extra, { shouldDirty: true });

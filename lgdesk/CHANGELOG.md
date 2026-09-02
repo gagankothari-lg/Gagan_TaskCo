@@ -15,6 +15,32 @@ prompt instead). Same discipline as Batches 1-2: one item at a time, build clean
   clicking "←" once. Changed the initial `anchor` state to `addDays(new Date(), -7)`, mirroring the
   cron's own last-week pattern exactly. The "This week" quick-nav button is untouched (still jumps to
   the actual current week on demand) -- only the default first-load view changed.
+- **Fix 2 (Round4-F3) — `WorkLog.attendance` reproduced the deprecated pre-migration vocabulary
+  instead of the reference's WFO/WFH split.** Stop-and-check first: `schema.prisma`'s `attendance`
+  field is a plain `String` (not a Prisma `enum`), so this was safe to fix without a migration.
+  `setupSheets.gs` VALIDATIONS.Work_Log.Attendance (reference ground truth) is an 11-value list
+  with Present/Extra Full Day/Extra Half Day each split into `-WFO`/`-WFH` variants -- the rebuild's
+  `ATTENDANCE_TYPES` still had the entire 8-value pre-migration set the reference's own one-time
+  `migrateAttendanceWfoWfh()` exists specifically to eliminate. Updated `ATTENDANCE_TYPES`
+  (backend, `common/constants.ts`) to the real 11 values and changed the hardcoded `?? 'Present'`
+  fallback in `work-log.service.ts` to `'Present-WFO'` (both DTOs auto-picked up the new
+  validation list). Left `InternWorkLog`'s two `?? 'Present'` fallbacks and `intern-row.tsx`'s
+  default untouched -- Intern attendance is free text, never validated against this enum (confirmed
+  via `CreateInternLogDto`/`AdminCreateLogDto`'s own comments).
+  A backend-only fix would have broken every real attendance submission, since the frontend
+  independently hardcodes the same pre-migration vocabulary in 7 more files: `work-row.tsx` (the
+  actual dropdown + its hours-based auto-classifier, which now defaults ambiguous "present" cases
+  to `-WFO`, mirroring the reference's own `_wlCalcFromHrs`), `week-row.tsx` and
+  `lib/api/workLog.ts` (a second, separate attendance dropdown), `attendance-chip.tsx` and
+  `team/attendance-dot.tsx` (display color maps, extended with the reference's exact
+  `WL_ATTENDANCE_STYLES` hex values for the new WFH variants), `week-glance-widget.tsx` (an
+  exact-match `switch` that would've silently mis-colored new data), and the two team-card
+  `effHours` duplicates in `day-member-card.tsx`/`week-member-card.tsx`. Added a shared
+  `attBaseCategory()` helper to `lib/attendance.ts` (mirroring the reference's own
+  `_attBaseCategory`) so all three hours-calculation call sites collapse the WFO/WFH suffix the
+  same way instead of each re-deriving it. `month-member-card.tsx`'s backend aggregation
+  (`work-log.service.ts`'s `classify()`) already does fuzzy substring matching, not exact
+  comparison, so it was already forward-compatible -- confirmed, not touched.
 
 ## 2026-09-03 — PFIX-ROUND4-BATCH-2
 

@@ -36,6 +36,19 @@ export function isInternOff(text: string): boolean {
 export const LEAVE_TYPE_OPTIONS = ['', 'Planned Leave', 'Sick Leave', 'Casual Leave', 'Emergency Leave', 'Other'];
 export const LEAVE_REQUESTED_OPTIONS = ['', 'Same Day', 'One Day Before', 'Within Same Week', 'One Week Before'];
 
+// Round4 F3: collapses a WFO/WFH-suffixed attendance value to its base category, for
+// hours/OT comparisons that don't care which one it was — mirrors the reference's
+// _attBaseCategory exactly (app.js.html:1870-1876). Single source of truth so
+// work-row.tsx / day-member-card.tsx / week-member-card.tsx never drift from each other
+// the same way defaultAttendanceFor() above already is for the off-day pre-fill rule.
+export function attBaseCategory(att: string | undefined | null): string {
+  if (!att) return att ?? '';
+  if (att.startsWith('Present')) return 'Present';
+  if (att.startsWith('Extra Full Day')) return 'Extra Full Day';
+  if (att.startsWith('Extra Half Day')) return 'Extra Half Day';
+  return att;
+}
+
 /** Local-time-safe ISO date string (avoids UTC-shift-by-one-day bugs). */
 export function isoDate(d: Date): string {
   const x = new Date(d);

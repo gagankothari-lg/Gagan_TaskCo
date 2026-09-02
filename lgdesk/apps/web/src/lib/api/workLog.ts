@@ -4,15 +4,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from './client';
 import type { WorkLogEntry, WorkLogInput, TeamOverviewRow, Holiday } from '../types';
 
+// Round4 F3: 11-value WFO/WFH-split vocabulary, mirroring
+// apps/api/src/common/constants.ts's ATTENDANCE_TYPES exactly (setupSheets.gs
+// VALIDATIONS.Work_Log.Attendance ground truth) -- was the pre-migration 8-value set.
 export const ATTENDANCE_TYPES = [
-  'Present',
+  'Present-WFO',
+  'Present-WFH',
   'Leave Full Day',
   'Leave Half Day',
   'Alternate Week Off',
   'Week Off',
   'Holiday',
-  'Extra Full Day',
-  'Extra Half Day',
+  'Extra Full Day-WFO',
+  'Extra Full Day-WFH',
+  'Extra Half Day-WFO',
+  'Extra Half Day-WFH',
 ];
 
 export function useMyWorkLogs(start?: string, end?: string) {

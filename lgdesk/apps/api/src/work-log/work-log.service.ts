@@ -46,7 +46,8 @@ export class WorkLogService {
     const data = {
       month: this.monthOf(date),
       dayName: this.dayNameOf(date),
-      attendance: dto.attendance ?? 'Present',
+      // Round4 F3: 'Present-WFO', not the deprecated bare 'Present' -- see ATTENDANCE_TYPES.
+      attendance: dto.attendance ?? 'Present-WFO',
       purpose: dto.purpose,
       leaveRequested: dto.leaveRequested,
       work1stHalf: dto.work1stHalf,
@@ -240,14 +241,16 @@ export class WorkLogService {
       return { logId: log.logId };
     }
 
-    // Non-Intern targets use the fixed 8-value attendance set (AdminCreateLogDto can't
-    // enforce this itself — it doesn't know the target's role until this lookup above).
+    // Non-Intern targets use the fixed 11-value attendance set (Round4 F3: WFO/WFH split;
+    // AdminCreateLogDto can't enforce this itself — it doesn't know the target's role
+    // until this lookup above).
     if (dto.attendance && !(ATTENDANCE_TYPES as readonly string[]).includes(dto.attendance)) {
       throw new BadRequestException('Invalid attendance type');
     }
 
     const data = {
-      month: this.monthOf(date), dayName: this.dayNameOf(date), attendance: dto.attendance ?? 'Present',
+      // Round4 F3: 'Present-WFO', not the deprecated bare 'Present' -- see ATTENDANCE_TYPES.
+      month: this.monthOf(date), dayName: this.dayNameOf(date), attendance: dto.attendance ?? 'Present-WFO',
       purpose: dto.purpose, leaveRequested: dto.leaveRequested, work1stHalf: dto.work1stHalf, work2ndHalf: dto.work2ndHalf,
       extraHours: dto.extraHours ?? 0, remark: dto.remark, status: dto.status, comments: dto.comments,
     };

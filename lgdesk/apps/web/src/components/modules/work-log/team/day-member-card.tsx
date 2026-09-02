@@ -1,18 +1,21 @@
 'use client';
 
 import { avatarColor, initials } from '../../../../lib/utils';
+import { attBaseCategory } from '../../../../lib/attendance';
 import type { WorkLogEntry } from '../../../../lib/types';
 import { Icon } from '../../../ui/icon';
 
-// Base hours implied by the attendance type, plus any logged extra hours.
+// Base hours implied by the attendance type, plus any logged extra hours. Round4 F3:
+// attBaseCategory collapses the WFO/WFH suffix before comparing.
 function effHours(att: string | undefined, extra: number): number {
-  const base =
-    att === 'Present' || att === 'Extra Full Day'
+  const base = attBaseCategory(att);
+  const baseHrs =
+    base === 'Present' || base === 'Extra Full Day'
       ? 9
-      : att === 'Extra Half Day' || att === 'Leave Half Day'
+      : base === 'Extra Half Day' || att === 'Leave Half Day'
         ? 4
         : 0;
-  return base + (extra || 0);
+  return baseHrs + (extra || 0);
 }
 
 function snippet(entry: WorkLogEntry): string {
