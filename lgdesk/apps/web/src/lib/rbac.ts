@@ -114,6 +114,20 @@ export function canDeleteFunction(user: Caller, fn: WorkFunction): boolean {
   return false;
 }
 
+// ─── Due Date Requests (DDR) ────────────────────────────────────────────────
+// Mirrors apps/api/src/ddr/ddr.service.ts `assertCanReview` exactly: only the
+// underlying entity's assigner or an admin may approve/reject a due-date change
+// request. getDdrs separately includes DDRs the caller themselves submitted (so
+// they can see their own request's status in the pending-DDR panel), but that
+// inclusion does NOT grant review rights — a self-submitted DDR must never show
+// Approve/Reject to its own requester (Round4 finding S1: DdrCard was rendering
+// the buttons unconditionally for every DDR the list returned).
+export function canReviewDdr(user: Caller, entityAssignerId: string | null | undefined): boolean {
+  if (!user) return false;
+  if (isAdmin(user.role)) return true;
+  return !!entityAssignerId && entityAssignerId === user.empId;
+}
+
 // ─── Role change ("Change Role") ────────────────────────────────────────────
 // Mirrors apps/api/src/users/users.service.ts `changeRole` exactly:
 //   - Super Admin: no restriction — every role, on any target.

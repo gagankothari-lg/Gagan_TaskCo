@@ -5,7 +5,7 @@ import { useAuth } from '../../../hooks/use-auth';
 import { useDdrs, useApproveDdr, useRejectDdr } from '../../../lib/api/dueDateRequests';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { avatarColor, initials, fmtDate, rolePillClass } from '../../../lib/utils';
-import { canChangeRole } from '../../../lib/rbac';
+import { canChangeRole, canReviewDdr } from '../../../lib/rbac';
 import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
 import { Avatar, AvatarFallback } from '../../ui/avatar';
@@ -37,7 +37,7 @@ function MemberAvatar({ id, name }: { id: string; name: string }) {
 }
 
 // ─── DDR review section ───────────────────────────────────────────
-function DdrCard({ ddr, employees, entityName }: { ddr: DueDateRequest; employees: User[]; entityName: string }) {
+function DdrCard({ ddr, employees, entityName, canReview }: { ddr: DueDateRequest; employees: User[]; entityName: string; canReview: boolean }) {
   const approve = useApproveDdr();
   const reject = useRejectDdr();
   const busy = approve.isPending || reject.isPending;
@@ -69,20 +69,25 @@ function DdrCard({ ddr, employees, entityName }: { ddr: DueDateRequest; employee
       {ddr.reason && (
         <div style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--muted)', marginTop: 6 }}>&ldquo;{ddr.reason}&rdquo;</div>
       )}
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <button type="button" className="btn btn-accent btn-sm" disabled={busy} onClick={onApprove}>
-          <Icon name="check" size={15} /> Approve
-        </button>
-        <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={onReject}>
-          <Icon name="close" size={15} /> Reject
-        </button>
-      </div>
+      {/* Round4 S1: only rendered when the current user is the entity's assigner (or
+          admin) — matches ddr.service.ts assertCanReview exactly. A requester viewing
+          their own pending DDR still sees the card, just without action buttons. */}
+      {canReview && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button type="button" className="btn btn-accent btn-sm" disabled={busy} onClick={onApprove}>
+            <Icon name="check" size={15} /> Approve
+          </button>
+          <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={onReject}>
+            <Icon name="close" size={15} /> Reject
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function DdrSection({ employees }: { employees: User[] }) {
-  const { tasks, projects, functions } = useAuth();
+  const { currentUser, tasks, projects, functions } = useAuth();
   const { data: ddrs, isError } = useDdrs('Pending');
   const pending = useMemo(() => (ddrs ?? []).filter((d) => d.status === 'Pending'), [ddrs]);
 
@@ -92,6 +97,14 @@ function DdrSection({ employees }: { employees: User[] }) {
     if (ddr.entityType === 'Task') return tasks.find((t) => t.taskId === ddr.entityId)?.title ?? ddr.entityId;
     if (ddr.entityType === 'Project') return projects.find((p) => p.projId === ddr.entityId)?.name ?? ddr.entityId;
     return functions.find((f) => f.functionId === ddr.entityId)?.name ?? ddr.entityId;
+  };
+
+  // Resolve the underlying entity's assignerId so canReviewDdr can be evaluated
+  // client-side (the /ddr list endpoint returns only entityId, no joined assigner).
+  const entityAssignerId = (ddr: DueDateRequest): string | undefined => {
+    if (ddr.entityType === 'Task') return tasks.find((t) => t.taskId === ddr.entityId)?.assignerId;
+    if (ddr.entityType === 'Project') return projects.find((p) => p.projId === ddr.entityId)?.assignerId;
+    return functions.find((f) => f.functionId === ddr.entityId)?.assignerId;
   };
 
   // Render nothing if the list failed to load or there are no pending requests.
@@ -104,7 +117,7 @@ function DdrSection({ employees }: { employees: User[] }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {pending.map((d) => (
-          <DdrCard key={d.ddrId} ddr={d} employees={employees} entityName={entityName(d)} />
+          <DdrCard key={d.ddrId} ddr={d} employees={employees} entityName={entityName(d)} canReview={canReviewDdr(currentUser, entityAssignerId(d))} />
         ))}
       </div>
     </div>
