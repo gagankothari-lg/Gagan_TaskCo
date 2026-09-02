@@ -15,6 +15,7 @@ import {
   useExecuteImport,
   usePreviewCsv,
   usePreviewSheet,
+  type ExecuteResult,
   type ImportRow,
   type PreviewResult,
 } from '../../../lib/api/importTasks';
@@ -32,7 +33,10 @@ interface ImportModalProps {
   onClose: () => void;
 }
 
-type Stage = 'form' | 'preview';
+// Round4 F7: 'result' is a new third stage -- executeImport's per-row errors/warnings
+// used to be summarized as a bare count in a toast, then the modal closed immediately,
+// so the actual detail (which the backend already computes) was never visible anywhere.
+type Stage = 'form' | 'preview' | 'result';
 type Tab = 'sheet' | 'csv';
 
 const TYPE_PILL: Record<ImportRow['type'], { bg: string; color: string }> = {
@@ -124,6 +128,9 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     tasks: 0,
     total: 0,
   });
+  // Round4 F7: the execute result, shown in-modal on the 'result' stage instead of only
+  // a toast + immediate close.
+  const [execResult, setExecResult] = useState<ExecuteResult | null>(null);
 
   function reset() {
     setStage('form');
@@ -134,6 +141,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     setSelectedProjectId('');
     setRows([]);
     setStats({ functions: 0, subFunctions: 0, tasks: 0, total: 0 });
+    setExecResult(null);
   }
 
   function close() {
@@ -190,6 +198,10 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     }
     try {
       const result = await execute.mutateAsync({ rows: chosen, projectId: selectedProjectId || undefined });
+      // Round4 F7: a one-line toast for the at-a-glance count is still shown, but the
+      // modal no longer closes immediately -- the per-row detail the backend already
+      // computed is now rendered in the 'result' stage below, where the user can
+      // actually read it before dismissing.
       let message = `Imported ${result.created} item(s)`;
       if (result.errors.length > 0) message += ` — ${result.errors.length} row(s) failed`;
       if (result.warnings?.length > 0) message += ` — ${result.warnings.length} warning(s)`;
@@ -197,7 +209,8 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.invalidateQueries({ queryKey: ['functions'] });
-      close();
+      setExecResult(result);
+      setStage('result');
     } catch (err) {
       setError(apiErrorMessage(err, 'Import failed.'));
     }
@@ -405,7 +418,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               </Form>
             )}
           </div>
-        ) : (
+        ) : stage === 'preview' ? (
           <>
             <div className="px-5 py-4" style={{ paddingBottom: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -496,6 +509,61 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               <button className="btn btn-primary" onClick={onExecute} disabled={execute.isPending}>
                 {execute.isPending && <Spinner size={14} />} Import Selected →
               </button>
+            </DialogFooter>
+          </>
+        ) : (
+          // Round4 F7: results view — the per-row error/warning detail the backend
+          // already computes, visible and readable instead of a transient toast count.
+          <>
+            <div className="px-5 py-4">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <Icon
+                  name={execResult && execResult.errors.length === 0 ? 'check_circle' : 'error'}
+                  size={22}
+                  style={{ color: execResult && execResult.errors.length === 0 ? 'var(--ok)' : 'var(--warn)' }}
+                />
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+                  Imported {execResult?.created ?? 0} item{execResult?.created === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              {execResult && execResult.errors.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)', textTransform: 'uppercase', letterSpacing: '.03em', marginBottom: 6 }}>
+                    {execResult.errors.length} row{execResult.errors.length === 1 ? '' : 's'} failed
+                  </div>
+                  <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--danger)', borderRadius: 8, background: '#fce8e8' }}>
+                    <ul style={{ margin: 0, padding: '8px 12px 8px 28px', listStyle: 'disc' }}>
+                      {execResult.errors.map((e, i) => (
+                        <li key={i} style={{ fontSize: 12.5, color: 'var(--danger)', padding: '2px 0' }}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {execResult && execResult.warnings.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--warn)', textTransform: 'uppercase', letterSpacing: '.03em', marginBottom: 6 }}>
+                    {execResult.warnings.length} warning{execResult.warnings.length === 1 ? '' : 's'}
+                  </div>
+                  <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--warn)', borderRadius: 8, background: '#fff3e0' }}>
+                    <ul style={{ margin: 0, padding: '8px 12px 8px 28px', listStyle: 'disc' }}>
+                      {execResult.warnings.map((w, i) => (
+                        <li key={i} style={{ fontSize: 12.5, color: 'var(--warn)', padding: '2px 0' }}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {execResult && execResult.errors.length === 0 && execResult.warnings.length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>No errors or warnings — every selected row imported cleanly.</p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <button className="btn btn-primary" onClick={close}>Close</button>
             </DialogFooter>
           </>
         )}

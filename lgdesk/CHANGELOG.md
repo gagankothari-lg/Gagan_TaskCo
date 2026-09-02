@@ -41,6 +41,17 @@ prompt instead). Same discipline as Batches 1-2: one item at a time, build clean
   same way instead of each re-deriving it. `month-member-card.tsx`'s backend aggregation
   (`work-log.service.ts`'s `classify()`) already does fuzzy substring matching, not exact
   comparison, so it was already forward-compatible -- confirmed, not touched.
+- **Fix 3 (Round4-F7) — Import execute-result errors/warnings were computed with full per-row
+  detail but the UI only showed an aggregate count in a transient, auto-dismissing toast.**
+  `import.service.ts`'s `executeImport` builds rich per-row `errors`/`warnings` strings;
+  `import-modal.tsx`'s `onExecute()` only read `.length` off them for a one-line toast, then
+  immediately called `close()` -- resetting all state before the detail could be read even if it
+  had been shown, and the toast auto-removes after 3500ms regardless. Added a third `'result'`
+  modal stage: after execute, the modal now shows the created count plus the full list of error
+  and warning strings the backend already returns (in scrollable, colour-coded boxes) with an
+  explicit "Close" button, instead of auto-closing. The at-a-glance toast is kept alongside it.
+  Query invalidation (`tasks`/`projects`/`functions`) still fires immediately on receiving the
+  result, not deferred until the user dismisses the results view.
 
 ## 2026-09-03 — PFIX-ROUND4-BATCH-2
 
