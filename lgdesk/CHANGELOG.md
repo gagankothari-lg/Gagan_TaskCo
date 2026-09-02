@@ -16,6 +16,13 @@ section for the full table). Same discipline as Batch 1: one item at a time, bui
   `sendRegistrationSubmitted`/`sendMeetingScheduled`), wired `EmailModule` into `LeavesModule`, and
   rewrote `notifyManager` to call it -- removing the standalone `Resend` client, the hardcoded domain,
   and the now-unused `ConfigService` injection entirely.
+- **Fix 2 (Round4-S3) — Directory presence dot hardcoded to "online" for every employee.** `DirCard`
+  rendered every card's presence indicator with a literal, unconditional `pres-online` class -- there is
+  no per-employee presence backend at all (checklist item #12, still open; not built here), so every
+  colleague showed as green/Online regardless of their real status. Removed the dot entirely rather than
+  substitute a different hardcoded value or wire it to the sidebar's self-only local presence state
+  (which only ever reflects the current viewer's own status and has no shared context another component
+  could read -- extending it would mean building state-sharing plumbing, not "stop showing false data").
 
 ## 2026-09-03 — PFIX-ROUND4-BATCH-1
 

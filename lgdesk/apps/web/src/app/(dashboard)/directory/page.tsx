@@ -55,9 +55,13 @@ function DirCard({ u, isYou }: { u: DirectoryUser; isYou: boolean }) {
         transform: hover ? 'translateY(-2px)' : undefined,
       }}
     >
-      <div style={{ position: 'relative', display: 'inline-flex', marginBottom: 6 }}>
+      {/* Round4 S3: the presence dot here was a hardcoded `pres-online` class on every
+          card -- there is no per-employee presence backend (checklist item #12), so it
+          falsely showed every colleague as Online regardless of their real status.
+          Removed rather than left showing fake data; a real per-user indicator would
+          need the actual presence feature to exist first. */}
+      <div style={{ display: 'inline-flex', marginBottom: 6 }}>
         <div style={{ width: 54, height: 54, borderRadius: '50%', background: avatarColor(u.empId), color: '#fff', fontWeight: 700, fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(name)}</div>
-        <span className="pres-dot pres-online" style={{ position: 'absolute', bottom: 1, right: 1, width: 12, height: 12, border: '2px solid var(--surface)' }} />
       </div>
       <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3 }}>{name} {isYou && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>(You)</span>}</div>
       <span className={rolePillClass(u.role)}>{u.role}</span>
