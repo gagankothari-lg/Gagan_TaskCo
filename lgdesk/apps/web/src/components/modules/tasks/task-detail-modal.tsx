@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialo
 import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
 import { DdrModal } from './ddr-modal';
 import { TaskEditModal } from './task-edit-modal';
+import { FunctionDetailModal } from '../functions/function-detail-modal';
 import { fieldClass } from './create-task-modal';
 import { addProgressSchema, type AddProgressFormValues } from './task-detail-modal.schema';
 import { avatarColor, initials, fmtDate } from '../../../lib/utils';
@@ -54,6 +55,9 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
   const [ddrOpen, setDdrOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [chainOpen, setChainOpen] = useState(false);
+  // Round4 F6: FunctionDetailModal had zero navigation entry point anywhere in the
+  // app -- this is the click-through path from a task's context card.
+  const [openFunctionId, setOpenFunctionId] = useState<string | null>(null);
 
   const progressForm = useForm<AddProgressFormValues>({
     resolver: zodResolver(addProgressSchema),
@@ -169,14 +173,14 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                   {fn && (
                     <div className="rounded-[8px] border border-border bg-bg p-2.5">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Function</p>
-                      <p className="truncate text-sm font-semibold text-text">{fn.name}</p>
+                      <button type="button" onClick={() => setOpenFunctionId(fn.functionId)} className="block w-full truncate text-left text-sm font-semibold text-p hover:underline">{fn.name}</button>
                       {fn.description && <p className="mt-0.5 text-xs text-muted">{truncate(fn.description, 120)}</p>}
                     </div>
                   )}
                   {subFn && (
                     <div className="rounded-[8px] border border-border bg-bg p-2.5">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Sub-Function</p>
-                      <p className="truncate text-sm font-semibold text-text">{subFn.name}</p>
+                      <button type="button" onClick={() => setOpenFunctionId(subFn.functionId)} className="block w-full truncate text-left text-sm font-semibold text-p hover:underline">{subFn.name}</button>
                       {subFn.description && <p className="mt-0.5 text-xs text-muted">{truncate(subFn.description, 120)}</p>}
                     </div>
                   )}
@@ -356,6 +360,7 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
       </Dialog>
       {task && <DdrModal open={ddrOpen} onClose={() => setDdrOpen(false)} entityType="Task" entityId={task.taskId} />}
       <TaskEditModal taskId={editOpen ? taskId : null} onClose={() => setEditOpen(false)} />
+      <FunctionDetailModal functionId={openFunctionId} onClose={() => setOpenFunctionId(null)} />
     </>
   );
 }

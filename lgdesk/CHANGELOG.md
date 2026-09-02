@@ -4,9 +4,9 @@ All notable changes to LG Desk are documented in this file, newest first.
 
 ## 2026-09-03 — PFIX-ROUND4-BATCH-2
 
-Batch 2 of the Round 4 fix series -- 3 independent bugs (S5, S3, F6) plus one that pairs with Batch 1's
-Functions work (F6 above already listed; see `AUDIT_REPORT_ROUND4_2026-09-02.md`'s Round 4 Fix Status
-section for the full table). Same discipline as Batch 1: one item at a time, build clean before moving on.
+Batch 2 of the Round 4 fix series -- 3 independent bugs (S5, S3, F6) plus one that touches who can
+approve a registration (S4, below). See `AUDIT_REPORT_ROUND4_2026-09-02.md`'s Round 4 Fix Status section
+for the full table. Same discipline as Batch 1: one item at a time, build clean before moving on.
 
 - **Fix 1 (Round4-S5) — leave-submission manager-notify email bypassed the shared `EmailService`, used
   the wrong sender domain, and swallowed the SDK's error field.** `leaves.service.ts`'s `notifyManager`
@@ -23,6 +23,15 @@ section for the full table). Same discipline as Batch 1: one item at a time, bui
   substitute a different hardcoded value or wire it to the sidebar's self-only local presence state
   (which only ever reflects the current viewer's own status and has no shared context another component
   could read -- extending it would mean building state-sharing plumbing, not "stop showing false data").
+- **Fix 3 (Round4-F6) — `FunctionDetailModal` had zero navigation entry point anywhere in the app.**
+  `CreateFunctionModal` was reachable (the task-sheet's inline "+" quick-add), but nothing let a user
+  view/edit/delete a Function afterward short of typing the `/functions` URL manually --
+  `task-detail-modal.tsx` rendered the function/sub-function name as plain static text. Made both the
+  Function and Sub-Function context-card names in the task detail modal clickable buttons that open
+  `FunctionDetailModal`, mirroring the existing sibling-modal pattern already used there for
+  `DdrModal`/`TaskEditModal` (stacks on top of the task modal, doesn't replace it). Didn't add a new
+  sidebar nav item or touch the task-sheet's group-header click behavior (which is collapse-only,
+  matching the reference) -- this one click-through path is the least-disruptive fix for the finding.
 
 ## 2026-09-03 — PFIX-ROUND4-BATCH-1
 
