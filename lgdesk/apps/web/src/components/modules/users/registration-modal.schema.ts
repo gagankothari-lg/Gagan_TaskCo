@@ -5,11 +5,12 @@
 // NOTE (backend gap, partially fixed — PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE):
 // apps/api/src/auth/dto/register-request.dto.ts now whitelists role (validated against
 // the same ALL_ROLES list as below) in addition to firstName/lastName/email/password/
-// team/subDepartment/designation. dob/managerEmail/message are still NOT whitelisted
-// (ValidationPipe has forbidNonWhitelisted:true, so sending them would 400) — they're
-// validated client-side below purely for parity with the legacy GAS form and so the UI
-// matches Master Reference exactly; the submit handler only sends the API-whitelisted
-// subset for those three.
+// team/subDepartment/designation. dob/message are still NOT whitelisted (ValidationPipe
+// has forbidNonWhitelisted:true, so sending them would 400) — they're validated
+// client-side below purely for parity with the legacy GAS form and so the UI matches
+// Master Reference exactly; the submit handler only sends the API-whitelisted subset
+// for those two. managerEmail IS now whitelisted and sent (Round4 S4 fix) — but only
+// for MANUAL_MANAGER_ROLES; see the submit handler and users.service.ts.
 import { z } from 'zod';
 
 export const ROLES = [
@@ -59,12 +60,14 @@ export const DIVISIONS = Object.keys(TEAM_HIERARCHY);
 // must enter one manually ("Reports-to Email", required); Team Facilitator/Team
 // Member/Intern get it auto-resolved (readOnly, required, submit disabled if
 // unresolved) via GET /auth/team-captain (public, no auth — PFIX-REGISTRATION-MANAGER-
-// EMAIL, 2026-07-07), wired in registration-modal.tsx via useTeamCaptain(). The backend
-// resolution itself (UsersService.getTeamCaptainByTeam: sub-dept Team Captain -> team
-// Team Captain -> any Super Admin -> any Admin -> null) is also called independently,
-// server-side, during submitRegistration — the frontend value is never actually sent to
-// the API (see RegisterRequestInput in lib/api/auth.ts), it exists purely so the
-// applicant can see who will review their request before submitting.
+// EMAIL, 2026-07-07), wired in registration-modal.tsx via useTeamCaptain(). For these
+// three manual roles the typed value IS now sent to the API (Round4 S4 fix — previously
+// it was display-only and silently discarded; see RegisterRequestInput in lib/api/auth.ts
+// and users.service.ts submitRegistration, which validates it resolves to an active
+// employee before honoring it, falling back to getTeamCaptainByTeam if left blank). For
+// every other role, the backend still calls getTeamCaptainByTeam independently,
+// server-side — the frontend's auto-filled value here remains display-only for them,
+// exactly as before, so it can never disagree with what the server actually resolves.
 export const MANUAL_MANAGER_ROLES = ['Super Admin', 'Admin', 'Team Captain'] as const;
 
 export function subDepartmentsFor(team: string): string[] {

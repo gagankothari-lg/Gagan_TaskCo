@@ -44,6 +44,9 @@ export interface RegisterRequestInput {
   team?: string;
   subDepartment?: string;
   designation?: string;
+  // Round4 S4: only honored server-side for Super Admin/Admin/Team Captain applicants
+  // (MANUAL_MANAGER_ROLES) -- see register-request.dto.ts / users.service.ts.
+  managerEmail?: string;
 }
 
 export function registerRequest(dto: RegisterRequestInput): Promise<void> {

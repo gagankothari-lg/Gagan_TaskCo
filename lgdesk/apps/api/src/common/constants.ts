@@ -2,6 +2,12 @@ export const ALL_ROLES     = ['Super Admin','Admin','Team Captain','Team Facilit
 export const ADMIN_ROLES   = ['Super Admin','Admin'] as const;
 export const MANAGER_ROLES = ['Super Admin','Admin','Team Captain','Team Facilitator'] as const;
 
+// Round4 S4: roles that type their own "reports to" email at registration instead of
+// having it auto-resolved via getTeamCaptainByTeam (Team Facilitator/Team Member/Intern
+// keep the existing auto-lookup, untouched). Mirrors
+// apps/web/.../registration-modal.schema.ts's MANUAL_MANAGER_ROLES exactly.
+export const MANUAL_MANAGER_ROLES = ['Super Admin','Admin','Team Captain'] as const;
+
 export const isAdmin   = (r: string) => (ADMIN_ROLES as readonly string[]).includes(r);
 export const isManager = (r: string) => (MANAGER_ROLES as readonly string[]).includes(r);
 

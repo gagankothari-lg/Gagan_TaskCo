@@ -34,4 +34,12 @@ export class RegisterRequestDto {
   @IsOptional()
   @IsString()
   designation?: string;
+
+  // Round4 S4: only honored server-side for MANUAL_MANAGER_ROLES (Super Admin/Admin/
+  // Team Captain) -- see users.service.ts submitRegistration. Every other role's
+  // manager is still resolved exclusively via getTeamCaptainByTeam, ignoring this field
+  // even if a client sends it.
+  @IsOptional()
+  @IsEmail({}, { message: 'Invalid manager email format' })
+  managerEmail?: string;
 }

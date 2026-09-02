@@ -32,6 +32,22 @@ for the full table. Same discipline as Batch 1: one item at a time, build clean 
   `DdrModal`/`TaskEditModal` (stacks on top of the task modal, doesn't replace it). Didn't add a new
   sidebar nav item or touch the task-sheet's group-header click behavior (which is collapse-only,
   matching the reference) -- this one click-through path is the least-disruptive fix for the finding.
+- **Fix 4 (Round4-S4) — a Super Admin/Admin/Team-Captain applicant's manually-typed "reports to" email
+  was silently discarded and always overridden by an auto-lookup.** The registration form already
+  collected and displayed a `managerEmail` for these three roles (`registration-modal.tsx`'s own code
+  comment admitted it "is never actually sent to the API... exists purely so the applicant can see who
+  will review their request before submitting"), but `submitRegistration` called `getTeamCaptainByTeam`
+  unconditionally for every role, and whatever that resolved became the sole reviewer-authorization
+  target regardless of what the applicant chose. Added `managerEmail` to `RegisterRequestDto` (validated
+  as a real email, and -- since this field controls who can approve the request -- required to resolve
+  to an existing active employee or the submission is rejected with a 400 rather than silently creating
+  an unreviewable request) and a new shared `MANUAL_MANAGER_ROLES` constant in `common/constants.ts`
+  (mirroring the frontend's existing one). `submitRegistration` now branches: for SA/Admin/TC with a
+  submitted `managerEmail`, that resolved employee becomes the reviewer target; every other role, and
+  SA/Admin/TC leaving the (optional-for-SA) field blank, keeps the exact original `getTeamCaptainByTeam`
+  auto-lookup path untouched. Hand-traced three cases through the updated logic: SA with a valid typed
+  email (now honored), SA leaving it blank (falls back to auto-lookup exactly as before), and SA with a
+  typo'd email (rejected with a clear 400 instead of silently orphaning the request).
 
 ## 2026-09-03 — PFIX-ROUND4-BATCH-1
 

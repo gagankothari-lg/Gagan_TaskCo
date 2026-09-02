@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { EmailService } from '../email/email.service';
-import { isAdmin } from '../common/constants';
+import { isAdmin, MANUAL_MANAGER_ROLES } from '../common/constants';
 import { RegisterRequestDto } from '../auth/dto/register-request.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -150,7 +150,27 @@ export class UsersService {
     if (existingReq) throw new ConflictException('A registration request for this email already exists');
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-    const captain = await this.getTeamCaptainByTeam(dto.team, dto.subDepartment);
+    // Round4 S4: SA/Admin/TC applicants type who they report to; every other role keeps
+    // the existing auto-lookup untouched. A submitted managerEmail must resolve to an
+    // existing active employee (it becomes the sole reviewer-authorization target via
+    // canReviewRegistration's managerId check, so a typo silently making a request
+    // unreviewable-by-anyone is worse than rejecting it up front) -- err toward
+    // validating it rather than trusting it blindly. Falls back to the auto-lookup if
+    // the field is left blank (Super Admin's is optional in the UI).
+    const role = dto.role ?? 'Team Member';
+    let captain: Awaited<ReturnType<typeof this.getTeamCaptainByTeam>> = null;
+    if ((MANUAL_MANAGER_ROLES as readonly string[]).includes(role) && dto.managerEmail) {
+      const manualManager = await this.prisma.user.findFirst({
+        where: { email: { equals: dto.managerEmail, mode: 'insensitive' }, isActive: true },
+        select: USER_SELECT,
+      });
+      if (!manualManager) {
+        throw new BadRequestException('The reports-to email you entered does not match an active employee.');
+      }
+      captain = manualManager;
+    } else {
+      captain = await this.getTeamCaptainByTeam(dto.team, dto.subDepartment);
+    }
     const regId = await this.idUtils.generateId('registrationRequest', 'regId', 'REG');
 
     await this.prisma.registrationRequest.create({
