@@ -20,6 +20,19 @@ before starting the next.
   had a bare `|| manager` clause showing Cancel to every Team Captain/Facilitator on every visible
   meeting (including company-wide ones they didn't organize), which 403'd on click. Removed the
   `|| manager` clause -- `canCancel` now matches the backend exactly.
+- **Fix 3 (Round4-F1) — backend computes "overdue"/"today" in UTC, frontend surfaces each computed it
+  independently in browser-local time.** `dashboard.service.ts`'s `todayUtc()` is UTC-correct; `task-row.tsx`'s
+  `isTaskOverdue` (used by 4+ components), `my-projects.tsx`'s own copy, and `dashboard/page.tsx`'s
+  "My Upcoming Tasks" bucketing all independently truncated to browser-local midnight instead --
+  during the ~5.5h window between UTC midnight and IST midnight, the same task could show as overdue
+  in one widget and not-overdue in the Scoreboard on the same page. Added `utcDayStart`/`todayUtcStart`
+  to `lib/utils.ts` (mirroring `todayUtc()`/`dateOnly()`'s truncation exactly) and switched all three
+  call sites to it. `thisWeek`/`nextWeek`/`later` bucketing in the dashboard widget still uses the
+  existing local-time week boundaries -- only the overdue/today boundary (the one the audit's repro
+  actually contradicted) was unified. Hand-traced: a task due 2026-09-05T00:00:00.000Z viewed from an
+  IST browser at 2026-09-06T02:00 IST (2026-09-05T20:30Z, i.e. inside the failure window) previously
+  classified as OVERDUE client-side while the Scoreboard said NOT overdue; after the fix both agree
+  (dueUtc === todayUtc -> "Today", not overdue).
 
 ## 2026-08-22 (retroactive) — documentation/dependency housekeeping (previously unlogged)
 

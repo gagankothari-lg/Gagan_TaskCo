@@ -15,7 +15,7 @@ import { MyProjects } from '../../../components/modules/dashboard/my-projects';
 import { TaskDetailModal } from '../../../components/modules/tasks/task-detail-modal';
 import { InlineStatusPill } from '../../../components/modules/tasks/inline-status-pill';
 import { avatarColor } from '../../../lib/avatar-colors';
-import { initials, fmtDate, isClosedTaskStatus } from '../../../lib/utils';
+import { initials, fmtDate, isClosedTaskStatus, utcDayStart, todayUtcStart } from '../../../lib/utils';
 import { toast } from '../../../lib/toast';
 import type { Task } from '../../../lib/types';
 
@@ -146,17 +146,24 @@ export default function DashboardPage() {
     const later: Task[] = [];
     const noDue: Task[] = [];
 
+    // Round4 F1: overdue/today classified via UTC-day comparison (matching the
+    // backend Scoreboard's todayUtc()) so this widget can never disagree with the
+    // Scoreboard stat card about whether the same task is overdue. thisWeek/
+    // nextWeek/later still use the existing local-time week boundaries below --
+    // that's a separate, lower-stakes bucketing concern, out of scope for this fix.
+    const todayUtc = todayUtcStart();
     for (const t of mine) {
       if (!t.dueDate) {
         noDue.push(t);
         continue;
       }
-      const due = new Date(t.dueDate);
-      due.setHours(0, 0, 0, 0);
-      if (due < now) overdue.push(t);
-      else if (due.getTime() === now.getTime()) todayList.push(t);
-      else if (due <= weekEnd) thisWeek.push(t);
-      else if (due <= nextWeekEnd) nextWeek.push(t);
+      const dueUtc = utcDayStart(t.dueDate);
+      if (dueUtc < todayUtc) { overdue.push(t); continue; }
+      if (dueUtc === todayUtc) { todayList.push(t); continue; }
+      const dueLocal = new Date(t.dueDate);
+      dueLocal.setHours(0, 0, 0, 0);
+      if (dueLocal <= weekEnd) thisWeek.push(t);
+      else if (dueLocal <= nextWeekEnd) nextWeek.push(t);
       else later.push(t);
     }
     const byDueThenPriority = (a: Task, b: Task) => {

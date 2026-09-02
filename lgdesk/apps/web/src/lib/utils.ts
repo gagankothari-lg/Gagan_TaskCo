@@ -98,6 +98,23 @@ export function toISODate(d: Date | string): string {
   return date.toISOString().slice(0, 10);
 }
 
+// Round4 F1: the backend's "today" for overdue/Scoreboard math (dashboard.service.ts
+// todayUtc()/dateOnly()) is always explicit UTC midnight. Several frontend surfaces
+// independently truncated to browser-LOCAL midnight instead, so during the ~5.5h
+// window between UTC midnight and IST midnight the same task could be "overdue" in
+// one widget and not in another (or in the Scoreboard's server-computed count).
+// Use these two primitives everywhere an overdue/due-today comparison needs to agree
+// with the server, regardless of the viewer's local timezone.
+/** UTC-midnight epoch ms for a date/date-string — mirrors todayUtc()/dateOnly()'s truncation exactly. */
+export function utcDayStart(d: Date | string): number {
+  const date = typeof d === 'string' ? new Date(d) : d;
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+/** Today's UTC-midnight epoch ms — the timezone-independent "today" the backend uses. */
+export function todayUtcStart(): number {
+  return utcDayStart(new Date());
+}
+
 export function fmtDate(d: Date | string, opts?: Intl.DateTimeFormatOptions): string {
   const date = typeof d === 'string' ? new Date(d) : d;
   return date.toLocaleDateString(undefined, opts ?? { month: 'short', day: 'numeric', year: 'numeric' });

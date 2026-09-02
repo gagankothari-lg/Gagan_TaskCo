@@ -5,7 +5,7 @@ import { useAuth } from '../../../hooks/use-auth';
 import { Icon } from '../../ui/icon';
 import { Badge } from '../../ui/badge';
 import { statusPillStyle } from '../../../lib/status-styles';
-import { fmtDate } from '../../../lib/utils';
+import { fmtDate, utcDayStart, todayUtcStart } from '../../../lib/utils';
 import type { Project, Task, WorkFunction } from '../../../lib/types';
 
 const MAX_PROJECT_CARDS = 10;
@@ -17,7 +17,9 @@ function priorityStyle(p: string) {
   };
   return map[p] ?? { bg: '#f5f5f5', color: '#757575' };
 }
-const overdue = (t: Task) => !!t.dueDate && !['Done', 'Cancelled'].includes(t.status) && new Date(t.dueDate) < new Date(new Date().toDateString());
+// Round4 F1: UTC-day comparison (was comparing against browser-local midnight via
+// toDateString()) — now agrees with the Scoreboard/task-row's overdue determination.
+const overdue = (t: Task) => !!t.dueDate && !['Done', 'Cancelled'].includes(t.status) && utcDayStart(t.dueDate) < todayUtcStart();
 
 function TaskLine({ t }: { t: Task }) {
   const sp = statusPillStyle(t.status);

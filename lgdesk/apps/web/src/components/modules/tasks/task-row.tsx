@@ -8,7 +8,7 @@ import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
 import { Badge } from '../../ui/badge';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../ui/dropdown-menu';
-import { avatarColor, initials, statusDotColor as dotColor, fmtDate } from '../../../lib/utils';
+import { avatarColor, initials, statusDotColor as dotColor, fmtDate, utcDayStart, todayUtcStart } from '../../../lib/utils';
 import { statusDot, statusPillStyle } from '../../../lib/status-styles';
 import { TASK_STATUSES } from './create-task-modal.schema';
 import type { Task, User } from '../../../lib/types';
@@ -16,12 +16,12 @@ import type { Task, User } from '../../../lib/types';
 const CLOSED = ['Done', 'Cancelled'];
 export { TASK_STATUSES };
 
+// Round4 F1: UTC-day comparison, matching dashboard.service.ts's todayUtc()/dateOnly()
+// exactly, so this agrees with the backend Scoreboard's overdue count regardless of
+// the viewer's local timezone (see lib/utils.ts's utcDayStart/todayUtcStart).
 export function isTaskOverdue(task: Pick<Task, 'dueDate' | 'status'>): boolean {
   if (!task.dueDate || CLOSED.includes(task.status)) return false;
-  const due = new Date(task.dueDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return due < today;
+  return utcDayStart(task.dueDate) < todayUtcStart();
 }
 export function isDueToday(dueDate?: string): boolean {
   if (!dueDate) return false;
