@@ -322,6 +322,36 @@ that pairs well with the Functions work just completed in this batch. **F3** (Wo
 week), and **F11** (registration DOB data loss) are each independent enough to fold in or defer further
 depending on how large Batch 2's own scope should run.
 
+---
+
+## Round 4 Fix Status — Batch 2 (PFIX-ROUND4-BATCH-2, 2026-09-03)
+
+Same capability gap as Batch 1 (no live browser tool, no role credentials this session either) — every
+item below is `FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING`, not a bare `FIXED`.
+
+| # | Finding | Status | Commit | What was confirmed vs. still pending |
+|---|---|---|---|---|
+| 1 | S5 — leave-notify email bypassed `EmailService`, wrong sender domain, swallowed errors | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `a1f93c0` | Confirmed: `notifyManager` now calls the new `EmailService.sendLeaveSubmitted()` — same shared `send()`/`this.from`/error-logging path as every other notification; standalone `Resend` client, hardcoded `.in` domain, and the now-unused `ConfigService` injection all removed; clean api build. Pending: not observed as an actual delivered email (no `RESEND_API_KEY`/inbox access this session either). |
+| 2 | S3 — Directory presence dot hardcoded to "online" | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `7fe90b2` | Confirmed: the `pres-online` class and its wrapping absolutely-positioned dot are gone from `DirCard`; no substitute fake value added; clean web build. Pending: not observed live (would only show "no dot" either way — a negative-space UI change, low risk, but not watched render). |
+| 3 | F6 — `FunctionDetailModal` had zero navigation entry point | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `cdb481f` | Confirmed: Function/Sub-Function names in the task detail modal's context cards are now buttons that open `FunctionDetailModal`, following the exact existing sibling-modal pattern (`DdrModal`/`TaskEditModal`); clean web build, no circular-import issue (`function-detail-modal.tsx` doesn't import back from `task-detail-modal.tsx`). Pending: not clicked through live. |
+| 4 | S4 — SA/Admin/TC's typed manager email silently discarded | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `73fa967` | Confirmed: re-read the current code myself before changing anything (per the process) and found the frontend already collected+displayed the value with its own comment admitting it was never sent; added `managerEmail` to the DTO with active-employee validation, a shared `MANUAL_MANAGER_ROLES` constant, and the role-branch in `submitRegistration`; hand-traced 3 concrete cases (valid email honored, blank falls back to the untouched auto-lookup, typo rejected with a 400) against the actual updated code; clean api+web builds. Pending: not exercised via a real registration submission in a running app. |
+
+**Final build state**: `npm run build:api` and `npm run build:web` both exit 0 with no errors after all 4
+Batch-2 fixes are applied together (re-run once at the end, in addition to the per-item builds).
+
+**Proposed Batch 3 scope**: the 5 items explicitly deferred from Batch 2 — **F3** (WorkLog attendance
+default) and **F8** (MIS Report wrong default week) cluster naturally as "wrong default value" bugs with
+no schema changes needed, each a single-line-ish fix once traced to its exact default-assignment site.
+**F7** (import-toast truncation) is a self-contained frontend UI fix (surface the already-generated
+per-row warning text instead of just a count) with no backend change. **F4** (the 20-relation `onDelete`
+gap) and **F11** (registration DOB data loss) are the two that plausibly need a schema migration —
+`F4` because Prisma's `onDelete` policy is a schema-level `@relation` attribute, not a DTO/service
+concern, and `F11` because `RegistrationRequest` has no `dob` column to write into. Both should be
+scoped and authorized explicitly as a schema-touching batch rather than folded into a
+no-migration-needed batch like this one and Batch 1 were — recommend confirming with the user before
+starting Batch 3 whether that authorization is granted for this next pass, the same way Batch 1/2's
+prompts explicitly stated "never modify prisma/schema.prisma" for their own scope.
+
 **D2 — DISPUTED (1/2 refuted): My Leaves' extra Cancel column (F53).** One skeptic found `AUDIT_REPORT.md` already triaged this exact divergence as **"ACCEPTED — net-new feature"** (the rebuild's own code even cites "Master Reference leaves.gs cancelLeaveRequest" as its stated source, i.e. it claims to follow a written spec rather than being an accidental addition). **Recommendation: treat as already-accepted, not a new open item.**
 
 ---
