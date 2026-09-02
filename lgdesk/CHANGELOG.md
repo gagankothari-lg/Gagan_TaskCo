@@ -2,6 +2,21 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-03 — PFIX-ROUND4-BATCH-2
+
+Batch 2 of the Round 4 fix series -- 3 independent bugs (S5, S3, F6) plus one that pairs with Batch 1's
+Functions work (F6 above already listed; see `AUDIT_REPORT_ROUND4_2026-09-02.md`'s Round 4 Fix Status
+section for the full table). Same discipline as Batch 1: one item at a time, build clean before moving on.
+
+- **Fix 1 (Round4-S5) — leave-submission manager-notify email bypassed the shared `EmailService`, used
+  the wrong sender domain, and swallowed the SDK's error field.** `leaves.service.ts`'s `notifyManager`
+  instantiated its own `new Resend(key)` client with a hardcoded `noreply@leveragedgrowth.in` sender
+  (every other sender uses the configurable `FROM_EMAIL`, `.co`) and never checked the send result for
+  an error. Added `EmailService.sendLeaveSubmitted()` (same template/error-handling pattern as
+  `sendRegistrationSubmitted`/`sendMeetingScheduled`), wired `EmailModule` into `LeavesModule`, and
+  rewrote `notifyManager` to call it -- removing the standalone `Resend` client, the hardcoded domain,
+  and the now-unused `ConfigService` injection entirely.
+
 ## 2026-09-03 — PFIX-ROUND4-BATCH-1
 
 Fixing the batch `AUDIT_REPORT_ROUND4_2026-09-02.md`'s "Recommendation for the next prompt" named first:

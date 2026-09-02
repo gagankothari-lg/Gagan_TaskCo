@@ -5,9 +5,10 @@ import { IdUtilsService } from '../common/utils/id.utils';
 import { CalendarModule } from '../calendar/calendar.module';
 import { UsersModule } from '../users/users.module';
 import { MeetingsModule } from '../meetings/meetings.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [CalendarModule, UsersModule, MeetingsModule],
+  imports: [CalendarModule, UsersModule, MeetingsModule, EmailModule],
   controllers: [LeavesController],
   providers: [LeavesService, IdUtilsService],
   exports: [LeavesService],

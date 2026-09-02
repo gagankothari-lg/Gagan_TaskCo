@@ -4,13 +4,12 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { CalendarService } from '../calendar/calendar.service';
 import { UsersService } from '../users/users.service';
 import { MeetingsService } from '../meetings/meetings.service';
+import { EmailService } from '../email/email.service';
 import { isAdmin, isManager } from '../common/constants';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { ReviewLeaveDto } from './dto/review-leave.dto';
@@ -21,10 +20,10 @@ export class LeavesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
-    private readonly config: ConfigService,
     private readonly calendar: CalendarService,
     private readonly users: UsersService,
     private readonly meetings: MeetingsService,
+    private readonly email: EmailService,
   ) {}
 
   async submitLeave(dto: CreateLeaveDto, callerEmpId: string) {
@@ -191,23 +190,27 @@ export class LeavesService {
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   }
 
+  // Round4 S5: was a standalone `new Resend(key)` client with a hardcoded `.in` sender
+  // domain (every other sender in the codebase uses the configurable FROM_EMAIL, `.co`)
+  // and no error-field check on the send result. Now routes through the shared
+  // EmailService the same way every other notification path does (see
+  // meetings.service.ts's notifyMeetingScheduled for the identical try/catch shape).
   private async notifyManager(empId: string, leaveType: string, start: Date, end: Date) {
     try {
-      const key = this.config.get<string>('RESEND_API_KEY');
-      if (!key) return;
       const user = await this.prisma.user.findUnique({ where: { empId }, select: { firstName: true, lastName: true, managerId: true } });
       if (!user?.managerId) return;
-      const manager = await this.prisma.user.findUnique({ where: { empId: user.managerId }, select: { email: true } });
+      const manager = await this.prisma.user.findUnique({ where: { empId: user.managerId }, select: { email: true, firstName: true, lastName: true } });
       if (!manager?.email) return;
-      const resend = new Resend(key);
-      await resend.emails.send({
-        from: 'LG Desk <noreply@leveragedgrowth.in>',
-        to: manager.email,
-        subject: `Leave request from ${user.firstName} ${user.lastName}`,
-        text: `${user.firstName} ${user.lastName} requested ${leaveType} from ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}. Review it in LG Desk.`,
+      await this.email.sendLeaveSubmitted({
+        managerEmail: manager.email,
+        managerName: `${manager.firstName} ${manager.lastName}`,
+        applicantName: `${user.firstName} ${user.lastName}`,
+        leaveType,
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
       });
     } catch {
-      // fire-and-forget — never surface notification failures
+      // Notification is best-effort — never affects leave submission itself.
     }
   }
 
