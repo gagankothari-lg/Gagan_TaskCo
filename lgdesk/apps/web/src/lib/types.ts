@@ -145,6 +145,8 @@ export interface RegistrationRequest {
   status: string;
   reviewedBy?: string | null;
   notes?: string | null;
+  // Round4 F11: was previously collected by the form and discarded before submission.
+  dob?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -5,12 +5,14 @@
 // NOTE (backend gap, partially fixed — PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE):
 // apps/api/src/auth/dto/register-request.dto.ts now whitelists role (validated against
 // the same ALL_ROLES list as below) in addition to firstName/lastName/email/password/
-// team/subDepartment/designation. dob/message are still NOT whitelisted (ValidationPipe
-// has forbidNonWhitelisted:true, so sending them would 400) — they're validated
-// client-side below purely for parity with the legacy GAS form and so the UI matches
-// Master Reference exactly; the submit handler only sends the API-whitelisted subset
-// for those two. managerEmail IS now whitelisted and sent (Round4 S4 fix) — but only
-// for MANUAL_MANAGER_ROLES; see the submit handler and users.service.ts.
+// team/subDepartment/designation. `message` is still NOT whitelisted (ValidationPipe
+// has forbidNonWhitelisted:true, so sending it would 400) — it's validated client-side
+// below purely for parity with the legacy GAS form and so the UI matches Master
+// Reference exactly; the submit handler only sends the API-whitelisted subset for it.
+// managerEmail IS now whitelisted and sent (Round4 S4 fix) — but only for
+// MANUAL_MANAGER_ROLES; see the submit handler and users.service.ts. dob IS now
+// whitelisted and sent too (Round4 F11 fix) — previously collected here then silently
+// discarded before submission.
 import { z } from 'zod';
 
 export const ROLES = [

@@ -98,13 +98,14 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
   async function onSubmit(values: RegistrationFormValues) {
     setError(null);
     try {
-      // dob/message are collected for parity with the GAS form but stay client-only —
-      // the backend DTO would 400 on those unknown keys. role IS sent
+      // message is collected for parity with the GAS form but stays client-only — the
+      // backend DTO would 400 on that unknown key. role IS sent
       // (PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE): RegisterRequestDto whitelists it now.
       // Round4 S4: managerEmail is now sent too, but only for the manual-entry roles
       // (SA/Admin/TC) — for auto-filled roles the backend independently re-derives the
       // same value via getTeamCaptainByTeam, so sending it there would be redundant with
       // (and could only ever agree with) that server-side lookup.
+      // Round4 F11: dob is now sent too -- previously collected then silently discarded.
       await registerRequest({
         firstName: values.firstName,
         lastName: values.lastName,
@@ -115,6 +116,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
         subDepartment: values.subDepartment || undefined,
         designation: values.designation || undefined,
         managerEmail: managerManual && values.managerEmail ? values.managerEmail : undefined,
+        dob: values.dob ? new Date(values.dob).toISOString() : undefined,
       });
       setSubmitted(true);
     } catch (err) {

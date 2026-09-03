@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { ALL_ROLES } from '../../common/constants';
 
 export class RegisterRequestDto {
@@ -42,4 +42,10 @@ export class RegisterRequestDto {
   @IsOptional()
   @IsEmail({}, { message: 'Invalid manager email format' })
   managerEmail?: string;
+
+  // Round4 F11: the registration form already collects this (registration-modal.tsx)
+  // but it was discarded client-side before submission -- there was nowhere to put it.
+  @IsOptional()
+  @IsISO8601()
+  dob?: string;
 }

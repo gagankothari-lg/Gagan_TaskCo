@@ -49,6 +49,7 @@ const REG_REQUEST_SELECT = {
   status: true,
   reviewedBy: true,
   notes: true,
+  dob: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -186,6 +187,8 @@ export class UsersService {
         managerId: captain?.empId ?? null,
         role: dto.role ?? 'Team Member',
         status: 'Pending',
+        // Round4 F11: was previously discarded client-side before submission.
+        dob: dto.dob ? new Date(dto.dob) : null,
       },
     });
 
@@ -250,6 +253,8 @@ export class UsersService {
         managerId: req.managerId,
         team: req.team,
         subDepartment: req.subDepartment,
+        // Round4 F11: same DateTime? shape as User.dob -- no format conversion needed.
+        dob: req.dob,
         isActive: true,
       },
     });
