@@ -9,6 +9,8 @@ export const holidaySchema = z.object({
     .string()
     .min(1, 'Date is required.')
     .refine((v) => !Number.isNaN(Date.parse(v)), 'Enter a valid date.'),
+  // Round4 checklist#6: reference has a description field on Holiday; the rebuild didn't.
+  description: z.string().optional(),
 });
 
 export type HolidayFormValues = z.infer<typeof holidaySchema>;

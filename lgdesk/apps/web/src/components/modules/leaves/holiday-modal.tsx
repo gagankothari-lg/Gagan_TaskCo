@@ -18,18 +18,18 @@ export function HolidayModal({ open, onClose, defaultDate }: { open: boolean; on
 
   const form = useForm<HolidayFormValues>({
     resolver: zodResolver(holidaySchema),
-    defaultValues: { name: '', date: defaultDate ?? '' },
+    defaultValues: { name: '', date: defaultDate ?? '', description: '' },
   });
 
   useEffect(() => {
-    if (open) { form.reset({ name: '', date: defaultDate ?? '' }); setError(null); }
+    if (open) { form.reset({ name: '', date: defaultDate ?? '', description: '' }); setError(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultDate]);
 
   async function onSubmit(values: HolidayFormValues) {
     setError(null);
     try {
-      await add.mutateAsync({ name: values.name, date: new Date(values.date).toISOString() });
+      await add.mutateAsync({ name: values.name, date: new Date(values.date).toISOString(), description: values.description || undefined });
       toast('Holiday added', 'success');
       onClose();
     } catch (err) {
@@ -64,6 +64,17 @@ export function HolidayModal({ open, onClose, defaultDate }: { open: boolean; on
                 render={({ field }) => (
                   <FormItem>
                     <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/* Round4 checklist#6: reference has a description field; the rebuild didn't. */}
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl><input className={fieldClass} placeholder="Description (optional)" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

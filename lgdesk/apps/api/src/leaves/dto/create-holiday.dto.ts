@@ -1,4 +1,4 @@
-import { IsISO8601, IsNotEmpty, IsString } from 'class-validator';
+import { IsISO8601, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateHolidayDto {
   @IsString()
@@ -7,4 +7,7 @@ export class CreateHolidayDto {
 
   @IsISO8601()
   date!: string;
+
+  // Round4 checklist#6: reference has a description field on Holiday; the rebuild didn't.
+  @IsOptional() @IsString() description?: string;
 }

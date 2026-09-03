@@ -120,7 +120,8 @@ export class LeavesService {
   async addHoliday(dto: CreateHolidayDto, callerEmpId: string) {
     const caller = await this.getCaller(callerEmpId);
     if (!isAdmin(caller.role)) throw new ForbiddenException();
-    const holiday = await this.prisma.holiday.create({ data: { name: dto.name, date: this.normalize(dto.date) } });
+    // Round4 checklist#6: description is optional -- reference has it, rebuild didn't.
+    const holiday = await this.prisma.holiday.create({ data: { name: dto.name, date: this.normalize(dto.date), description: dto.description } });
     void this.syncHolidayToCalendar(holiday.id);
     await this.audit(callerEmpId, 'HOLIDAY_ADD', holiday.id);
     return holiday;

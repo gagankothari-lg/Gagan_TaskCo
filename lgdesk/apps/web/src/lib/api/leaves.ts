@@ -50,7 +50,7 @@ export function useReviewLeave() {
 export function useAddHoliday() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: { name: string; date: string }) => apiFetch<Holiday>('/holidays', { method: 'POST', body: dto }),
+    mutationFn: (dto: { name: string; date: string; description?: string }) => apiFetch<Holiday>('/holidays', { method: 'POST', body: dto }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['holidays'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
