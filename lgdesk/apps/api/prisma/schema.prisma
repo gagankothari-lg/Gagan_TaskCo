@@ -25,7 +25,9 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  manager           User?                  @relation("Reports", fields: [managerId], references: [empId])
+  // Round4 F4: managerId is optional/nullable (org-hierarchy pointer, not a dependent
+  // record) -- deleting a manager should orphan the link, not block or cascade.
+  manager           User?                  @relation("Reports", fields: [managerId], references: [empId], onDelete: SetNull)
   reports           User[]                 @relation("Reports")
   workLogs          WorkLog[]
   internWorkLogs    InternWorkLog[]
@@ -80,7 +82,21 @@ model Task {
   assignerId        String
   status            String    @default("Not Started")
   priority          String    @default("Medium")
+  // Round4 checklist#1: deliberately kept ADDITIVE, not folded, despite recurring/
+  // recurrencePattern being logically redundant. Dropping `recurring` would silently
+  // destroy the one bit of signal every existing task row already has -- for any row
+  // where recurring=true, there is no way to know which of the 5 real cadences
+  // (One Time/Daily/Weekly/Monthly/Quarterly -- app.js.html:10480-10485, re-verified
+  // directly) it should become, so a fold's default 'One Time' would silently convert
+  // real recurring tasks to non-recurring with no record it happened. This batch's own
+  // rule is "no existing-row data touched, additive columns only" -- so `recurring`
+  // stays exactly as-is (untouched, still the legacy source of truth for anything old
+  // that still reads it), and the service layer keeps it in sync going forward
+  // (recurring := recurrencePattern !== 'One Time') on every create/update through the
+  // new field, so it never goes stale for newly written rows either. Revisit as a
+  // separate, explicitly-scoped migration if the boolean is ever worth removing.
   recurring         Boolean   @default(false)
+  recurrencePattern String    @default("One Time")
   dueDate           DateTime?
   estimatedHours    Float?
   actualHours       Float     @default(0)
@@ -91,8 +107,11 @@ model Task {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  project         Project?       @relation(fields: [projId], references: [projId])
-  function        WorkFunction?  @relation("FunctionTasks", fields: [functionId], references: [functionId])
+  // Round4 F4: projId/functionId are optional categorization pointers (a task doesn't stop
+  // existing if its project/function is deleted) -- SetNull, matching the subFunction
+  // precedent immediately below (already explicit before this batch).
+  project         Project?       @relation(fields: [projId], references: [projId], onDelete: SetNull)
+  function        WorkFunction?  @relation("FunctionTasks", fields: [functionId], references: [functionId], onDelete: SetNull)
   subFunction     WorkFunction?  @relation("SubFunctionTasks", fields: [subFnId], references: [functionId], onDelete: SetNull)
   progressUpdates ProgressUpdate[]
   attachments     Attachment[]
@@ -121,7 +140,9 @@ model Project {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  parent      Project?       @relation("SubProjects", fields: [parentProjId], references: [projId])
+  // Round4 F4: optional self-referencing hierarchy pointer -- same reasoning as
+  // WorkFunction.parent below.
+  parent      Project?       @relation("SubProjects", fields: [parentProjId], references: [projId], onDelete: SetNull)
   subProjects Project[]      @relation("SubProjects")
   tasks       Task[]
   functions   WorkFunction[]
@@ -148,12 +169,21 @@ model WorkFunction {
   assignmentHistory String    @default("[]")
   links             String?
   createdById       String
+  // Round4 F35: Function's own recurring cadence -- a real, live, saved field
+  // (_saveFunctionEdit, app.js.html:11695-11775), independent of Task.recurrencePattern:
+  // a distinct, wider 10-value vocabulary (setupSheets.gs:13,104), not shared with Task's
+  // 5-value list. Replaces the DTO-only `recurringFunctions` boolean that already existed
+  // in create/update-function.dto.ts but was never backed by a schema column, so it was
+  // silently discarded before ever reaching functions.service.ts (confirmed: zero reads of
+  // `dto.recurringFunctions` anywhere in that service) -- a dead field, not a working one.
+  recurringPattern  String    @default("One Time")
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  parent     WorkFunction?  @relation("SubFunctions", fields: [parentFnId], references: [functionId])
+  // Round4 F4: parentFnId/projId are optional categorization pointers -- SetNull.
+  parent     WorkFunction?  @relation("SubFunctions", fields: [parentFnId], references: [functionId], onDelete: SetNull)
   children   WorkFunction[] @relation("SubFunctions")
-  project    Project?       @relation(fields: [projId], references: [projId])
+  project    Project?       @relation(fields: [projId], references: [projId], onDelete: SetNull)
   tasks      Task[]         @relation("FunctionTasks")
   subFnTasks Task[]         @relation("SubFunctionTasks")
 
@@ -181,7 +211,10 @@ model WorkLog {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: required FK to User, an attendance/audit record. The app has no
+  // hard-delete-user feature (only soft `deactivateEmployee`) -- Restrict makes that
+  // already-implicit protection explicit rather than leaving it to Prisma/DB defaults.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
 
   @@unique([empId, date])
   @@map("work_logs")
@@ -202,7 +235,8 @@ model InternWorkLog {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
 
   @@unique([empId, date])
   @@map("intern_work_logs")
@@ -225,7 +259,8 @@ model WorkDuration {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  user   User         @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above -- clock-session audit record.
+  user   User         @relation(fields: [empId], references: [empId], onDelete: Restrict)
   breaks WorkBreak[]
 
   @@unique([empId, date])
@@ -239,7 +274,19 @@ model WorkBreak {
   breakEnd       DateTime?
   durationMins   Int       @default(0)
 
-  session WorkDuration @relation(fields: [sessionId], references: [sessionId])
+  // Round4 F4: DEVIATES from this batch's own "make everything Restrict" starting
+  // suggestion -- flagged explicitly per instruction. sessionId is a REQUIRED FK (not
+  // nullable, so SetNull isn't an option), but unlike WorkLog/Leave/etc.'s required FKs to
+  // User, this one points to WorkDuration, not User -- there is no employee audit-trail
+  // concern here. A WorkBreak row has no independent meaning or any read path outside its
+  // parent clock session (a break with no session is meaningless, and nothing in the app
+  // queries WorkBreak on its own) -- architecturally identical to ProgressUpdate.task's
+  // existing Cascade precedent (a required FK to a "container" record the child cannot
+  // outlive), not to the User-history relations Restrict protects. Cascade is therefore the
+  // reasoned choice, not Restrict-by-default. (In practice this is currently dormant either
+  // way -- there is no delete-WorkDuration feature to trigger it -- but Cascade is the
+  // semantically correct annotation for if/when one is ever built.)
+  session WorkDuration @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
 
   @@map("work_breaks")
 }
@@ -261,17 +308,20 @@ model Leave {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above -- leave history is an audit record.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
 
   @@map("leaves")
 }
 
 model Holiday {
-  id         String   @id @default(cuid())
-  date       DateTime @db.Date @unique
-  name       String
-  calEventId String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date @unique
+  name        String
+  // Round4 checklist#6: reference has a description field on Holiday; the rebuild didn't.
+  description String?
+  calEventId  String?
+  createdAt   DateTime @default(now())
 
   @@map("holidays")
 }
@@ -305,6 +355,15 @@ model Announcement {
   content     String    @default("")
   authorId    String
   visibility  String    @default("Organisation")
+  // Round4 checklist#7: re-derived from the reference's actual LIVE-reachable markup
+  // (index.html #nb-type/#nb-priority selects), which outranks LGDesk_Master_Reference.md
+  // Part 60 (that doc disagrees with the live selects and is stale here) and is narrower
+  // than app.js.html's broader _NB_TYPE_ICON map (which also covers non-Announcement
+  // synthesized notice kinds like Birthday/Meeting/Holiday -- not real Announcement values).
+  // type: General/Emergency/Reminder. priority: Normal/High/Urgent (drives the notice
+  // board's "Urgent" badge, _renderNoticeBoard's `n.priority === 'Urgent'` check).
+  type        String    @default("General")
+  priority    String    @default("Normal")
   startDate   DateTime?
   expiresAt   DateTime?
   isPinned    Boolean   @default(false)
@@ -324,7 +383,8 @@ model Todo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
   @@map("todos")
 }
 
@@ -338,7 +398,8 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
   @@map("notes")
 }
 
@@ -351,7 +412,8 @@ model Idea {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
   @@map("ideas")
 }
 
@@ -369,7 +431,12 @@ model Attachment {
   isDeleted    Boolean  @default(false)
   createdAt    DateTime @default(now())
 
-  task Task? @relation(fields: [taskId], references: [taskId])
+  // Round4 F4: taskId is optional (an attachment can be un-linked, e.g. project-only via
+  // projId), and attachments already have their own independent soft-delete lifecycle
+  // (isDeleted, BR-17 -- the file stays in Google Drive regardless of the DB row's parent).
+  // SetNull matches that existing "outlives its parent" design; Cascade would delete an
+  // attachment record whose underlying file the app deliberately keeps.
+  task Task? @relation(fields: [taskId], references: [taskId], onDelete: SetNull)
 
   @@map("attachments")
 }
@@ -406,7 +473,8 @@ model WeeklySummary {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
 
   @@unique([empId, weekStart])
   @@map("weekly_summaries")
@@ -418,7 +486,8 @@ model MisAccess {
   email     String   @unique
   grantedAt DateTime @default(now())
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
   @@map("mis_access")
 }
 
@@ -436,7 +505,9 @@ model ProgressUpdate {
   createdAt   DateTime @default(now())
 
   task Task @relation(fields: [taskId], references: [taskId], onDelete: Cascade)
-  user User @relation(fields: [authorEmpId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above -- a progress update is authored
+  // history, distinct from its `task` relation above (already explicit pre-batch).
+  user User @relation(fields: [authorEmpId], references: [empId], onDelete: Restrict)
 
   @@map("progress_updates")
 }
@@ -460,6 +531,11 @@ model RegistrationRequest {
   status        String   @default("Pending")
   reviewedBy    String?
   notes         String?
+  // Round4 F11: the registration form already collects DOB (registration-modal.tsx) but it
+  // was discarded client-side before submission -- there was nowhere to put it. Typed
+  // DateTime? to exactly match User.dob so approval-time promotion (approveRegistration)
+  // needs no format conversion between the two.
+  dob           DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -478,7 +554,8 @@ model ProfileUpdateRequest {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
 
   @@map("profile_update_requests")
 }
@@ -494,7 +571,9 @@ model AuditLog {
   after     String?
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [empId], references: [empId])
+  // Round4 F4: same reasoning as WorkLog.user above -- audit logs are the audit trail
+  // itself, the single relation this rule matters most for.
+  user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
 
   @@map("audit_logs")
 }
