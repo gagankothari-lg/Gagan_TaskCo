@@ -2,6 +2,61 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-03 — PFIX-ROUND4-SCHEMA-BATCH
+
+Consolidates the 6 previously schema-blocked Round 4 findings into one migration --
+`20260903123018_add_round4_schema_batch`, generated offline via `prisma migrate diff
+--from-schema-datamodel` (no live DB connection, no `db push`), hand-reviewed line by
+line, developed entirely on a branch (`schema/round4-migration-batch`) and held there
+until an explicit go-ahead plus confirmation of a recent Neon restore point, per this
+batch's own safety protocol. Deployed to production via `prisma migrate deploy`;
+`prisma migrate status` confirms the schema is up to date post-deploy.
+
+- **Checklist#1 (Task.recurrencePattern)** — added the reference's real 5-value
+  recurring cadence (One Time/Daily/Weekly/Monthly/Quarterly, `app.js.html:10480-10485`)
+  additively alongside the existing `recurring` boolean rather than folding it: a fold
+  would have silently converted every existing `recurring=true` task to
+  `recurrencePattern='One Time'`, since there's no way to recover which cadence a bare
+  boolean should become. `recurring` stays untouched and is kept in sync server-side
+  going forward. Wired into both Task DTOs and the Add-Tasks batch row's new dropdown,
+  which previously had no recurring control at all.
+- **F35 (WorkFunction.recurringPattern)** — confirmed via direct source reading that
+  Function's own recurring cadence is a real, live, saved field in the reference
+  (`_saveFunctionEdit`, `app.js.html:11695-11775`), not dead code to skip. Replaced an
+  existing-but-fully-dead `recurringFunctions` boolean DTO field (validated on both
+  create/update-function DTOs but never once read by `functions.service.ts`) with the
+  real 10-value cadence, and added a select to both the create and edit Function
+  modals -- neither had any recurring control before this fix.
+- **Checklist#6 (Holiday.description)** — added nullable string; wired through the
+  only Holiday write path that exists in the app (create -- there is no edit endpoint
+  for Holiday anywhere).
+- **Checklist#7 (Announcement.type/priority)** — values re-derived directly from the
+  reference's actual LIVE-reachable markup (`index.html` `#nb-type`/`#nb-priority`
+  selects: General/Emergency/Reminder, Normal/High/Urgent), overriding
+  `LGDesk_Master_Reference.md` Part 60, which disagrees with the live selects, and
+  narrower than `app.js.html`'s broader `_NB_TYPE_ICON` map (which also covers
+  non-Announcement synthesized notice kinds). Wired into the Post Announcement form --
+  also completing the Quick-fill templates' per-template priority, previously a
+  documented gap since the column didn't exist -- and added the notice board's
+  "URGENT" badge, mirroring the reference's `n.priority === 'Urgent'` check exactly.
+- **F11 (RegistrationRequest.dob)** — the registration form already collected DOB but
+  discarded it client-side before submission; there was nowhere to put it. Typed to
+  exactly match `User.dob` so approval-time promotion (`approveRegistration`) needs no
+  format conversion between the two.
+- **F4 (20 relations with no explicit `onDelete`)** — made Prisma's implicit defaults
+  explicit: 7 SetNull (optional categorization/hierarchy pointers), 12 Restrict
+  (required FKs to `User` -- this app has no hard-delete-user feature, only soft
+  `deactivateEmployee`, so an audit-trail relation silently allowing Cascade would be
+  a real risk). One deliberate deviation from a blanket "make everything Restrict"
+  starting point: `WorkBreak.session` went Restrict→**Cascade** instead, reasoned
+  inline in the schema -- it's a required FK to `WorkDuration`, not `User` (no
+  audit-trail concern), and a WorkBreak row has no independent meaning or read path
+  outside its parent clock session, architecturally matching the existing
+  `ProgressUpdate.task` Cascade precedent rather than the User-history relations
+  Restrict protects. 19 of the 20 annotations generated zero migration SQL (Prisma's
+  implicit default already matched what was written) -- only the one Cascade
+  deviation produced a real `DROP`/`ADD CONSTRAINT` pair.
+
 ## 2026-09-03 — PFIX-ROUND4-BATCH-3
 
 Batch 3 of the Round 4 fix series -- 3 items chosen specifically because none need a schema change

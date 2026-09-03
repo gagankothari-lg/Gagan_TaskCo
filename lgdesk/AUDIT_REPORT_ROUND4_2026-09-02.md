@@ -390,6 +390,47 @@ remain unaddressed after this batch; the next fix pass is the schema-migration b
 
 ---
 
+## Round 4 Fix Status — Schema Batch (PFIX-ROUND4-SCHEMA-BATCH, 2026-09-03)
+
+The 6 previously schema-blocked findings (checklist#1, F35, checklist#6, checklist#7, F11, F4), run on a
+dedicated branch (`schema/round4-migration-batch`) per this batch's own safety protocol: never
+`prisma db push`; migration generated offline via `prisma migrate diff --from-schema-datamodel` (no live
+DB connection during generation); the generated SQL hand-reviewed line by line before going anywhere near
+production; branch held for explicit human go-ahead plus confirmation of a recent Neon restore point
+before merge/deploy. All of that happened — merged to `main`, pushed, and
+`prisma migrate deploy` applied `20260903123018_add_round4_schema_batch` to production; `prisma migrate
+status` confirmed "Database schema is up to date!" immediately after. The migration application itself is
+therefore **confirmed live**, not just in-source — the app-code wiring below carries the same
+`FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING` tag as every prior batch (no live browser tool this session
+either).
+
+| # | Finding | Status | Commit | What was confirmed vs. still pending |
+|---|---|---|---|---|
+| 1 | Checklist#1 — `Task.recurrencePattern` missing (only a plain boolean existed) | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `1431bcf` | Confirmed: re-verified the 5-value cadence directly against `app.js.html:10480-10485`; added additively alongside the untouched `recurring` boolean (a fold would have silently destroyed the recurring signal on existing rows, since a bare boolean can't be reverse-mapped to a specific cadence) — this was a correction made mid-batch after hand-reviewing the generated migration SQL and catching the data-loss risk before it reached production. Wired into both Task DTOs, `tasks.service.ts` (keeps `recurring` in sync going forward), and the Add-Tasks batch row's new dropdown, which previously had no recurring control at all. Clean api+web builds. Pending: not exercised via a real task create/edit in a running app. |
+| 2 | F35 — Function recurring cadence missing | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `c469c7f` | Confirmed via direct source reading (per the process's "check first, don't guess" instruction) that this is a real, live, saved reference field (`_saveFunctionEdit`, `app.js.html:11695-11775`), not dead code to skip. Also confirmed the DTOs already had a `recurringFunctions` boolean field that was never once read by `functions.service.ts` — a dead field, not a working one — replaced with the real 10-value cadence and a select added to both the create and edit Function modals, neither of which had any recurring control before this fix. Clean api+web builds. Pending: not exercised live. |
+| 3 | Checklist#6 — `Holiday.description` missing | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `21f71df` | Confirmed: nullable string added; wired through the only Holiday write path that exists in the app (create — there is no edit endpoint for Holiday anywhere, confirmed by reading `leaves.controller.ts`). Clean api+web builds. Pending: not exercised live. |
+| 4 | Checklist#7 — `Announcement.type`/`priority` missing | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `31b7411` | Confirmed by re-deriving the value sets myself from `index.html`'s actual live `#nb-type`/`#nb-priority` markup (General/Emergency/Reminder; Normal/High/Urgent) rather than trusting `LGDesk_Master_Reference.md` Part 60, which disagrees with the live selects — per this project's own rule that live markup outranks written docs. Narrower than `app.js.html`'s `_NB_TYPE_ICON` map, which also covers non-Announcement synthesized notice kinds. Wired into the Post Announcement form (also completing the Quick-fill templates' per-template priority, previously a documented gap) and the notice board's new "URGENT" badge. Clean api+web builds. Pending: not exercised live. |
+| 5 | F11 — Registration DOB collected then discarded | FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING | `16e96b3` | Confirmed by reading the registration modal's `onSubmit` handler myself that DOB was collected and typed but never sent. Added `RegistrationRequest.dob` typed identically to `User.dob` (`DateTime?`) so `approveRegistration`'s promotion needs no format conversion; `REG_REQUEST_SELECT` updated so reviewers can see it. Clean api+web builds. Pending: not exercised live. |
+| 6 | F4 — 20 relations with no explicit `onDelete` | Schema change confirmed live (migration applied, `migrate status` clean) | `00a0b4f` | Read `Task.subFunction` and `ProgressUpdate.task`'s existing explicit values as precedent, as instructed, and derived a principled framework rather than blanket-applying "make everything Restrict": 7 SetNull (optional categorization/hierarchy pointers) + 12 Restrict (required FKs to `User` — no hard-delete-user feature exists, only soft `deactivateEmployee`) + 1 deliberate deviation. That deviation, flagged explicitly per instruction: `WorkBreak.session` went Restrict→**Cascade**, not Restrict, because it's a required FK to `WorkDuration` (not `User` — no audit-trail concern) and a WorkBreak row has no independent meaning outside its parent session, matching the `ProgressUpdate.task` Cascade precedent instead. Cross-validated the 7+12+1=20 count exactly against this audit's own independently-derived "20 of 22" figure. Hand-reviewing the generated SQL confirmed 19 of the 20 annotations produced zero DDL (Prisma's implicit default already matched) — only the one Cascade deviation produced a real `DROP`/`ADD CONSTRAINT` pair, exactly as this batch's process anticipated ("Prisma may generate an empty/near-empty migration, that's fine and expected"). No app-code change needed — pure schema/intent fix. |
+
+**Final build state**: `npm run build:api` and `npm run build:web` both exit 0 with no errors, re-run once
+at the end with all 6 items applied together, in addition to the per-item builds after each commit.
+
+**Migration deployment record**: generated offline (`prisma migrate diff --from-schema-datamodel`, zero
+live DB connection during generation) → hand-reviewed → held on branch pending human confirmation of a
+recent Neon backup/restore point → confirmed → merged to `main` (`8036f98..16e96b3`, fast-forward) →
+pushed → `prisma migrate deploy` applied `20260903123018_add_round4_schema_batch` to the production Neon
+instance → `prisma migrate status` confirmed "Database schema is up to date!" No raw SQL was used outside
+the one sanctioned Prisma-generated migration file; no existing row was updated or deleted by any
+statement in it.
+
+**No other schema-blocked Round 4 findings remain.** Checklist#8 (`Idea` default status) stays
+deliberately untouched — entangled with the unresolved DISPUTED D1 finding (Ideas' visibility model) —
+and checklist items #11/#12/#13/#14 remain out of scope as not schema-migration-shaped, per this batch's
+own explicit exclusions.
+
+---
+
 ## 7. Verification Methodology
 
 - **Environment**: local repository at `D:\...\Gagan_TaskCo` (git root; `lgdesk/` is a subdirectory, not a separate repo), commit `d483daf` on `main`, up to date with `origin/main` (`git log origin/main..HEAD` and the reverse both empty).
