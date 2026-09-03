@@ -12,7 +12,7 @@ import { Input } from '../../ui/input';
 import { Textarea } from '../../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
-import { announcementSchema, VISIBILITY, type AnnouncementFormValues } from './announcement-form.schema';
+import { announcementSchema, VISIBILITY, ANNOUNCEMENT_TYPES, ANNOUNCEMENT_PRIORITIES, type AnnouncementFormValues } from './announcement-form.schema';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -24,24 +24,24 @@ function plusDays(n: number): string {
 }
 
 function defaults(): AnnouncementFormValues {
-  return { title: '', content: '', startDate: today(), endDate: plusDays(7), visibility: 'Organisation' };
+  return { title: '', content: '', startDate: today(), endDate: plusDays(7), visibility: 'Organisation', type: 'General', priority: 'Normal' };
 }
 
 interface Template {
   label: string;
   visibility: (typeof VISIBILITY)[number];
   endInDays: number;
+  priority: (typeof ANNOUNCEMENT_PRIORITIES)[number];
 }
 
 // Part 12 "Quick-fill templates": Org-wide (+7d), TCs & TFs (+14d), TCs Only (+30d).
-// The legacy GAS form also flips a Priority select per template (Normal/High/High) —
-// this NestJS port's Announcement model has no priority column (see
-// apps/api/src/dashboard/dto/create-announcement.dto.ts), so that half of each
-// template is a pre-existing backend gap, not reproduced here.
+// The legacy GAS form also flips a Priority select per template (Normal/High/High) --
+// Round4 checklist#7 closes the previously-blocking gap (Announcement had no priority
+// column at all), so this now matches the reference exactly.
 const TEMPLATES: Template[] = [
-  { label: '🏢 Org-wide', visibility: 'Organisation', endInDays: 7 },
-  { label: '👥 TCs & TFs', visibility: 'TCs & TFs', endInDays: 14 },
-  { label: '⭐ TCs Only', visibility: 'TCs Only', endInDays: 30 },
+  { label: '🏢 Org-wide', visibility: 'Organisation', endInDays: 7, priority: 'Normal' },
+  { label: '👥 TCs & TFs', visibility: 'TCs & TFs', endInDays: 14, priority: 'High' },
+  { label: '⭐ TCs Only', visibility: 'TCs Only', endInDays: 30, priority: 'High' },
 ];
 
 /** Inline "Post Announcement" panel — visibility is controlled by the caller (the
@@ -65,6 +65,8 @@ export function AnnouncementForm({ onPosted, onCancel }: { onPosted?: () => void
         startDate: values.startDate ? new Date(values.startDate).toISOString() : undefined,
         endDate: values.endDate ? new Date(values.endDate).toISOString() : undefined,
         visibility: values.visibility,
+        type: values.type,
+        priority: values.priority,
       });
       toast('Announcement posted!', 'success');
       form.reset(defaults());
@@ -85,6 +87,7 @@ export function AnnouncementForm({ onPosted, onCancel }: { onPosted?: () => void
     form.setValue('visibility', t.visibility);
     form.setValue('startDate', today());
     form.setValue('endDate', plusDays(t.endInDays));
+    form.setValue('priority', t.priority);
   }
 
   return (
@@ -169,6 +172,50 @@ export function AnnouncementForm({ onPosted, onCancel }: { onPosted?: () => void
               </FormItem>
             )}
           />
+          {/* Round4 checklist#7: type/priority re-derived from the reference's live
+              index.html #nb-type/#nb-priority selects. */}
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="nb-type">Type</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="nb-type" className="w-full">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ANNOUNCEMENT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="priority"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="nb-priority">Priority</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="nb-priority" className="w-full">
+                        <SelectValue placeholder="Select priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ANNOUNCEMENT_PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           {error && <div className="rounded-[8px] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
           <div className="flex gap-2">
             <Button type="submit" disabled={create.isPending}>

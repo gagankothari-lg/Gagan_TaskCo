@@ -9,6 +9,13 @@ import { z } from 'zod';
 
 export const VISIBILITY = ['Organisation', 'TCs & TFs', 'TCs Only'] as const;
 
+// Round4 checklist#7: re-derived from the reference's actual LIVE-reachable markup
+// (index.html #nb-type/#nb-priority selects), overriding the stale Master Reference
+// Part 60 doc and narrower than app.js.html's broader _NB_TYPE_ICON map (which also
+// covers non-Announcement synthesized notice kinds like Birthday/Meeting/Holiday).
+export const ANNOUNCEMENT_TYPES = ['General', 'Emergency', 'Reminder'] as const;
+export const ANNOUNCEMENT_PRIORITIES = ['Normal', 'High', 'Urgent'] as const;
+
 const optionalDate = z
   .string()
   .optional()
@@ -21,6 +28,8 @@ export const announcementSchema = z
     startDate: optionalDate,
     endDate: optionalDate,
     visibility: z.enum(VISIBILITY).optional(),
+    type: z.enum(ANNOUNCEMENT_TYPES).optional(),
+    priority: z.enum(ANNOUNCEMENT_PRIORITIES).optional(),
   })
   // Part 37 checklist: "Set To date earlier than From date -> click Post -> toast 'End
   // date must be after start date.'"

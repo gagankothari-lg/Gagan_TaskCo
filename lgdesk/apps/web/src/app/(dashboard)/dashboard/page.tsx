@@ -81,7 +81,7 @@ interface UpcomingBucket {
 }
 
 type NoticeItem =
-  | { kind: 'announcement'; key: string; id: string; title: string; content: string; visibility: string; expiresAt: string | null }
+  | { kind: 'announcement'; key: string; id: string; title: string; content: string; visibility: string; type: string; priority: string; expiresAt: string | null }
   | { kind: 'birthday'; key: string; title: string }
   | { kind: 'meeting'; key: string; title: string; startTime: string }
   | { kind: 'holiday'; key: string; title: string; date: string };
@@ -197,7 +197,7 @@ export default function DashboardPage() {
   const notices = useMemo<NoticeItem[]>(() => {
     if (!data) return [];
     const items: NoticeItem[] = [];
-    data.notices.announcements.forEach((a) => items.push({ kind: 'announcement', key: `a-${a.id}`, id: a.id, title: a.title, content: a.content, visibility: a.visibility, expiresAt: a.expiresAt }));
+    data.notices.announcements.forEach((a) => items.push({ kind: 'announcement', key: `a-${a.id}`, id: a.id, title: a.title, content: a.content, visibility: a.visibility, type: a.type, priority: a.priority, expiresAt: a.expiresAt }));
     data.notices.birthdays.forEach((b) => items.push({ kind: 'birthday', key: `b-${b.empId}`, title: `🎉 Happy Birthday, ${b.name}!` }));
     data.notices.meetings.forEach((m) => items.push({ kind: 'meeting', key: `m-${m.meetingId}`, title: m.title, startTime: m.startTime }));
     data.notices.holidays.forEach((h) => items.push({ kind: 'holiday', key: `h-${h.id}`, title: h.name, date: h.date }));
@@ -310,6 +310,11 @@ export default function DashboardPage() {
                                 restricted audiences are visually distinguishable from org-wide ones. */}
                             {n.visibility && n.visibility !== 'Organisation' && (
                               <Badge variant="secondary">{n.visibility}</Badge>
+                            )}
+                            {/* Round4 checklist#7: mirrors the reference's _renderNoticeBoard
+                                `n.priority === 'Urgent'` badge exactly. */}
+                            {n.priority === 'Urgent' && (
+                              <Badge style={{ background: 'var(--danger)', color: '#fff', borderColor: 'transparent' }}>URGENT</Badge>
                             )}
                           </div>
                           {n.content && <div className="text-xs text-muted">{n.content}</div>}

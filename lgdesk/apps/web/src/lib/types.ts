@@ -330,7 +330,7 @@ export interface ScoreboardRow {
 
 export interface DashboardData {
   notices: {
-    announcements: { id: string; title: string; content: string; visibility: string; startDate: string | null; expiresAt: string | null }[];
+    announcements: { id: string; title: string; content: string; visibility: string; type: string; priority: string; startDate: string | null; expiresAt: string | null }[];
     birthdays: { empId: string; name: string }[];
     onLeave: { empId: string; name: string; leaveType: string }[];
     meetings: { meetingId: string; title: string; startTime: string }[];
@@ -354,6 +354,10 @@ export interface Announcement {
   content: string;
   authorId: string;
   visibility: string;
+  // Round4 checklist#7: re-derived from the reference's live index.html
+  // #nb-type/#nb-priority selects, overriding the stale Master Reference Part 60 doc.
+  type: string;
+  priority: string;
   startDate?: string | null;
   expiresAt?: string | null;
   isPinned: boolean;

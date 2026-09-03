@@ -22,6 +22,8 @@ export interface AnnouncementInput {
   startDate?: string;
   endDate?: string;
   visibility?: string;
+  type?: string;
+  priority?: string;
 }
 
 export function useCreateAnnouncement() {

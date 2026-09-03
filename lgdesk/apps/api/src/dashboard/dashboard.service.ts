@@ -53,7 +53,7 @@ export class DashboardService {
     const announcements = allAnn
       .filter((a) => (!a.startDate || a.startDate <= nowInstant) && (!a.expiresAt || a.expiresAt >= nowInstant))
       .filter((a) => this.visibleTo(a.visibility, caller.role))
-      .map((a) => ({ id: a.id, title: a.title, content: a.content, visibility: a.visibility, startDate: a.startDate?.toISOString() ?? null, expiresAt: a.expiresAt?.toISOString() ?? null }));
+      .map((a) => ({ id: a.id, title: a.title, content: a.content, visibility: a.visibility, type: a.type, priority: a.priority, startDate: a.startDate?.toISOString() ?? null, expiresAt: a.expiresAt?.toISOString() ?? null }));
 
     // 2. Birthdays today.
     const birthdays = employees
@@ -172,7 +172,17 @@ export class DashboardService {
     const start = dto.startDate ? new Date(dto.startDate) : new Date();
     const expires = dto.endDate ? new Date(dto.endDate) : (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d; })();
     const ann = await this.prisma.announcement.create({
-      data: { title: dto.title, content: dto.content ?? '', authorId: callerEmpId, visibility: dto.visibility ?? 'Organisation', startDate: start, expiresAt: expires },
+      data: {
+        title: dto.title,
+        content: dto.content ?? '',
+        authorId: callerEmpId,
+        visibility: dto.visibility ?? 'Organisation',
+        // Round4 checklist#7: see create-announcement.dto.ts's comment.
+        type: dto.type ?? 'General',
+        priority: dto.priority ?? 'Normal',
+        startDate: start,
+        expiresAt: expires,
+      },
     });
     await this.audit(callerEmpId, 'ANNOUNCEMENT_CREATE', ann.id);
     return ann;
