@@ -5,7 +5,7 @@
 // split('\n')-into-string[] transform happens in the submit handler exactly as before
 // this migration, so no URL-format validation is added here (none existed previously).
 import { z } from 'zod';
-import { FUNCTION_STATUSES } from './create-function-modal.schema';
+import { FUNCTION_STATUSES, FUNCTION_RECURRENCE_PATTERNS } from './create-function-modal.schema';
 import { TASK_PRIORITIES } from '../tasks/create-task-modal.schema';
 
 export const updateFunctionSchema = z.object({
@@ -18,6 +18,10 @@ export const updateFunctionSchema = z.object({
   parentFnId: z.string().optional(),
   startDate: z.string().optional(),
   deadline: z.string().optional(),
+  // Round4 F35: Function's own recurring cadence -- previously had no edit-form control
+  // at all, and the DTO field it would have sent (`recurringFunctions`, a boolean) was
+  // dead even before this migration.
+  recurringPattern: z.enum(FUNCTION_RECURRENCE_PATTERNS),
   links: z.string().optional(),
   assigneeIds: z.array(z.string()).default([]),
 });

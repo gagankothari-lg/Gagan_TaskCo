@@ -13,7 +13,7 @@ import { Spinner } from '../../ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
 import { EmployeeMultiSelect, fieldClass, TASK_PRIORITIES } from '../tasks/create-task-modal';
-import { createFunctionSchema, FUNCTION_STATUSES, type CreateFunctionFormValues } from './create-function-modal.schema';
+import { createFunctionSchema, FUNCTION_STATUSES, FUNCTION_RECURRENCE_PATTERNS, type CreateFunctionFormValues } from './create-function-modal.schema';
 import type { WorkFunction } from '../../../lib/types';
 
 interface CreateFunctionModalProps {
@@ -46,12 +46,13 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
       priority: 'Medium',
       startDate: '',
       deadline: '',
+      recurringPattern: 'One Time',
     },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({ name: '', description: '', projId: defaultProjId ?? '', parentFnId: defaultParentFnId ?? '', assigneeIds: [], status: 'Yet to Start', priority: 'Medium', startDate: '', deadline: '' });
+      form.reset({ name: '', description: '', projId: defaultProjId ?? '', parentFnId: defaultParentFnId ?? '', assigneeIds: [], status: 'Yet to Start', priority: 'Medium', startDate: '', deadline: '', recurringPattern: 'One Time' });
       setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,6 +74,7 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
         priority: values.priority,
         startDate: values.startDate ? new Date(values.startDate).toISOString() : undefined,
         deadline: values.deadline ? new Date(values.deadline).toISOString() : undefined,
+        recurringPattern: values.recurringPattern,
       });
       onCreated?.(created);
       onClose();
@@ -210,6 +212,22 @@ export function CreateFunctionModal({ open, onClose, defaultProjId, defaultParen
                     <FormItem>
                       <label className="mb-1 block text-xs text-muted">Deadline</label>
                       <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {/* Round4 F35: Function's own recurring cadence. */}
+                <FormField
+                  control={form.control}
+                  name="recurringPattern"
+                  render={({ field }) => (
+                    <FormItem>
+                      <label className="mb-1 block text-xs text-muted">Recurring</label>
+                      <FormControl>
+                        <select className={fieldClass} {...field}>
+                          {FUNCTION_RECURRENCE_PATTERNS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

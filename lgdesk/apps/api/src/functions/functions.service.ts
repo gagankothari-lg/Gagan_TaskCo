@@ -15,7 +15,7 @@ type FnRow = {
   id: string; functionId: string; parentFnId: string | null; projId: string | null;
   name: string; description: string | null; assignerId: string; assigneeIds: string;
   assignedTeams: string; status: string; priority: string; startDate: Date | null;
-  deadline: Date | null; links: string | null; createdById: string; createdAt: Date; updatedAt: Date;
+  deadline: Date | null; recurringPattern: string; links: string | null; createdById: string; createdAt: Date; updatedAt: Date;
 };
 
 @Injectable()
@@ -105,6 +105,9 @@ export class FunctionsService {
         // mapFunction, but neither the DTO nor this create call ever wrote it.
         startDate: dto.startDate ? new Date(dto.startDate) : null,
         deadline: dto.deadline ? new Date(dto.deadline) : null,
+        // Round4 F35: replaces the old dead `recurringFunctions` boolean, which was never
+        // read here even before this migration.
+        recurringPattern: dto.recurringPattern ?? 'One Time',
         links: dto.links ? joinIds(dto.links) : null,
         assignmentHistory: JSON.stringify(history),
       },
@@ -126,6 +129,7 @@ export class FunctionsService {
     const data: {
       name?: string; description?: string | null; projId?: string | null; parentFnId?: string | null;
       status?: string; priority?: string; startDate?: Date | null; deadline?: Date | null;
+      recurringPattern?: string;
       assigneeIds?: string; assignedTeams?: string; links?: string | null;
     } = {};
     if (dto.name !== undefined) data.name = dto.name;
@@ -137,6 +141,8 @@ export class FunctionsService {
     // Round4 F36: startDate write path completes the existing schema column/DTO field.
     if (dto.startDate !== undefined) data.startDate = dto.startDate ? new Date(dto.startDate) : null;
     if (dto.deadline !== undefined) data.deadline = dto.deadline ? new Date(dto.deadline) : null;
+    // Round4 F35: see createFunction's recurringPattern comment.
+    if (dto.recurringPattern !== undefined) data.recurringPattern = dto.recurringPattern;
     if (dto.assigneeIds !== undefined) data.assigneeIds = joinIds(dto.assigneeIds);
     if (dto.assignedTeams !== undefined) data.assignedTeams = joinIds(dto.assignedTeams);
     if (dto.links !== undefined) data.links = dto.links ? joinIds(dto.links) : null;
@@ -249,6 +255,7 @@ export class FunctionsService {
       priority: f.priority,
       startDate: f.startDate ? f.startDate.toISOString() : undefined,
       deadline: f.deadline ? f.deadline.toISOString() : undefined,
+      recurringPattern: f.recurringPattern,
       createdAt: f.createdAt.toISOString(),
       updatedAt: f.updatedAt.toISOString(),
     };

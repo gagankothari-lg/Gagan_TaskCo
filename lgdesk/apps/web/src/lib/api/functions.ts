@@ -20,6 +20,7 @@ export interface CreateFunctionInput {
   priority?: string;
   startDate?: string;
   deadline?: string;
+  recurringPattern?: string;
   links?: string[];
 }
 export type UpdateFunctionInput = Partial<CreateFunctionInput>;

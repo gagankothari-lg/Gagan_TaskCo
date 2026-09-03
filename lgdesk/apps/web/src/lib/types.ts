@@ -83,6 +83,7 @@ export interface WorkFunction {
   priority: string;
   startDate?: string;
   deadline?: string;
+  recurringPattern: string;
   createdAt: string;
   updatedAt: string;
 }

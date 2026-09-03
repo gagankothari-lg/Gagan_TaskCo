@@ -1,13 +1,12 @@
 import {
   IsArray,
-  IsBoolean,
   IsIn,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
 } from 'class-validator';
-import { FUNCTION_STATUSES } from '../../common/constants';
+import { FUNCTION_STATUSES, FUNCTION_RECURRENCE_PATTERNS } from '../../common/constants';
 
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'] as const;
 
@@ -23,6 +22,7 @@ export class UpdateFunctionDto {
   @IsOptional() @IsIn([...PRIORITIES], { message: 'Invalid priority' }) priority?: string;
   @IsOptional() @IsISO8601() startDate?: string;
   @IsOptional() @IsISO8601() deadline?: string;
-  @IsOptional() @IsBoolean() recurringFunctions?: boolean;
+  // Round4 F35: see create-function.dto.ts's recurringPattern comment.
+  @IsOptional() @IsIn([...FUNCTION_RECURRENCE_PATTERNS], { message: 'Invalid recurrence pattern' }) recurringPattern?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) links?: string[];
 }

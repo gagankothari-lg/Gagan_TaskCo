@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialo
 import { DdrModal } from '../tasks/ddr-modal';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../ui/form';
 import { EmployeeMultiSelect, fieldClass, TASK_PRIORITIES } from '../tasks/create-task-modal';
-import { FUNCTION_STATUSES } from './create-function-modal.schema';
+import { FUNCTION_STATUSES, FUNCTION_RECURRENCE_PATTERNS } from './create-function-modal.schema';
 import { updateFunctionSchema, type UpdateFunctionFormValues } from './function-detail-modal.schema';
 
 export function FunctionDetailModal({ functionId, onClose }: { functionId: string | null; onClose: () => void }) {
@@ -44,6 +44,7 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
       parentFnId: '',
       startDate: '',
       deadline: '',
+      recurringPattern: 'One Time',
       links: '',
       assigneeIds: [],
     },
@@ -59,6 +60,7 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
         parentFnId: fn.parentFnId ?? '',
         startDate: fn.startDate ? fn.startDate.slice(0, 10) : '',
         deadline: fn.deadline ? fn.deadline.slice(0, 10) : '',
+        recurringPattern: fn.recurringPattern as UpdateFunctionFormValues['recurringPattern'],
         links: (fn as { links?: string }).links ?? '',
         assigneeIds: fn.assigneeIds,
       });
@@ -89,6 +91,7 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
           parentFnId: values.parentFnId || undefined,
           startDate: values.startDate ? new Date(values.startDate).toISOString() : undefined,
           deadline: values.deadline ? new Date(values.deadline).toISOString() : undefined,
+          recurringPattern: values.recurringPattern,
           assigneeIds: values.assigneeIds,
           links: (values.links ?? '').split('\n').map((l) => l.trim()).filter(Boolean),
         },
@@ -214,6 +217,22 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
                           <FormItem>
                             <FormLabel className="mb-1 block text-xs text-muted">Deadline</FormLabel>
                             <FormControl><input type="date" className={fieldClass} {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {/* Round4 F35: previously had no edit-form control at all. */}
+                      <FormField
+                        control={form.control}
+                        name="recurringPattern"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="mb-1 block text-xs text-muted">Recurring</FormLabel>
+                            <FormControl>
+                              <select className={fieldClass} {...field}>
+                                {FUNCTION_RECURRENCE_PATTERNS.map((r) => <option key={r} value={r}>{r}</option>)}
+                              </select>
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}

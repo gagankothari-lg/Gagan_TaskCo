@@ -17,6 +17,14 @@ export const FUNCTION_STATUSES = [
   'Yet to Start', 'Planning', 'WIP (0%-25%)', 'WIP (25%-50%)', 'WIP (50%-75%)', 'WIP (75%-100%)', 'Review', 'On Hold', 'Cancelled', 'Done',
 ] as const;
 
+// Round4 F35: Function's own recurring-cadence vocabulary -- wider than Task's 5-value
+// list (setupSheets.gs:13,104; cross-checked against the live `#fe-recurring` select,
+// app.js.html:11695-11775). Mirrors apps/api/src/common/constants.ts
+// FUNCTION_RECURRENCE_PATTERNS exactly.
+export const FUNCTION_RECURRENCE_PATTERNS = [
+  'One Time', 'Daily', 'Weekly', 'Alternate Week', 'Bi Weekly', 'Monthly', 'Bi Monthly', 'Quarterly', 'Bi Yearly', 'Yearly',
+] as const;
+
 export const createFunctionSchema = z.object({
   name: z.string().trim().min(1, 'Name is required.'),
   description: z.string().optional(),
@@ -27,6 +35,7 @@ export const createFunctionSchema = z.object({
   priority: z.enum(TASK_PRIORITIES),
   startDate: z.string().optional(),
   deadline: z.string().optional(),
+  recurringPattern: z.enum(FUNCTION_RECURRENCE_PATTERNS),
 });
 
 export type CreateFunctionFormValues = z.infer<typeof createFunctionSchema>;

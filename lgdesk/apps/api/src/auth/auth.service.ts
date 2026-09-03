@@ -491,7 +491,7 @@ export class AuthService {
     id: string; functionId: string; parentFnId: string | null; projId: string | null;
     name: string; description: string | null; assignerId: string; assigneeIds: string;
     assignedTeams: string; status: string; priority: string; startDate: Date | null;
-    deadline: Date | null; createdAt: Date; updatedAt: Date;
+    deadline: Date | null; recurringPattern: string; createdAt: Date; updatedAt: Date;
   }): WorkFunction {
     return {
       id: f.id,
@@ -507,6 +507,7 @@ export class AuthService {
       priority: f.priority,
       startDate: f.startDate ? f.startDate.toISOString() : undefined,
       deadline: f.deadline ? f.deadline.toISOString() : undefined,
+      recurringPattern: f.recurringPattern,
       createdAt: f.createdAt.toISOString(),
       updatedAt: f.updatedAt.toISOString(),
     };
