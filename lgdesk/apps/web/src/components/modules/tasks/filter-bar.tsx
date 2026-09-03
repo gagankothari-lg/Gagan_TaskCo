@@ -44,8 +44,10 @@ export function applyColFilters(tasks: Task[], f: ColFilter): Task[] {
     if (f.assigner.length && !f.assigner.includes(t.assignerId)) return false;
     if (f.status.length && !f.status.includes(t.status)) return false;
     if (f.priority.length && !f.priority.includes(t.priority)) return false;
-    if (recurringOnly === 'yes' && !t.recurring) return false;
-    if (recurringOnly === 'no' && t.recurring) return false;
+    // Round4 checklist#1: "recurring" here means recurrencePattern !== 'One Time'
+    // (the real 5-value cadence), not the legacy boolean.
+    if (recurringOnly === 'yes' && t.recurrencePattern === 'One Time') return false;
+    if (recurringOnly === 'no' && t.recurrencePattern !== 'One Time') return false;
     if (f.adateFrom && new Date(t.createdAt) < new Date(f.adateFrom)) return false;
     if (f.adateTo && new Date(t.createdAt) > new Date(`${f.adateTo}T23:59:59`)) return false;
     // A "due by" filter excludes tasks with no due date at all, not just those due later.

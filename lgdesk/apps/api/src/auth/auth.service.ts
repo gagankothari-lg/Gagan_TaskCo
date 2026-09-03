@@ -432,6 +432,7 @@ export class AuthService {
     id: string; taskId: string; projId: string | null; functionId: string | null;
     title: string; description: string | null; assigneeIds: string; assignedTeams: string;
     assignerId: string; status: string; priority: string; recurring: boolean;
+    recurrencePattern: string;
     dueDate: Date | null; estimatedHours: number | null; actualHours: number;
     fileLink: string | null; links: string | null; assignmentHistory: string;
     createdAt: Date; updatedAt: Date;
@@ -449,6 +450,7 @@ export class AuthService {
       status: t.status,
       priority: t.priority,
       recurring: t.recurring,
+      recurrencePattern: t.recurrencePattern,
       dueDate: t.dueDate ? t.dueDate.toISOString() : undefined,
       estimatedHours: t.estimatedHours ?? undefined,
       actualHours: t.actualHours,

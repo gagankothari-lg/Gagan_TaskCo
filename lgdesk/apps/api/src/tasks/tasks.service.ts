@@ -18,7 +18,7 @@ type TaskRow = {
   id: string; taskId: string; projId: string | null; functionId: string | null;
   subFnId: string | null; title: string; description: string | null;
   assigneeIds: string; assignedTeams: string; assignerId: string; status: string;
-  priority: string; recurring: boolean; dueDate: Date | null; estimatedHours: number | null;
+  priority: string; recurring: boolean; recurrencePattern: string; dueDate: Date | null; estimatedHours: number | null;
   actualHours: number; fileLink: string | null; links: string | null;
   calEventId: string | null; assignmentHistory: string; createdAt: Date; updatedAt: Date;
 };
@@ -134,7 +134,10 @@ export class TasksService {
         assignerId: callerEmpId, // ← from JWT, NEVER from body (rule #2)
         status: dto.status ?? 'Not Started',
         priority: dto.priority ?? 'Medium',
-        recurring: dto.recurring ?? false,
+        // Round4 checklist#1: recurring stays in sync as a derived legacy mirror of the
+        // real cadence field -- never set independently from client input.
+        recurrencePattern: dto.recurrencePattern ?? 'One Time',
+        recurring: (dto.recurrencePattern ?? 'One Time') !== 'One Time',
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         estimatedHours: dto.estimatedHours,
         fileLink: dto.fileLink,
@@ -193,7 +196,7 @@ export class TasksService {
     const data: {
       title?: string; description?: string | null; projId?: string | null;
       functionId?: string | null; subFnId?: string | null; status?: string; priority?: string;
-      recurring?: boolean; dueDate?: Date | null; estimatedHours?: number | null;
+      recurrencePattern?: string; recurring?: boolean; dueDate?: Date | null; estimatedHours?: number | null;
       fileLink?: string | null; links?: string | null;
       assigneeIds?: string; assignedTeams?: string; assignmentHistory?: string;
     } = {};
@@ -228,7 +231,11 @@ export class TasksService {
     if (dto.subFnId !== undefined) data.subFnId = dto.subFnId;
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.priority !== undefined) data.priority = dto.priority;
-    if (dto.recurring !== undefined) data.recurring = dto.recurring;
+    // Round4 checklist#1: same derived-mirror rule as createTask above.
+    if (dto.recurrencePattern !== undefined) {
+      data.recurrencePattern = dto.recurrencePattern;
+      data.recurring = dto.recurrencePattern !== 'One Time';
+    }
     if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
     if (dto.estimatedHours !== undefined) data.estimatedHours = dto.estimatedHours;
     if (dto.fileLink !== undefined) data.fileLink = dto.fileLink;
@@ -383,6 +390,7 @@ export class TasksService {
       status: t.status,
       priority: t.priority,
       recurring: t.recurring,
+      recurrencePattern: t.recurrencePattern,
       dueDate: t.dueDate ? t.dueDate.toISOString() : undefined,
       estimatedHours: t.estimatedHours ?? undefined,
       actualHours: t.actualHours,

@@ -150,8 +150,9 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                 <span className="flex items-center gap-1 text-xs" style={{ color: overdue ? 'var(--danger)' : 'var(--muted)' }}>
                   <Icon name="today" size={13} /> {task.dueDate ? `${overdue ? 'Overdue · ' : 'Due '}${fmtDate(task.dueDate)}` : 'No due date'}
                 </span>
-                {task.recurring && (
-                  <Badge variant="secondary"><Icon name="autorenew" size={11} /> Recurring</Badge>
+                {/* Round4 checklist#1: real cadence, not just a Yes/No boolean. */}
+                {task.recurrencePattern !== 'One Time' && (
+                  <Badge variant="secondary"><Icon name="autorenew" size={11} /> {task.recurrencePattern}</Badge>
                 )}
               </div>
               {showRequestChange && (

@@ -16,6 +16,11 @@ import { z } from 'zod';
 export const TASK_STATUSES = ['Backlog', 'Not Started', 'WIP - 25%', 'WIP - 50%', 'WIP - 75%', 'Under Review', 'Done', 'Cancelled'] as const;
 export const TASK_PRIORITIES = ['Critical', 'High', 'Medium', 'Low'] as const;
 
+// Round4 checklist#1: matches apps/api/src/common/constants.ts TASK_RECURRENCE_PATTERNS
+// exactly, re-verified against app.js.html:10480-10485 (the Add-Tasks batch row's real
+// 5-option cadence select).
+export const TASK_RECURRENCE_PATTERNS = ['One Time', 'Daily', 'Weekly', 'Monthly', 'Quarterly'] as const;
+
 // Exported for reuse by task-detail-modal.schema.ts (edit-task estimatedHours + the
 // add-progress-update form's hoursLogged use the same numeric-string shape).
 export const optionalNonNegativeNumberString = z
@@ -33,6 +38,7 @@ export const createTaskSchema = z.object({
   team: z.string().optional(),
   status: z.enum(TASK_STATUSES),
   priority: z.enum(TASK_PRIORITIES),
+  recurrencePattern: z.enum(TASK_RECURRENCE_PATTERNS),
   dueDate: z.string().optional(),
   estimatedHours: optionalNonNegativeNumberString,
 });

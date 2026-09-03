@@ -40,6 +40,7 @@ export interface Task {
   status: string;
   priority: string;
   recurring: boolean;
+  recurrencePattern: string;
   dueDate?: string;
   estimatedHours?: number;
   actualHours: number;
@@ -211,7 +212,7 @@ export interface CreateTaskInput {
   assignedTeams?: string[];
   status?: string;
   priority?: string;
-  recurring?: boolean;
+  recurrencePattern?: string;
   dueDate?: string;
   estimatedHours?: number;
   links?: string[];

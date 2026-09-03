@@ -37,6 +37,24 @@ export const FUNCTION_STATUSES = [
 
 export const TASK_CLOSED_STATUSES = ['Done','Cancelled'] as const;
 
+// Round4 checklist#1: Task's real recurring-cadence vocabulary, re-verified directly
+// against app.js.html:10480-10485 (the Add-Tasks batch row's `#atm-rec-...` select).
+export const TASK_RECURRENCE_PATTERNS = ['One Time','Daily','Weekly','Monthly','Quarterly'] as const;
+
+// Round4 F35: Function's own, separate recurring-cadence vocabulary -- wider than Task's
+// (10 values, not 5) and independent of it. setupSheets.gs:13,104 VALIDATIONS list,
+// cross-checked against the live `#fe-recurring` select (app.js.html:11695-11775).
+export const FUNCTION_RECURRENCE_PATTERNS = [
+  'One Time','Daily','Weekly','Alternate Week','Bi Weekly','Monthly','Bi Monthly','Quarterly','Bi Yearly','Yearly',
+] as const;
+
+// Round4 checklist#7: re-derived from the reference's actual LIVE-reachable markup
+// (index.html #nb-type/#nb-priority selects) -- narrower than app.js.html's broader
+// _NB_TYPE_ICON map (which also covers non-Announcement synthesized notice kinds) and
+// overriding LGDesk_Master_Reference.md Part 60, which disagrees with the live selects.
+export const ANNOUNCEMENT_TYPES = ['General','Emergency','Reminder'] as const;
+export const ANNOUNCEMENT_PRIORITIES = ['Normal','High','Urgent'] as const;
+
 // ─── Task status predicates ────────────────────────────────────
 export const isClosed     = (status: string) => (TASK_CLOSED_STATUSES as readonly string[]).includes(status);
 export const isDone       = (status: string) => status === 'Done';

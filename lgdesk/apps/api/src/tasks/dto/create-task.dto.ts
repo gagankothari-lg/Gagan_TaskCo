@@ -1,6 +1,5 @@
 import {
   IsArray,
-  IsBoolean,
   IsIn,
   IsISO8601,
   IsNotEmpty,
@@ -8,7 +7,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { TASK_STATUSES } from '../../common/constants';
+import { TASK_STATUSES, TASK_RECURRENCE_PATTERNS } from '../../common/constants';
 
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High', 'Critical'] as const;
 
@@ -27,7 +26,11 @@ export class CreateTaskDto {
 
   @IsOptional() @IsIn([...TASK_STATUSES], { message: 'Invalid status' }) status?: string;
   @IsOptional() @IsIn([...TASK_PRIORITIES], { message: 'Invalid priority' }) priority?: string;
-  @IsOptional() @IsBoolean() recurring?: boolean;
+  // Round4 checklist#1: real 5-value cadence, replacing the plain-boolean field as the
+  // client-writable one. `recurring` (the legacy boolean column) is still kept in sync
+  // server-side (tasks.service.ts) for anything else that might read it, but is no longer
+  // accepted directly from the client.
+  @IsOptional() @IsIn([...TASK_RECURRENCE_PATTERNS], { message: 'Invalid recurrence pattern' }) recurrencePattern?: string;
   @IsOptional() @IsISO8601() dueDate?: string;
   @IsOptional() @IsNumber() estimatedHours?: number;
   @IsOptional() @IsString() fileLink?: string;

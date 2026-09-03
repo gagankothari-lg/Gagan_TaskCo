@@ -1,6 +1,5 @@
 import {
   IsArray,
-  IsBoolean,
   IsIn,
   IsISO8601,
   IsNotEmpty,
@@ -8,7 +7,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { TASK_STATUSES } from '../../common/constants';
+import { TASK_STATUSES, TASK_RECURRENCE_PATTERNS } from '../../common/constants';
 import { TASK_PRIORITIES } from './create-task.dto';
 
 // Same fields as CreateTaskDto but all optional. assignerId is never accepted.
@@ -24,7 +23,8 @@ export class UpdateTaskDto {
 
   @IsOptional() @IsIn([...TASK_STATUSES], { message: 'Invalid status' }) status?: string;
   @IsOptional() @IsIn([...TASK_PRIORITIES], { message: 'Invalid priority' }) priority?: string;
-  @IsOptional() @IsBoolean() recurring?: boolean;
+  // Round4 checklist#1: see create-task.dto.ts's recurrencePattern comment.
+  @IsOptional() @IsIn([...TASK_RECURRENCE_PATTERNS], { message: 'Invalid recurrence pattern' }) recurrencePattern?: string;
   @IsOptional() @IsISO8601() dueDate?: string;
   @IsOptional() @IsNumber() estimatedHours?: number;
   @IsOptional() @IsString() fileLink?: string;

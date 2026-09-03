@@ -23,6 +23,7 @@ export interface Task {
   status: string;
   priority: string;
   recurring: boolean;
+  recurrencePattern: string;
   dueDate?: string;
   estimatedHours?: number;
   actualHours: number;

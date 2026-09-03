@@ -13,7 +13,7 @@ import { Badge } from '../../ui/badge';
 import { pillClass, badgeClass, fmtDate, isClosedTaskStatus } from '../../../lib/utils';
 import { TaskRow, isTaskOverdue, COL_HIDE, actionsCellStyle } from './task-row';
 import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
-import { createTaskSchema, TASK_STATUSES, TASK_PRIORITIES } from './create-task-modal.schema';
+import { createTaskSchema, TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCE_PATTERNS } from './create-task-modal.schema';
 import { CompactMultiSelect } from './compact-multi-select';
 import { CreateFunctionModal } from '../functions/create-function-modal';
 import { TaskDetailModal } from './task-detail-modal';
@@ -64,7 +64,7 @@ function sortValue(t: Task, field: SortField, functions: WorkFunction[], employe
     case 'task': return t.title.toLowerCase();
     case 'assignee': return t.assigneeIds.length ? empNameOf(t.assigneeIds[0], employees).toLowerCase() : '￿';
     case 'assigner': return empNameOf(t.assignerId, employees).toLowerCase();
-    case 'recurring': return t.recurring ? 0 : 1;
+    case 'recurring': return t.recurrencePattern === 'One Time' ? 1 : 0;
     case 'status': return t.status.toLowerCase();
     case 'priority': return PRIORITY_RANK[t.priority] ?? 99;
     case 'due': return t.dueDate ? new Date(t.dueDate).getTime() : Infinity;
@@ -521,7 +521,7 @@ type BatchRowValues = z.infer<typeof batchRowSchema>;
 const defaultBatchRow = (currentUserEmpId?: string): BatchRowValues => ({
   title: '', description: '', projId: '', functionId: '', subFnId: '',
   assigneeIds: currentUserEmpId ? [currentUserEmpId] : [],
-  team: '', status: 'Not Started', priority: 'Medium', dueDate: '', estimatedHours: '', links: '',
+  team: '', status: 'Not Started', priority: 'Medium', recurrencePattern: 'One Time', dueDate: '', estimatedHours: '', links: '',
 });
 
 // True when a row is still exactly at its freshly-appended default — used by Cancel's
@@ -540,6 +540,7 @@ function isRowUntouched(row: BatchRowValues, defaults: BatchRowValues): boolean 
     row.assigneeIds.every((id) => defaults.assigneeIds.includes(id)) &&
     row.status === defaults.status &&
     row.priority === defaults.priority &&
+    row.recurrencePattern === defaults.recurrencePattern &&
     !row.dueDate &&
     !row.estimatedHours
   );
@@ -596,6 +597,10 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
         assignedTeams: row.team ? [row.team] : undefined,
         status: row.status,
         priority: row.priority,
+        // Round4 checklist#1: the Add-Tasks row previously had no recurring control at
+        // all (app.js.html:10480-10485/10747-10756 confirm the reference's is a real,
+        // saved field, not decorative).
+        recurrencePattern: row.recurrencePattern,
         dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : undefined,
         links: row.links ? row.links.split('\n').map((l) => l.trim()).filter(Boolean) : undefined,
       }));
@@ -656,7 +661,7 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
               return (
                 <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 2fr 1.15fr 0.9fr 1fr 0.9fr 0.9fr 0.9fr 0.9fr auto', gap: 6, alignItems: 'start' }}
+                    style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 2fr 1.15fr 0.9fr 1fr 0.9fr 0.9fr 0.9fr 0.9fr 0.9fr auto', gap: 6, alignItems: 'start' }}
                   >
                     <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                       <select className="fc" style={{ fontSize: 12, flex: 1, minWidth: 0 }} {...form.register(`rows.${i}.functionId` as const)}>
@@ -720,6 +725,9 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
                     </select>
                     <select className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.priority` as const)}>
                       {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <select className="fc" style={{ fontSize: 12 }} title="Recurring" {...form.register(`rows.${i}.recurrencePattern` as const)}>
+                      {TASK_RECURRENCE_PATTERNS.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
                     <input type="date" className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.dueDate` as const)} />
                     <button

@@ -164,17 +164,14 @@ export function TaskRow({ task, onOpen, onEdit }: { task: Task; onOpen: (id: str
           <span style={{ fontSize: 12 }}>{empName(task.assignerId, employees)}</span>
         </div>
       </td>
-      {/* Recurring — interim schema-safe stand-in: `Task.recurring` is currently a plain
-          Boolean (no migration needed). The reference's real field is a 5-value cadence
-          dropdown (One Time/Daily/Weekly/Monthly/Quarterly, app.js.html:10480-10485),
-          which needs a `recurrencePattern` schema migration not yet authorized — see
-          CLAUDE.md / AUDIT_REPORT.md A2. This Yes/No display is a simplified placeholder
-          until that migration decision is made. */}
+      {/* Recurring — Round4 checklist#1: now the real 5-value cadence
+          (One Time/Daily/Weekly/Monthly/Quarterly, app.js.html:10480-10485) via
+          Task.recurrencePattern, replacing the old Yes/No boolean-derived placeholder. */}
       <td className={COL_HIDE.recurring} style={{ fontSize: 12 }}>
-        {task.recurring ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--p)' }}><Icon name="autorenew" size={13} /> Yes</span>
+        {task.recurrencePattern !== 'One Time' ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--p)' }}><Icon name="autorenew" size={13} /> {task.recurrencePattern}</span>
         ) : (
-          <span style={{ color: 'var(--muted2)' }}>No</span>
+          <span style={{ color: 'var(--muted2)' }}>One Time</span>
         )}
       </td>
 
