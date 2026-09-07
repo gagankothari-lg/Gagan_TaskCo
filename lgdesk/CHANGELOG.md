@@ -2,6 +2,35 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND5-IMPORT-COMPLETENESS
+
+Closed 3 Round 5 items in the Import Tasks pipeline (`import.service.ts`), reasoned about
+together since they share the same parse/execute code:
+
+- **#5 (assigner-name resolution).** `executeImport` parsed the file's "Given By" column but
+  discarded it, attributing every imported task/function to whoever ran the import. Now
+  resolves the name against the same active-employee lookup already used for assignee
+  resolution (matching `task-import.gs:259-260`), falling back to the importer only when
+  unmatched. `FunctionsService.createFunction`/`TasksService.createTask` gained an
+  internal-only `overrideAssignerId` parameter (never on any DTO, never HTTP-reachable) for
+  this -- server-side resolution against verified employee records, not a body-trusted ID.
+- **add'l-3 (5 dropped columns).** Estimated Hours, Start Date, Function Description, and
+  Sub-Function Description weren't parsed from the import file at all -- all 4 already had
+  live DB columns and DTO fields waiting (Start Date's write path landed earlier via F5's own
+  `PFIX-ROUND4-BATCH-1`), so the entire gap was the import parser never reading those
+  columns. Department (the checklist's 5th named field) turned out not to be a real gap: the
+  reference itself parses but never writes it anywhere either -- left alone, matching
+  reference behavior exactly.
+- **add'l-4 (unmatched-name preview banner).** Preview now returns `unmatchedAssigners`/
+  `unmatchedAssignees` (mirroring `task-import.gs`'s `getMigrationPreview`), shown as a
+  banner in the import modal before commit.
+
+Verified end-to-end on a disposable local Postgres container: a resolvable "Given By" name
+correctly attributed the created Function/Task to that employee; an unresolvable one fell
+back to the importer and appeared in the preview's unmatched-assigners banner; Function/
+Sub-Function description, start date, and Task estimated hours/links all confirmed present
+via direct DB read after execute. Both workspaces build clean. Commit `45229c9`.
+
 ## 2026-09-08 — PFIX-CHECKLIST8-IDEA-DEFAULT-STATUS
 
 Closed checklist item #8: `Idea`'s default status was `'Draft'`, with no basis in the reference —
