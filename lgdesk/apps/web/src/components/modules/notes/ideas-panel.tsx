@@ -14,9 +14,13 @@ import type { Idea } from '../../../lib/types';
 
 // Part 28 FR-3: Status is free text — these are the documented examples, offered as
 // quick picks; the underlying field accepts any string via the same input.
-const STATUS_OPTIONS = ['Draft', 'Active', 'Archived'] as const;
+// PFIX-CHECKLIST8-IDEA-DEFAULT-STATUS: 'Open' added — it's the reference's (notes.gs
+// saveIdea) actual creation default, and is always sent explicitly on create (see
+// EMPTY_DRAFT below), so it must be a selectable option, not just a display string.
+const STATUS_OPTIONS = ['Open', 'Draft', 'Active', 'Archived'] as const;
 
 const STATUS_BADGE: Record<string, 'secondary' | 'success' | 'outline'> = {
+  Open: 'outline',
   Draft: 'outline',
   Active: 'success',
   Archived: 'secondary',
@@ -27,7 +31,7 @@ interface Draft {
   content: string;
   status: string;
 }
-const EMPTY_DRAFT: Draft = { title: '', content: '', status: 'Draft' };
+const EMPTY_DRAFT: Draft = { title: '', content: '', status: 'Open' };
 
 /** Keep-style personal Ideas board — Part 28 FR-3 (title/content + free-text Status). */
 export function IdeasPanel() {

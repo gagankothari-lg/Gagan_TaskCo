@@ -2,6 +2,35 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-CHECKLIST8-IDEA-DEFAULT-STATUS
+
+Closed checklist item #8: `Idea`'s default status was `'Draft'`, with no basis in the reference —
+`notes.gs:159`'s `saveIdea` hardcodes `Status: 'Open'` for every newly created idea. Unblocked now that
+D1 (Ideas' visibility model) closed the prior day via `PINVESTIGATE-D1-IDEAS-VISIBILITY`.
+
+No schema migration: `Idea.status`'s DB-level `@default("Draft")` in `schema.prisma` is never actually
+invoked in practice (`notes.service.ts`'s `createIdea` is the only `prisma.idea.create` call site
+anywhere in the codebase, and it always supplies `status` explicitly), matching the same
+default-mirrors-app-fallback convention already used by `Task`/`Project`/`WorkFunction`. Fixed as a
+one-line application-code change: `notes.service.ts`'s fallback (`dto.status ?? 'Draft'` -> `'Open'`).
+
+Also fixed the frontend, which would otherwise have made the backend fix dead code: `ideas-panel.tsx`'s
+"Add idea" form always sends an explicit `status` (never omits it), defaulted to `'Draft'` via
+`EMPTY_DRAFT` -- so the real, only reachable creation path would have kept sending `'Draft'` regardless
+of the backend default. Changed `EMPTY_DRAFT.status` to `'Open'` and added `'Open'` to `STATUS_OPTIONS`
+(and its badge variant) so it's a selectable, displayable value, not just a create-time default.
+
+Traced the full path by hand (form submit -> `useCreateIdea` -> `POST /ideas` -> `createIdea`) rather
+than spinning up a live-verification stack, per this ticket's own guidance for a single default value.
+Both workspaces type-check clean.
+
+Surfaced, but explicitly out of scope for this ticket: an uncommitted, substantially rewritten
+`LGDesk_Master_Reference.md` sitting in the working tree (last *committed* touch to that file was
+2026-07-31) whose current Part 28 explicitly states Ideas is "org-wide, not personal... by design" --
+the opposite of how the earlier `AUDIT_REPORT.md` reconciliation characterized that same section when it
+closed D1. Flagged in `AUDIT_REPORT_ROUND4_2026-09-02.md` §6 for a human decision; not investigated
+further and no code changed on that basis.
+
 ## 2026-09-07 — PFIX-IDCOUNTER-BATCH
 
 Mechanical batch: the same collision-safe `createWithId` wrapper already fixed and live-tested for

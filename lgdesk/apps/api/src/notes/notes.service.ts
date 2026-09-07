@@ -68,8 +68,15 @@ export class NotesService {
   }
 
   async createIdea(dto: CreateIdeaDto, empId: string) {
+    // PFIX-CHECKLIST8-IDEA-DEFAULT-STATUS: reference (notes.gs saveIdea) hardcodes
+    // Status: 'Open' for every new idea — 'Draft' had no reference basis. This
+    // fallback is the operative default (this is the only prisma.idea.create call
+    // site in the codebase); schema.prisma's @default("Draft") is never actually
+    // invoked and is left as-is, matching the Task/Project/Function convention
+    // where the DB default mirrors this fallback but the app always supplies it
+    // explicitly.
     return this.prisma.idea.create({
-      data: { empId, title: dto.title, content: dto.content, status: dto.status ?? 'Draft' },
+      data: { empId, title: dto.title, content: dto.content, status: dto.status ?? 'Open' },
     });
   }
 
