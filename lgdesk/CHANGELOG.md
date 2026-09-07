@@ -2,6 +2,33 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND5-DELETE-OWNERSHIP-RULE
+
+Closed checklist #14 (`projects.service.ts` `canDelete()` team-match over-grant).
+`PINVESTIGATE-ROUND5-DECISIONS` had already confirmed the team-match branch (any TC/TF
+whose team appeared in `assignedTeams`, no ownership required) was a real over-grant
+relative to `auth.gs`'s actual `deleteProject` — no team qualifier at all, only
+admin-or-owner/assigner — and to the reference's own test-case checklist. Removed the
+branch; only Admin/SA, or the project's own assigner/owner, can delete it now. Mirrored
+in `apps/web/src/lib/rbac.ts`'s `canDeleteProject` to keep the frontend affordance in
+lockstep — leaving it stale would have shown a Delete button the server now rejects.
+
+**This is a deliberate narrowing, not a regression**: a TC/TF who could previously
+delete a team-assigned project without being its owner/assigner loses that ability.
+
+**`tasks.service.ts`'s `canDeleteTask` was investigated as flagged but deliberately NOT
+touched.** Independently re-deriving `auth.gs`'s `deleteTask` found a materially
+different condition than Project's bug: a genuine second grant path (a manager who is
+also a task **assignee**, checked via `Assignee_IDs`), not the same "team-match with no
+relationship at all" over-grant Project had. The rebuild's team-match branch there needs
+a *swap* to assignee-match, not a *removal* — a different fix shape than this ticket
+pre-decided, so it's left as its own separate decision rather than force-fit.
+
+Live-verified on a disposable local Postgres container: a team-matched-but-not-owner TC
+now correctly 403s deleting a project; an owner/assigner TC who is NOT team-matched
+still succeeds; Admin succeeds regardless of ownership/team. Both workspaces build
+clean. Commit `f2da84b`.
+
 ## 2026-09-08 — PFIX-ROUND5-INTERN-TASK-SCOPE
 
 Closed checklist #2 (Intern task-update/delete permission scope). `PINVESTIGATE-ROUND5-
