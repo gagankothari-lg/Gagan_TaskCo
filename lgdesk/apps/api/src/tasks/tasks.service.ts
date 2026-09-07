@@ -275,17 +275,20 @@ export class TasksService {
     const caller = await this.getCaller(callerEmpId);
     if (!(await this.canModifyTask(task, caller))) throw new ForbiddenException();
 
-    const updateId = await this.idUtils.generateId('progressUpdate', 'updateId', 'UPD');
-    await this.prisma.progressUpdate.create({
-      data: {
-        updateId,
-        taskId,
-        projId: task.projId,
-        authorEmpId: callerEmpId,
-        description: dto.description,
-        hoursLogged: dto.hoursLogged,
-        blockers: dto.blockers,
-      },
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const updateId = await this.idUtils.createWithId('progressUpdate', 'updateId', 'UPD', async (id) => {
+      await this.prisma.progressUpdate.create({
+        data: {
+          updateId: id,
+          taskId,
+          projId: task.projId,
+          authorEmpId: callerEmpId,
+          description: dto.description,
+          hoursLogged: dto.hoursLogged,
+          blockers: dto.blockers,
+        },
+      });
+      return id;
     });
     if (dto.hoursLogged) {
       await this.prisma.task.update({
