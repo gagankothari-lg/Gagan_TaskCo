@@ -44,9 +44,12 @@ export class DdrService {
       throw new BadRequestException('Assigners/admins change the due date directly, not via a request');
     }
 
-    const ddrId = await this.idUtils.generateId('dueDateRequest', 'ddrId', 'DDR');
-    await this.prisma.dueDateRequest.create({
-      data: { ddrId, entityType, entityId, newDueDate: due, reason, requestedBy: callerEmpId, status: 'Pending' },
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const ddrId = await this.idUtils.createWithId('dueDateRequest', 'ddrId', 'DDR', async (id) => {
+      await this.prisma.dueDateRequest.create({
+        data: { ddrId: id, entityType, entityId, newDueDate: due, reason, requestedBy: callerEmpId, status: 'Pending' },
+      });
+      return id;
     });
     return { ddrId };
   }
