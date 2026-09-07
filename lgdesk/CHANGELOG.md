@@ -2,6 +2,39 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-07 — PFIX-IDCOUNTER-BATCH
+
+Mechanical batch: the same collision-safe `createWithId` wrapper already fixed and live-tested for
+`approveRegistration` (`PFIX-ROUND4-FOLLOWUP-1`) applied to every other single-record ID-generating
+create that was still calling the bare, non-retrying `generateId` directly. Re-derived the list fresh
+(grep for `idUtils.generateId(`, excluding `work-log.service.ts` -- already correct -- and
+`approveRegistration` -- already fixed) rather than trusting the prior session's count; found exactly 10,
+all matching the clean single-record-create-immediately-preceded-by-ID-generation pattern with nothing
+to skip. Preceded by `PCHECK-PROD-IDCOUNTER-DESYNC`, a read-only production check confirming no live
+desync currently exists for `EMP`/`LV`/`TSK` -- this batch is hardening against a future occurrence, not
+an active data-integrity emergency.
+
+- **Fix 1 (`leaves.service.ts:49`, commit `0745068`)** — `submitLeave`'s `Leave` create.
+- **Fix 2 (`functions.service.ts:84`, commit `3cd7415`)** — `createFunction`'s `WorkFunction` create.
+- **Fix 3 (`ddr.service.ts:47`, commit `e884832`)** — `requestDueDateChange`'s `DueDateRequest` create.
+- **Fix 4 (`tasks.service.ts:119`, commit `dfd9d8a`)** — `createTask`'s `Task` create.
+- **Fix 5 (`tasks.service.ts:276`, commit `a2bfd48`)** — `submitProgressUpdate`'s `ProgressUpdate` create.
+- **Fix 6 (`work-duration.service.ts:283`, commit `d0e9e9f`)** — `getOrCreateTodaySession`'s
+  `WorkDuration` create. `createWithId`'s retry fires only on a `sessionId` collision specifically; the
+  existing `empId_date` unique-constraint check (a `findUnique` immediately before this call) and its
+  distinct failure mode are untouched.
+- **Fix 7 (`projects.service.ts:89`, commit `07e099d`)** — `createProject`'s `Project` create.
+- **Fix 8 (`users.service.ts:175`, commit `eb2ac46`)** — `submitRegistration`'s `RegistrationRequest`
+  create.
+- **Fix 9 (`users.service.ts:331`, commit `8643b5a`)** — the profile-update-request `ProfileUpdateRequest`
+  create.
+- **Fix 10 (`meetings.service.ts:76`, commit `04ae5a6`)** — `scheduleMeeting`'s `Meeting` create.
+
+Each committed and pushed individually as it was finished, same interruption-resilience discipline as
+every prior batch in this series -- `npm run build:api` clean after each. All 10 tagged
+`FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING`, with a consolidated local-verification pass (one Docker
+Postgres container, not ten) to follow.
+
 ## 2026-09-07 — PFIX-ROUND4-FOLLOWUP-1
 
 Two small, unrelated loose threads the live-verification pass surfaced as asides, not new audit findings.
