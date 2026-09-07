@@ -71,18 +71,18 @@ export function canEditProject(user: Caller, project: Project): boolean {
 }
 
 // Mirrors projects.service.ts `canDelete` exactly (LGDesk_Master_Reference.md Part 5
-// Row 6, restored 2026-07-06 per PVERIFY-FULL-APP-PARITY): isAdmin unconditionally, OR
-// isManager AND (own-team match OR the project's own assigner OR one of its owners) —
-// a manager's team-match and assigner/owner status are independently sufficient; a
-// project's own creator/owner never loses delete rights just because their team string
-// doesn't happen to match assignedTeams.
+// Round5 #14: isAdmin unconditionally, OR isManager AND (the project's own assigner OR
+// one of its owners) — no team-match branch. Mirrors projects.service.ts canDelete
+// exactly; see that file for why the prior team-match condition was removed (a real
+// over-grant relative to auth.gs's actual deleteProject, confirmed via
+// PINVESTIGATE-ROUND5-DECISIONS). Deliberate narrowing: a TC/TF who could previously
+// delete a team-assigned project without being its owner/assigner no longer sees the
+// affordance here either.
 export function canDeleteProject(user: Caller, project: Project): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
   if (!isManager(user.role)) return false;
-  if (user.team && project.assignedTeams.includes(user.team)) return true;
-  if (project.assignerId === user.empId || project.ownerIds.includes(user.empId)) return true;
-  return false;
+  return project.assignerId === user.empId || project.ownerIds.includes(user.empId);
 }
 
 // ─── Functions & Sub-Functions (Part 14 §RBAC) ─────────────────────────────────

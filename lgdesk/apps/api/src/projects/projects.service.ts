@@ -228,20 +228,23 @@ export class ProjectsService {
     return false;
   }
 
-  // LGDesk_Master_Reference.md Part 5 Row 6: Admin/SA always; TC/TF within
-  // their own team (flat Team-string match against assignedTeams) OR as the
-  // project's owner/assigner — both conditions independently grant delete
-  // rights (never narrows). TM/Intern can never delete. The owner/assigner
-  // half was previously missing entirely (confirmed via PVERIFY-FULL-APP-PARITY
-  // reconciliation 2026-07-06) — a project's own creator/owner could lose
-  // delete rights to their own project if their team string didn't happen to
-  // match assignedTeams. Restored here.
+  // Round5 #14: Admin/SA always; otherwise a manager (TC/TF) may delete only if
+  // they're the project's own assigner or an owner — no team-match branch.
+  // Confirmed via PINVESTIGATE-ROUND5-DECISIONS that the prior team-match condition
+  // (any TC/TF whose team appeared in assignedTeams, no ownership required) was a
+  // real over-grant relative to auth.gs's actual deleteProject, which has no team
+  // qualifier at all, and to the reference's own test-case checklist ("As TC who is
+  // neither Assigner nor Owner of a project, deleteProject throws"). Unlike
+  // Functions' canDelete (below) — confirmed broader-by-design, any manager org-wide,
+  // per its own 2026-07-06 reconciliation — Task/Project delete-scoping was never
+  // actually settled that way; this restores what auth.gs actually does.
+  // Deliberate behavior narrowing, not a bug fix for a regression: a TC/TF who could
+  // previously delete a team-assigned project without being its owner/assigner no
+  // longer can.
   private canDelete(p: ProjectRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
     if (!isManager(caller.role)) return false;
-    if (caller.team && parseIds(p.assignedTeams).includes(caller.team)) return true;
-    if (p.assignerId === caller.empId || parseIds(p.ownerIds).includes(caller.empId)) return true;
-    return false;
+    return p.assignerId === caller.empId || parseIds(p.ownerIds).includes(caller.empId);
   }
 
   private mapProject(p: ProjectRow): Project {
