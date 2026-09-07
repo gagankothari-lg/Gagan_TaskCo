@@ -330,9 +330,12 @@ export class UsersService {
     }
 
     const changes = Object.fromEntries(provided);
-    const reqId = await this.idUtils.generateId('profileUpdateRequest', 'reqId', 'PR');
-    await this.prisma.profileUpdateRequest.create({
-      data: { reqId, empId, changes: JSON.stringify(changes), status: 'Pending' },
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const reqId = await this.idUtils.createWithId('profileUpdateRequest', 'reqId', 'PR', async (id) => {
+      await this.prisma.profileUpdateRequest.create({
+        data: { reqId: id, empId, changes: JSON.stringify(changes), status: 'Pending' },
+      });
+      return id;
     });
     return { immediate: false, reqId };
   }
