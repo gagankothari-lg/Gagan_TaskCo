@@ -2,6 +2,43 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-07 — PFIX-ROUND4-FOLLOWUP-1
+
+Two small, unrelated loose threads the live-verification pass surfaced as asides, not new audit findings.
+
+- **Part A (fix) — `approveRegistration`'s employee-ID generation had no collision retry.** Every other
+  ID-generating create() in the codebase that feeds a unique-constrained column either doesn't need retry
+  logic or, in `work-log.service.ts`'s case, already uses `IdUtilsService.createWithId`'s bounded
+  retry-with-refetch wrapper. `UsersService.approveRegistration` (`users.service.ts:243-244`) was the one
+  exception: a bare `generateEmpId()` call passed straight into `prisma.user.create()`, no try/catch, no
+  retry. On any real `empId` collision this threw an unhandled `PrismaClientKnownRequestError` straight to
+  a raw 500 -- reproduced live during `PVERIFY-ROUND4-LIVE-BATCH` (a manually-seeded fixture user desynced
+  the `IdCounter` from actual `User` rows) and reachable in real production too, not just a test artifact:
+  `apps/api/prisma/seed.ts` creates the Super Admin with a hardcoded `empId`, bypassing `generateId`
+  entirely, so the very first approval against a freshly-seeded database hits the same path. Wrapped the
+  create in `createWithId('user', 'empId', 'EMP', ...)`, matching the established pattern exactly; removed
+  the now-fully-dead `generateEmpId()` method. Verified live against a throwaway local Postgres container:
+  seeded the exact desync condition, approved a pending registration through the real API, and confirmed
+  the collision was caught and retried transparently (issued the next real ID, no error) instead of the
+  previous raw 500. The same bare-`generateId()` pattern exists at 10 other call sites across
+  leaves/functions/projects/tasks/registration/profile-requests/DDR/work-duration/meetings -- flagged as a
+  recommendation for a future ticket, not fixed here (out of this ticket's scope).
+- **Part B (no change needed) — `Holiday.description` has no display surface anywhere in the app.**
+  Confirmed there is no edit-holiday feature at all in the rebuild (`GET`/`POST`/`DELETE /holidays` only,
+  no `PATCH` -- `leaves.controller.ts:56-70`; `HolidayModal` has no edit-mode prop, create-only), so there
+  is no "edit round-trip" to be broken. Confirmed `description` is never read into the Calendar's own
+  holiday rendering either (`calendar/page.tsx:116-117` only carries `label`/`id` from the fetched
+  holidays, same as the `getCalendarData`/`getHolidays` queries that already return it unfiltered).
+  Cross-checked the reference: its only reachable holiday UI is the Calendar (`app.js.html:1161` --
+  navigating to the standalone "Holidays" view immediately redirects to Calendar), and that live Calendar
+  view's own holiday rendering (`_calAddHolidays`, `app.js.html:12172-12177`; the day-detail popup,
+  `_calOpenPopup`, `app.js.html:12389-12419`) also only ever carries a holiday's name, never its
+  description. The reference's `.holiday-chip-desc` rendering that *would* show it (`app.js.html:13030-
+  13047`) lives entirely inside that same dead, redirected-away-from standalone view. So the reference's
+  own live/reachable behavior never displays a holiday's description anywhere either -- it's a
+  write-only/admin-only field in the source system too. The rebuild's current behavior already matches;
+  no gap, no fix made.
+
 ## 2026-09-07 — PVERIFY-ROUND4-LIVE-BATCH
 
 Live-verification pass, no code changes -- closes out the `LIVE-VERIFICATION-PENDING` tag on all 19
