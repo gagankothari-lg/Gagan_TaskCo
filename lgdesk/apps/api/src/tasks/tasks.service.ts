@@ -195,9 +195,13 @@ export class TasksService {
   async updateTask(taskId: string, dto: UpdateTaskDto, callerEmpId: string): Promise<Task> {
     const task = await this.requireTask(taskId);
     const caller = await this.getCaller(callerEmpId);
-    // RBAC matrix Row 2: Interns may NOT update tasks at all, even ones they are
-    // assigned to or assigned themselves.
-    if (caller.role === 'Intern') throw new ForbiddenException();
+    // Round5 #2: the prior Intern-wide block here was confirmed (PINVESTIGATE-ROUND5-
+    // DECISIONS) to be a data-entry error in Master Reference's RBAC summary table, not
+    // a considered design -- auth.gs's actual canModifyTask/updateTask has no role check
+    // beyond admin/manager, and its own UI/test-case checklists agree Interns can edit
+    // their own assigned/created tasks. canModifyTask below already implements exactly
+    // that (own-assignee/own-creator applies to any non-admin, non-manager role) --
+    // removed the block rather than writing a parallel check.
     if (!(await this.canModifyTask(task, caller))) throw new ForbiddenException();
 
     const data: {
@@ -210,8 +214,8 @@ export class TasksService {
 
     // Reassignment → recompute lists and APPEND to assignmentHistory (never replace).
     if (dto.assigneeIds !== undefined || dto.assignedTeams !== undefined) {
-      // Rule #22: a TM re-assigning must stay self-only — never another employee
-      // or a team. Managers are unrestricted. (Interns already blocked above.)
+      // Rule #22: a TM/Intern re-assigning must stay self-only — never another
+      // employee or a team. Managers are unrestricted.
       if (
         !isManager(caller.role) &&
         (!this.isTmSelfAssign(dto.assigneeIds ?? [], callerEmpId) || (dto.assignedTeams?.length ?? 0) > 0)
@@ -325,14 +329,18 @@ export class TasksService {
     return false;
   }
 
-  // RBAC matrix Row 3: Admin/SA always; TC/TF within their own team (flat
-  // Team-string match against assignedTeams); the Team Member who created the
-  // task (assignerId is set to the creator at creation) — own-created only.
-  // Interns can never delete (they fall through to false).
+  // Round5 #2: Admin/SA always; TC/TF within their own team (flat Team-string match
+  // against assignedTeams); any non-manager (TM or Intern) who created the task
+  // (assignerId is set to the creator at creation) — own-created only. The prior
+  // `caller.role === 'Team Member'` literal excluded Interns; confirmed
+  // (PINVESTIGATE-ROUND5-DECISIONS) that's a documentation error, not a considered
+  // design — auth.gs's deleteTask's isOwner check has no role restriction at all
+  // beyond the outer admin gate. Widened to match, mirroring canModifyTask's own
+  // already-role-agnostic pattern above rather than writing a new parallel check.
   canDeleteTask(task: TaskRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
     if (isManager(caller.role) && caller.team && parseIds(task.assignedTeams).includes(caller.team)) return true;
-    if (caller.role === 'Team Member' && task.assignerId === caller.empId) return true;
+    if (!isManager(caller.role) && task.assignerId === caller.empId) return true;
     return false;
   }
 

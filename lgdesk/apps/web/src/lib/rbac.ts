@@ -20,10 +20,14 @@ import type { Task, Project, WorkFunction } from './types';
 
 type Caller = Pick<AuthUser, 'empId' | 'role' | 'team'> | null | undefined;
 
-// ─── Tasks (Part 13 §"Task CRUD RBAC" + PFIX RBAC correction) ──────────────────
+// ─── Tasks (Part 13 §"Task CRUD RBAC" + Round5 #2 RBAC correction) ─────────────
+// Round5 #2: canEditTask's prior Intern-wide block was confirmed
+// (PINVESTIGATE-ROUND5-DECISIONS) to be a data-entry error in Master Reference's RBAC
+// summary table, not a considered design -- auth.gs's actual canModifyTask has no role
+// check beyond admin/manager. Removed to match tasks.service.ts's own canModifyTask,
+// which already applies the assigner/assignee check role-agnostically.
 export function canEditTask(user: Caller, task: Task): boolean {
   if (!user) return false;
-  if (user.role === 'Intern') return false; // Interns are blocked from updating tasks, even their own.
   if (isAdmin(user.role)) return true;
   if (task.assignerId === user.empId) return true;
   if (task.assigneeIds.includes(user.empId)) return true;
@@ -31,11 +35,6 @@ export function canEditTask(user: Caller, task: Task): boolean {
   return false;
 }
 
-// Progress-logging is gated by the backend's base canModifyTask check (assigner /
-// assignee / manager-team) WITHOUT the Intern-wide update block — Interns may log
-// progress on their own tasks even though they can't edit task fields directly
-// (tasks.service.ts `submitProgressUpdate` calls `canModifyTask`, not the Intern-gated
-// `updateTask` path).
 export function canLogTaskProgress(user: Caller, task: Task): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
@@ -45,11 +44,14 @@ export function canLogTaskProgress(user: Caller, task: Task): boolean {
   return false;
 }
 
+// Round5 #2: widened from a `user.role === 'Team Member'` literal (which excluded
+// Interns) to any non-manager, mirroring tasks.service.ts `canDeleteTask` exactly --
+// auth.gs's deleteTask isOwner check has no role restriction beyond the outer admin gate.
 export function canDeleteTask(user: Caller, task: Task): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
   if (isManager(user.role) && user.team && task.assignedTeams.includes(user.team)) return true;
-  if (user.role === 'Team Member' && task.assignerId === user.empId) return true;
+  if (!isManager(user.role) && task.assignerId === user.empId) return true;
   return false;
 }
 
