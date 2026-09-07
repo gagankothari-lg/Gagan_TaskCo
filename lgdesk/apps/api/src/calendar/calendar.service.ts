@@ -195,7 +195,7 @@ export class CalendarService {
     if (!this.cal) return;
     this.logger.log('Starting daily calendar sync...');
 
-    const [tasks, projects] = await Promise.all([
+    const [tasks, projects, approvedLeavesNoEvent, unapprovedLeavesWithEvent, holidaysNoEvent] = await Promise.all([
       this.prisma.task.findMany({
         where: { dueDate: { not: null }, status: { notIn: ['Done', 'Cancelled'] } },
         select: { id: true, taskId: true, title: true, status: true, priority: true, dueDate: true, calEventId: true },
@@ -204,6 +204,15 @@ export class CalendarService {
         where: { deadline: { not: null }, status: { notIn: ['Done', 'Cancelled'] } },
         select: { id: true, projId: true, name: true, status: true, priority: true, deadline: true, calEventId: true },
       }),
+      // Round5 add'l-5: reference (calendar.gs fullSyncCalendar) reconciles all 4 entity
+      // types as a backstop for whenever event-driven sync was missed — this daily sync
+      // previously covered only Tasks/Projects. Leaves/Holidays already have event-driven
+      // sync on submit/approve (syncLeave/syncHoliday, called elsewhere); this backstop
+      // only needs to catch what that missed, matching the reference's own create-missing/
+      // delete-stale semantics exactly (it does not re-sync already-synced rows daily).
+      this.prisma.leave.findMany({ where: { status: 'Approved', calEventId: null }, select: { leaveId: true } }),
+      this.prisma.leave.findMany({ where: { status: { not: 'Approved' }, calEventId: { not: null } }, select: { leaveId: true } }),
+      this.prisma.holiday.findMany({ where: { calEventId: null }, select: { id: true } }),
     ]);
 
     for (const t of tasks) {
@@ -228,6 +237,14 @@ export class CalendarService {
       }
     }
 
-    this.logger.log(`Daily sync done: ${tasks.length} tasks, ${projects.length} projects`);
+    for (const l of approvedLeavesNoEvent) await this.syncLeave(l.leaveId);
+    for (const l of unapprovedLeavesWithEvent) await this.deleteLeaveEvent(l.leaveId);
+    for (const h of holidaysNoEvent) await this.syncHoliday(h.id);
+
+    this.logger.log(
+      `Daily sync done: ${tasks.length} tasks, ${projects.length} projects, ` +
+        `${approvedLeavesNoEvent.length} leaves created, ${unapprovedLeavesWithEvent.length} leaves removed, ` +
+        `${holidaysNoEvent.length} holidays created`,
+    );
   }
 }
