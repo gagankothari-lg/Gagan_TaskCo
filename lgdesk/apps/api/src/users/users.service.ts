@@ -240,23 +240,32 @@ export class UsersService {
     });
     if (existing) throw new ConflictException('Email already registered');
 
-    const empId = await this.generateEmpId();
-    await this.prisma.user.create({
-      data: {
-        empId,
-        firstName: req.firstName,
-        lastName: req.lastName,
-        email: req.email,
-        passwordHash: req.passwordHash,
-        role: req.role,
-        designation: req.designation,
-        managerId: req.managerId,
-        team: req.team,
-        subDepartment: req.subDepartment,
-        // Round4 F11: same DateTime? shape as User.dob -- no format conversion needed.
-        dob: req.dob,
-        isActive: true,
-      },
+    // PFIX-ROUND4-FOLLOWUP-1: collision-safe, matching work-log.service.ts's established
+    // pattern -- a bare generateId() here throws an unhandled PrismaClientKnownRequestError
+    // on any real empId collision (reproduced live during PVERIFY-ROUND4-LIVE-BATCH: a
+    // manually-seeded fixture user desynced the IdCounter from actual User rows, and the
+    // next approval 500'd with "Unique constraint failed on the fields: (empId)"). The same
+    // desync is reachable in real production too, not just a test seed -- apps/api/prisma/
+    // seed.ts creates the Super Admin with a hardcoded empId, bypassing generateId entirely.
+    const empId = await this.idUtils.createWithId('user', 'empId', 'EMP', async (id) => {
+      await this.prisma.user.create({
+        data: {
+          empId: id,
+          firstName: req.firstName,
+          lastName: req.lastName,
+          email: req.email,
+          passwordHash: req.passwordHash,
+          role: req.role,
+          designation: req.designation,
+          managerId: req.managerId,
+          team: req.team,
+          subDepartment: req.subDepartment,
+          // Round4 F11: same DateTime? shape as User.dob -- no format conversion needed.
+          dob: req.dob,
+          isActive: true,
+        },
+      });
+      return id;
     });
     await this.prisma.registrationRequest.update({
       where: { id: req.id },
@@ -475,10 +484,6 @@ export class UsersService {
   // Out of scope in P03 — a default-manager fallback store is deferred; return ok.
   async setDefaultManager(_email: string, _name: string, _callerEmpId: string) {
     return { ok: true };
-  }
-
-  generateEmpId(): Promise<string> {
-    return this.idUtils.generateId('user', 'empId', 'EMP');
   }
 
   // ═══════════════════════════════════════════════ helpers
