@@ -116,35 +116,37 @@ export class TasksService {
     const assigneeIds = [...assigneeSet];
     const teams = dto.assignedTeams ?? [];
 
-    const taskId = await this.idUtils.generateId('task', 'taskId', 'TSK');
     const history: AssignmentEntry[] = [
       { date: new Date().toISOString(), by: callerEmpId, assignees: assigneeIds, teams },
     ];
 
-    const created = await this.prisma.task.create({
-      data: {
-        taskId,
-        title: dto.title,
-        description: dto.description,
-        projId: dto.projId,
-        functionId: dto.functionId,
-        subFnId: dto.subFnId,
-        assigneeIds: joinIds(assigneeIds),
-        assignedTeams: joinIds(teams),
-        assignerId: callerEmpId, // ← from JWT, NEVER from body (rule #2)
-        status: dto.status ?? 'Not Started',
-        priority: dto.priority ?? 'Medium',
-        // Round4 checklist#1: recurring stays in sync as a derived legacy mirror of the
-        // real cadence field -- never set independently from client input.
-        recurrencePattern: dto.recurrencePattern ?? 'One Time',
-        recurring: (dto.recurrencePattern ?? 'One Time') !== 'One Time',
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-        estimatedHours: dto.estimatedHours,
-        fileLink: dto.fileLink,
-        links: dto.links ? joinIds(dto.links) : null,
-        assignmentHistory: JSON.stringify(history),
-      },
-    });
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const created = await this.idUtils.createWithId('task', 'taskId', 'TSK', (taskId) =>
+      this.prisma.task.create({
+        data: {
+          taskId,
+          title: dto.title,
+          description: dto.description,
+          projId: dto.projId,
+          functionId: dto.functionId,
+          subFnId: dto.subFnId,
+          assigneeIds: joinIds(assigneeIds),
+          assignedTeams: joinIds(teams),
+          assignerId: callerEmpId, // ← from JWT, NEVER from body (rule #2)
+          status: dto.status ?? 'Not Started',
+          priority: dto.priority ?? 'Medium',
+          // Round4 checklist#1: recurring stays in sync as a derived legacy mirror of the
+          // real cadence field -- never set independently from client input.
+          recurrencePattern: dto.recurrencePattern ?? 'One Time',
+          recurring: (dto.recurrencePattern ?? 'One Time') !== 'One Time',
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          estimatedHours: dto.estimatedHours,
+          fileLink: dto.fileLink,
+          links: dto.links ? joinIds(dto.links) : null,
+          assignmentHistory: JSON.stringify(history),
+        },
+      }),
+    );
     await this.audit(callerEmpId, 'CREATE', created.taskId);
     if (created.dueDate) {
       void this.calendar.createGCalEvent({
