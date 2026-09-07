@@ -73,25 +73,28 @@ export class MeetingsService {
       attendeeTeams = [];
     }
 
-    const meetingId = await this.idUtils.generateId('meeting', 'meetingId', 'MTG');
     const start = new Date(dto.startTime);
     const end = new Date(start.getTime() + dto.durationMins * 60000);
 
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
     // DB first — source of truth (rule #21).
-    const meeting = await this.prisma.meeting.create({
-      data: {
-        meetingId,
-        title: dto.title,
-        description: dto.description,
-        organizerId: callerEmpId, // ← from JWT
-        attendeeIds: joinIds(attendeeIds),
-        attendeeTeams: joinIds(attendeeTeams),
-        meetType,
-        startTime: start,
-        endTime: end,
-        status: 'Scheduled',
-      },
-    });
+    const meeting = await this.idUtils.createWithId('meeting', 'meetingId', 'MTG', (meetingId) =>
+      this.prisma.meeting.create({
+        data: {
+          meetingId,
+          title: dto.title,
+          description: dto.description,
+          organizerId: callerEmpId, // ← from JWT
+          attendeeIds: joinIds(attendeeIds),
+          attendeeTeams: joinIds(attendeeTeams),
+          meetType,
+          startTime: start,
+          endTime: end,
+          status: 'Scheduled',
+        },
+      }),
+    );
+    const meetingId = meeting.meetingId;
 
     // Calendar sync — fire-and-forget; never blocks/fails the response.
     void this.syncToCalendar(meeting.id, meetingId, meetType, attendeeIds, attendeeTeams, dto, start, end);
