@@ -172,24 +172,26 @@ export class UsersService {
     } else {
       captain = await this.getTeamCaptainByTeam(dto.team, dto.subDepartment);
     }
-    const regId = await this.idUtils.generateId('registrationRequest', 'regId', 'REG');
-
-    await this.prisma.registrationRequest.create({
-      data: {
-        regId,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        email: dto.email,
-        passwordHash,
-        designation: dto.designation,
-        team: dto.team,
-        subDepartment: dto.subDepartment,
-        managerId: captain?.empId ?? null,
-        role: dto.role ?? 'Team Member',
-        status: 'Pending',
-        // Round4 F11: was previously discarded client-side before submission.
-        dob: dto.dob ? new Date(dto.dob) : null,
-      },
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const regId = await this.idUtils.createWithId('registrationRequest', 'regId', 'REG', async (id) => {
+      await this.prisma.registrationRequest.create({
+        data: {
+          regId: id,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email: dto.email,
+          passwordHash,
+          designation: dto.designation,
+          team: dto.team,
+          subDepartment: dto.subDepartment,
+          managerId: captain?.empId ?? null,
+          role: dto.role ?? 'Team Member',
+          status: 'Pending',
+          // Round4 F11: was previously discarded client-side before submission.
+          dob: dto.dob ? new Date(dto.dob) : null,
+        },
+      });
+      return id;
     });
 
     if (captain) {
