@@ -2,6 +2,26 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-07 — PVERIFY-ROUND4-LIVE-BATCH
+
+Live-verification pass, no code changes -- closes out the `LIVE-VERIFICATION-PENDING` tag on all 19
+Round 4 fixes shipped across Batches 1-3 and the schema batch. Built a fully local, disposable stand-in
+(throwaway Docker Postgres container, a local-only 5-role seed never committed, `dev:api`/`dev:web`
+pointed at the container via a process-level `DATABASE_URL` override) rather than use real employees'
+production accounts, per the prior readiness check's finding that no seeded test org exists for
+non-Super-Admin roles. All 19 items confirmed via real Playwright-driven browser interaction (18 with a
+UI surface) or direct DB read (for the 2 fields with no display surface -- `Holiday.description`,
+`RegistrationRequest.dob`/`User.dob`); F4 (the 20-relation `onDelete` fix) has no UI surface at all and
+was already confirmed structurally via the successful production migration deploy. Zero real regressions
+found -- every initial script failure traced to a test-script bug (stuck dialog overlays from a shared
+browser session, a wrong guessed button label, an overly broad CSS selector, an unhandled native
+`window.confirm()`, a missed required field), each root-caused against a screenshot or server log before
+being fixed and re-verified, never re-run blindly. Full per-item detail and evidence in
+`AUDIT_REPORT_ROUND4_2026-09-02.md`'s new "Round 4 Fix Status — Live Verification Pass" section. Does
+**not** newly authorize anything -- the schema batch this pass verifies was already merged/deployed with
+its own separate go-ahead in a prior session. Local environment fully torn down afterward (container +
+volume removed, seed/Playwright scripts deleted, nothing committed).
+
 ## 2026-09-03 — PFIX-ROUND4-SCHEMA-BATCH
 
 Consolidates the 6 previously schema-blocked Round 4 findings into one migration --
