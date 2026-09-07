@@ -94,6 +94,13 @@ export class DdrService {
     const ddr = await this.prisma.dueDateRequest.findUnique({ where: { ddrId } });
     if (!ddr) throw new NotFoundException('Request not found');
     if (ddr.status !== 'Pending') throw new BadRequestException('Request already processed');
+    // Round5 #4: mirrors approveDdr's guard above — RBAC matrix Row 24 applies to
+    // reviewing a DDR at all (approve OR reject), not just the approve path. This
+    // was a real asymmetry: an Intern who happened to satisfy assertCanReview
+    // (assigned the entity) could reject a DDR even though they could never
+    // approve the identical request.
+    const caller = await this.getCaller(callerEmpId);
+    if (caller.role === 'Intern') throw new ForbiddenException();
     await this.assertCanReview(ddr.entityType as EntityType, ddr.entityId, callerEmpId);
 
     await this.prisma.dueDateRequest.update({
