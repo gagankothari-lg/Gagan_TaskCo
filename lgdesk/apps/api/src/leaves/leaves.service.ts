@@ -46,9 +46,12 @@ export class LeavesService {
       days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
     }
 
-    const leaveId = await this.idUtils.generateId('leave', 'leaveId', 'LV');
-    await this.prisma.leave.create({
-      data: { leaveId, empId: callerEmpId, leaveType: dto.leaveType, startDate: start, endDate: end, days, reason: dto.reason ?? '', status: 'Pending' },
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const leaveId = await this.idUtils.createWithId('leave', 'leaveId', 'LV', async (id) => {
+      await this.prisma.leave.create({
+        data: { leaveId: id, empId: callerEmpId, leaveType: dto.leaveType, startDate: start, endDate: end, days, reason: dto.reason ?? '', status: 'Pending' },
+      });
+      return id;
     });
     // Notify the manager — fire-and-forget so it never blocks the response.
     void this.notifyManager(callerEmpId, dto.leaveType, start, end);
