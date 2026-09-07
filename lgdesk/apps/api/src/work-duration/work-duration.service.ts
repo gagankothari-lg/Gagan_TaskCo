@@ -246,13 +246,16 @@ export class WorkDurationService {
   }
 
   // ─────────────────────────────────────────────── cron (daily calendar sync — 06:00 IST / 00:30 UTC)
-  @Cron('30 0 * * *')
+  // Round5 add'l-7: explicit TZ pin, matching F18/F20's established pattern
+  // (weekly-summary.service.ts:130) — previously relied on the container's UTC default.
+  @Cron('30 0 * * *', { timeZone: 'Etc/UTC' })
   async dailyCalendarSync() {
     await this.calendar.fullDailySync();
   }
 
   // ─────────────────────────────────────────────── cron (hourly daily-boundary check)
-  @Cron('0 * * * *')
+  // Round5 add'l-7: explicit TZ pin, matching F18/F20's established pattern.
+  @Cron('0 * * * *', { timeZone: 'Etc/UTC' })
   async autoClockOut() {
     const today = this.todayUtc(); // 00:00 UTC = 05:30 IST — the daily-reset boundary
     // Midnight-UTC DATE-based reset (Master Reference Part 29/31): close any still-open
