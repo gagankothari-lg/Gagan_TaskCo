@@ -2,6 +2,29 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND5-INTERN-TASK-SCOPE
+
+Closed checklist #2 (Intern task-update/delete permission scope). `PINVESTIGATE-ROUND5-
+DECISIONS` had already established the fix direction: Master Reference's RBAC matrix row
+blocking Interns from task update/delete is a documentation error, not a considered
+design — `auth.gs`'s actual `canModifyTask`/`deleteTask` have no role check beyond admin/
+manager, and the reference's own UI checklist and test-case checklist both agree Interns
+can edit/delete their own assigned/created tasks the same as Team Members.
+
+Removed `tasks.service.ts` `updateTask`'s Intern-wide block (its `canModifyTask` check
+already applies the assigner/assignee condition role-agnostically, so no new check was
+needed). Widened `canDeleteTask`'s `caller.role === 'Team Member'` literal to
+`!isManager(caller.role)`, matching `auth.gs`'s role-agnostic `isOwner` check. Mirrored
+both in `apps/web/src/lib/rbac.ts`.
+
+Scope held precisely to what Team Members already have — own-assignee for edit,
+own-creator only for delete. No other role touched, no blanket Intern task access.
+
+Live-verified on a disposable local Postgres container: an Intern updating a task they're
+assigned to and deleting one they created both now succeed; updating/deleting an unrelated
+task still 403s; deleting a task where they're only the assignee (not creator) still 403s,
+identical to the existing Team Member rule. Both workspaces build clean. Commit `036163d`.
+
 ## 2026-09-08 — PFIX-ROUND5-SMALL-FIXES
 
 Five small, independent Round 5 fixes (none touched each other's files, none needed a decision) plus
