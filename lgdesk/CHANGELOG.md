@@ -31,9 +31,19 @@ an active data-integrity emergency.
 - **Fix 10 (`meetings.service.ts:76`, commit `04ae5a6`)** — `scheduleMeeting`'s `Meeting` create.
 
 Each committed and pushed individually as it was finished, same interruption-resilience discipline as
-every prior batch in this series -- `npm run build:api` clean after each. All 10 tagged
-`FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING`, with a consolidated local-verification pass (one Docker
-Postgres container, not ten) to follow.
+every prior batch in this series -- `npm run build:api` clean after each.
+
+**Consolidated live-verification pass, all 10 sites** (one Docker Postgres container, not ten): seeded
+one deliberate desync per entity -- a hardcoded `-00001` row for each of `User`(reused from prior
+sessions' pattern)/`Task`/`Leave`/`WorkFunction`/`Project`/`DueDateRequest`/`Meeting`/`ProgressUpdate`/
+`WorkDuration`/`RegistrationRequest`/`ProfileUpdateRequest`, with `id_counters` left completely empty --
+then drove each entity's real creation path through the running API (login as a seeded Super Admin/Team
+Member, real HTTP calls, not direct service invocation). **All 10 succeeded cleanly**, each correctly
+retrying past the seeded collision to issue `-00002` instead of raising an unhandled exception, and
+`id_counters` correctly self-healed to `nextValue=3` for all 10 prefixes afterward -- confirmed by direct
+read, not inferred from the create succeeding alone. All 10 items upgraded from
+`FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING` to `LIVE-VERIFIED (local Docker Postgres, 2026-09-07)`.
+Container + volume removed afterward; no throwaway seed script was committed.
 
 ## 2026-09-07 — PFIX-ROUND4-FOLLOWUP-1
 
