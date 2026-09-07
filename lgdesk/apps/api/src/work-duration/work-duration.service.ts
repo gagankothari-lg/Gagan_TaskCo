@@ -280,8 +280,10 @@ export class WorkDurationService {
     const date = this.todayUtc();
     const existing = await this.prisma.workDuration.findUnique({ where: { empId_date: { empId, date } } });
     if (existing) return existing;
-    const sessionId = await this.idUtils.generateId('workDuration', 'sessionId', 'WD');
-    return this.prisma.workDuration.create({ data: { sessionId, empId, date, status: 'IDLE', totalBreakMins: 0 } });
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    return this.idUtils.createWithId('workDuration', 'sessionId', 'WD', (sessionId) =>
+      this.prisma.workDuration.create({ data: { sessionId, empId, date, status: 'IDLE', totalBreakMins: 0 } }),
+    );
   }
 
   private async getCaller(empId: string) {
