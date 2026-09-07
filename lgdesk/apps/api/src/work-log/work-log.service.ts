@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   ForbiddenException,
   NotFoundException,
@@ -59,12 +60,20 @@ export class WorkLogService {
     };
 
     // Collision-safe: retry on a unique-ID race (concurrent submissions from other users).
+    // Round5 #9: runUpsert wraps the empId+date unique-constraint race (two concurrent
+    // saves for the same day) into a clean ConflictException instead of a raw P2002/500 --
+    // distinct from createWithId's own logId-collision retry above it, which still sees
+    // the original error untouched for anything that isn't the date conflict.
     const log = await this.idUtils.createWithId('workLog', 'logId', 'WL', (logId) =>
-      this.prisma.workLog.upsert({
-        where: { empId_date: { empId: callerEmpId, date } },
-        create: { logId, empId: callerEmpId, date, ...data },
-        update: data,
-      }),
+      this.runUpsert(
+        () =>
+          this.prisma.workLog.upsert({
+            where: { empId_date: { empId: callerEmpId, date } },
+            create: { logId, empId: callerEmpId, date, ...data },
+            update: data,
+          }),
+        'A work log for this date was just saved by another request — please refresh and try again.',
+      ),
     );
     await this.audit(callerEmpId, 'WORKLOG_SUBMIT', log.logId);
     return { logId: log.logId };
@@ -85,11 +94,15 @@ export class WorkLogService {
       remark: dto.remark,
     };
     const log = await this.idUtils.createWithId('internWorkLog', 'logId', 'IWL', (logId) =>
-      this.prisma.internWorkLog.upsert({
-        where: { empId_date: { empId: callerEmpId, date } },
-        create: { logId, empId: callerEmpId, date, ...data },
-        update: data,
-      }),
+      this.runUpsert(
+        () =>
+          this.prisma.internWorkLog.upsert({
+            where: { empId_date: { empId: callerEmpId, date } },
+            create: { logId, empId: callerEmpId, date, ...data },
+            update: data,
+          }),
+        'A work log for this date was just saved by another request — please refresh and try again.',
+      ),
     );
     return { logId: log.logId };
   }
@@ -231,11 +244,15 @@ export class WorkLogService {
     if (target.role === 'Intern') {
       const data = { month: this.monthOf(date), dayName: this.dayNameOf(date), attendance: dto.attendance ?? 'Present', work1stHalf: dto.work1stHalf, work2ndHalf: dto.work2ndHalf, extraHours: dto.extraHours ?? 0, remark: dto.remark };
       const log = await this.idUtils.createWithId('internWorkLog', 'logId', 'IWL', (logId) =>
-        this.prisma.internWorkLog.upsert({
-          where: { empId_date: { empId: dto.targetEmpId, date } },
-          create: { logId, empId: dto.targetEmpId, date, ...data },
-          update: data,
-        }),
+        this.runUpsert(
+          () =>
+            this.prisma.internWorkLog.upsert({
+              where: { empId_date: { empId: dto.targetEmpId, date } },
+              create: { logId, empId: dto.targetEmpId, date, ...data },
+              update: data,
+            }),
+          'A work log for this employee and date was just saved by another request — please refresh and try again.',
+        ),
       );
       await this.audit(callerEmpId, 'WORKLOG_ADMIN', log.logId);
       return { logId: log.logId };
@@ -255,11 +272,15 @@ export class WorkLogService {
       extraHours: dto.extraHours ?? 0, remark: dto.remark, status: dto.status, comments: dto.comments,
     };
     const log = await this.idUtils.createWithId('workLog', 'logId', 'WL', (logId) =>
-      this.prisma.workLog.upsert({
-        where: { empId_date: { empId: dto.targetEmpId, date } },
-        create: { logId, empId: dto.targetEmpId, date, ...data },
-        update: data,
-      }),
+      this.runUpsert(
+        () =>
+          this.prisma.workLog.upsert({
+            where: { empId_date: { empId: dto.targetEmpId, date } },
+            create: { logId, empId: dto.targetEmpId, date, ...data },
+            update: data,
+          }),
+        'A work log for this employee and date was just saved by another request — please refresh and try again.',
+      ),
     );
     await this.audit(callerEmpId, 'WORKLOG_ADMIN', log.logId);
     return { logId: log.logId };
@@ -292,6 +313,32 @@ export class WorkLogService {
   }
 
   // ═══════════════════════════════════════════════ helpers
+
+  // Round5 #9: the empId+date compound unique constraint on WorkLog/InternWorkLog can
+  // still raise a genuine P2002 under a real race (two concurrent submissions for the
+  // same employee+day) even though upsert() handles the common case -- previously
+  // unguarded, so it surfaced as a raw, unhandled 500. Deliberately narrower than a
+  // blanket "catch any P2002 here" -- these upserts are inside idUtils.createWithId's
+  // own logId-collision retry (see id.utils.ts), so this must NOT swallow a P2002 that's
+  // actually about logId (that one needs to reach createWithId unmodified so it can mint
+  // a fresh id and retry); only the empId/date conflict is converted.
+  private async runUpsert<T>(fn: () => Promise<T>, conflictMessage: string): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (this.isDateConflict(err)) throw new ConflictException(conflictMessage);
+      throw err;
+    }
+  }
+
+  private isDateConflict(err: unknown): boolean {
+    const e = err as { code?: string; meta?: { target?: unknown } };
+    if (e?.code !== 'P2002') return false;
+    const target = e?.meta?.target;
+    const str = (Array.isArray(target) ? target.join(',') : String(target ?? '')).toLowerCase();
+    return str.includes('date');
+  }
+
   private async getCaller(empId: string): Promise<Caller> {
     const caller = await this.prisma.user.findUnique({ where: { empId }, select: { empId: true, role: true, team: true } });
     if (!caller) throw new ForbiddenException();
