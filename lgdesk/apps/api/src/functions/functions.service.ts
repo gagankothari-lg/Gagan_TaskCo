@@ -81,37 +81,39 @@ export class FunctionsService {
       throw new ForbiddenException('You may only assign functions to yourself');
     }
     const teams = dto.assignedTeams ?? [];
-    const functionId = await this.idUtils.generateId('workFunction', 'functionId', 'FN');
     const history = [{ date: new Date().toISOString(), by: callerEmpId, assignees: assigneeIds, teams }];
 
-    const created = await this.prisma.workFunction.create({
-      data: {
-        functionId,
-        parentFnId: dto.parentFnId,
-        projId: dto.projId,
-        name: dto.name,
-        description: dto.description,
-        assignerId: callerEmpId, // ← from JWT
-        createdById: callerEmpId, // ← from JWT
-        assigneeIds: joinIds(assigneeIds),
-        assignedTeams: joinIds(teams),
-        // Round4 F5: reference default is 'Yet to Start' (auth.gs createFunction),
-        // not 'Not Started' -- the schema-level DB default is 'Not Started' but this
-        // explicit service-level default takes precedence whenever the DTO omits
-        // status. See FUNCTION_STATUSES in common/constants.ts.
-        status: dto.status ?? 'Yet to Start',
-        priority: dto.priority ?? 'Medium',
-        // Round4 F36: startDate column existed and was already returned by
-        // mapFunction, but neither the DTO nor this create call ever wrote it.
-        startDate: dto.startDate ? new Date(dto.startDate) : null,
-        deadline: dto.deadline ? new Date(dto.deadline) : null,
-        // Round4 F35: replaces the old dead `recurringFunctions` boolean, which was never
-        // read here even before this migration.
-        recurringPattern: dto.recurringPattern ?? 'One Time',
-        links: dto.links ? joinIds(dto.links) : null,
-        assignmentHistory: JSON.stringify(history),
-      },
-    });
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const created = await this.idUtils.createWithId('workFunction', 'functionId', 'FN', (functionId) =>
+      this.prisma.workFunction.create({
+        data: {
+          functionId,
+          parentFnId: dto.parentFnId,
+          projId: dto.projId,
+          name: dto.name,
+          description: dto.description,
+          assignerId: callerEmpId, // ← from JWT
+          createdById: callerEmpId, // ← from JWT
+          assigneeIds: joinIds(assigneeIds),
+          assignedTeams: joinIds(teams),
+          // Round4 F5: reference default is 'Yet to Start' (auth.gs createFunction),
+          // not 'Not Started' -- the schema-level DB default is 'Not Started' but this
+          // explicit service-level default takes precedence whenever the DTO omits
+          // status. See FUNCTION_STATUSES in common/constants.ts.
+          status: dto.status ?? 'Yet to Start',
+          priority: dto.priority ?? 'Medium',
+          // Round4 F36: startDate column existed and was already returned by
+          // mapFunction, but neither the DTO nor this create call ever wrote it.
+          startDate: dto.startDate ? new Date(dto.startDate) : null,
+          deadline: dto.deadline ? new Date(dto.deadline) : null,
+          // Round4 F35: replaces the old dead `recurringFunctions` boolean, which was never
+          // read here even before this migration.
+          recurringPattern: dto.recurringPattern ?? 'One Time',
+          links: dto.links ? joinIds(dto.links) : null,
+          assignmentHistory: JSON.stringify(history),
+        },
+      }),
+    );
     await this.audit(callerEmpId, 'CREATE', created.functionId);
     return this.mapFunction(created);
   }
