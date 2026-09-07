@@ -2,6 +2,47 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND5-SMALL-FIXES
+
+Five small, independent Round 5 fixes (none touched each other's files, none needed a decision) plus
+two documentation-only closures.
+
+**Fixes:**
+- **#4 (DDR reject-side Intern guard, `2e78869`).** `rejectDdr` now has the same `caller.role ===
+  'Intern'` guard as `approveDdr` — an Intern who satisfied `assertCanReview` could previously reject a
+  DDR they could never approve.
+- **#9 (WorkLog conflict-handling UX, `daf530c`).** All 4 upsert call sites in `work-log.service.ts`
+  now map an `empId`+`date` unique-constraint race to a clean `ConflictException` instead of a raw
+  500 -- deliberately narrow so it doesn't intercept a `logId` collision, which still needs to reach
+  `IdUtilsService.createWithId`'s own retry logic unmodified. Live-verified on a disposable local
+  Postgres container that the pre-existing logId-collision retry still works correctly through the new
+  wrapper.
+- **add'l-2 (Profile-Update field-set reconciliation, `88061ac`).** Designation-immediate scope now
+  matches the reference regardless of what else is submitted alongside it (previously only applied
+  when Designation was the *only* field); added the missing self-service Manager-change request
+  (resolved by email at approve time, silently no-oping if unmatched, matching the reference exactly);
+  firstName/lastName/dob (no reference equivalent) deliberately kept as an additive capability, not
+  removed.
+- **add'l-5 (Calendar reconciliation backstop, `9406bb0`).** `fullDailySync` now also reconciles
+  Leaves/Holidays, not just Tasks/Projects, matching the reference's `fullSyncCalendar`. The other half
+  of this item ("Calendar workLogs overlay") turned out not to be a real gap at all -- see below.
+- **add'l-7 (cron TZ pins, `227e299`).** `dailyCalendarSync`/`autoClockOut` both now carry an explicit
+  `{ timeZone: 'Etc/UTC' }`, matching F18/F20's already-established pattern. All 3 work-duration/
+  weekly-summary crons are now pinned.
+
+**A genuine non-finding, worth recording:** investigating add'l-5's "Calendar workLogs overlay" found
+that `_calAddWorkLogs` (`app.js.html:12192-12197`) is dead code in the reference itself -- the actual
+`getCalendarData` success handler (`app.js.html:12116-12126`) never calls it, and `wlog` isn't even in
+`CAL_SECTIONS`. The reference's own live Calendar view has never shown work logs to any user. Building
+this in the rebuild would have been new feature scope dressed up as a parity fix -- left alone.
+
+**Closed by explicit product decision, no code change:**
+- **#3** (self-approval of one's own leave request) -- accepted as-is.
+- **add'l-8** (Ideas write-side Admin override) -- won't-fix, moot post-D1 (Ideas stay private-per-user;
+  an admin write-override has no purpose without shared visibility).
+
+Both workspaces build clean after all 5 fixes.
+
 ## 2026-09-08 — PFIX-ROUND5-IMPORT-COMPLETENESS
 
 Closed 3 Round 5 items in the Import Tasks pipeline (`import.service.ts`), reasoned about
