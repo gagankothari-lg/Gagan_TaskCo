@@ -86,30 +86,32 @@ export class ProjectsService {
     const caller = await this.getCaller(callerEmpId);
     if (!isManager(caller.role)) throw new ForbiddenException(); // managers/admins only
 
-    const projId = await this.idUtils.generateId('project', 'projId', 'PRJ');
     const assigneeIds = dto.assigneeIds ?? [];
     const teams = dto.assignedTeams ?? [];
     const history = [
       { date: new Date().toISOString(), by: callerEmpId, assignees: assigneeIds, teams },
     ];
 
-    const created = await this.prisma.project.create({
-      data: {
-        projId,
-        parentProjId: dto.parentProjId,
-        name: dto.name,
-        description: dto.description,
-        ownerIds: joinIds([callerEmpId]), // creator owns it; admins can change later
-        assignerId: callerEmpId, // ← from JWT
-        assigneeIds: joinIds(assigneeIds),
-        assignedTeams: joinIds(teams),
-        status: dto.status ?? 'Not Started',
-        priority: dto.priority ?? 'Medium',
-        startDate: dto.startDate ? new Date(dto.startDate) : null,
-        deadline: dto.deadline ? new Date(dto.deadline) : null,
-        assignmentHistory: JSON.stringify(history),
-      },
-    });
+    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+    const created = await this.idUtils.createWithId('project', 'projId', 'PRJ', (projId) =>
+      this.prisma.project.create({
+        data: {
+          projId,
+          parentProjId: dto.parentProjId,
+          name: dto.name,
+          description: dto.description,
+          ownerIds: joinIds([callerEmpId]), // creator owns it; admins can change later
+          assignerId: callerEmpId, // ← from JWT
+          assigneeIds: joinIds(assigneeIds),
+          assignedTeams: joinIds(teams),
+          status: dto.status ?? 'Not Started',
+          priority: dto.priority ?? 'Medium',
+          startDate: dto.startDate ? new Date(dto.startDate) : null,
+          deadline: dto.deadline ? new Date(dto.deadline) : null,
+          assignmentHistory: JSON.stringify(history),
+        },
+      }),
+    );
     await this.audit(callerEmpId, 'CREATE', created.projId);
     if (created.deadline) {
       void this.calendar.createGCalEvent({
