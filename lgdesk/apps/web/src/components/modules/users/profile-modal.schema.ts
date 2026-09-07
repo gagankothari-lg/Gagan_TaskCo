@@ -1,8 +1,8 @@
 // Zod schemas for the two independent forms in profile-modal.tsx: the profile-fields
 // update form and the change-password form.
 // Field set mirrors apps/api/src/users/dto/update-profile.dto.ts (firstName/lastName/
-// designation/team are exposed by this UI; subDepartment/dob are not — not added here,
-// that would be new scope) and apps/api/src/auth/dto/change-password.dto.ts
+// designation/team/newManagerEmail are exposed by this UI; subDepartment/dob are not —
+// not added here, that would be new scope) and apps/api/src/auth/dto/change-password.dto.ts
 // (@MinLength(6) on newPassword).
 import { z } from 'zod';
 
@@ -13,6 +13,15 @@ export const profileUpdateSchema = z.object({
   // Free-text input today, not a TEAM_HIERARCHY dropdown — left as-is (forcing it into an
   // enum would be new feature scope, out of bounds for this migration).
   team: z.string().optional(),
+  // Round5 add'l-2: manager-change request (auth.gs:419-438's New_Manager_Email) — a
+  // request field, not diffed against a current value (there's no reference-equivalent
+  // "current manager's email" available on currentUser to prefill against), so it's
+  // only included in the submission when the user actually types something.
+  newManagerEmail: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || z.string().email().safeParse(v).success, { message: 'Enter a valid email or leave blank.' }),
 });
 export type ProfileUpdateFormValues = z.infer<typeof profileUpdateSchema>;
 

@@ -174,6 +174,8 @@ export interface ProfileUpdateInput {
   team?: string;
   subDepartment?: string;
   dob?: string;
+  // Round5 add'l-2: manager-change request, resolved by email at approve time.
+  newManagerEmail?: string;
 }
 
 // ─── Tasks / DDR (P05/P06) ─────────────────────────

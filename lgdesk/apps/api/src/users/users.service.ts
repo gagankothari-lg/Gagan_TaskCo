@@ -317,23 +317,38 @@ export class UsersService {
   }
 
   // ─────────────────────────────────────────────── profile updates
+  // Round5 add'l-2: reference (auth.gs:412-420) applies Designation immediately
+  // regardless of what else is submitted alongside it in the same call -- only Team/
+  // Sub-Department/Manager ever require approval, because only those affect how other
+  // users' views of the org structure resolve. The rebuild's own net-new firstName/
+  // lastName/dob fields (no reference equivalent) are personal/cosmetic in the same way
+  // Designation is, not organizational, so they're grouped with it here rather than
+  // left in the "requires approval" bucket by accident of the old single-field check.
+  private static readonly PROFILE_IMMEDIATE_KEYS = new Set(['designation', 'firstName', 'lastName', 'dob']);
+
   async submitProfileUpdate(empId: string, dto: UpdateProfileDto) {
     const provided = Object.entries(dto).filter(([, v]) => v !== undefined && v !== null);
     if (provided.length === 0) throw new BadRequestException('No changes provided');
-    const keys = provided.map(([k]) => k);
 
-    // Designation-only changes apply immediately; anything else needs approval.
-    if (keys.length === 1 && keys[0] === 'designation') {
-      await this.prisma.user.update({ where: { empId }, data: { designation: dto.designation } });
-      await this.audit(empId, 'UPDATE_PROFILE', 'User', empId, null, JSON.stringify({ designation: dto.designation }));
-      return { immediate: true };
+    const immediate = Object.fromEntries(provided.filter(([k]) => UsersService.PROFILE_IMMEDIATE_KEYS.has(k)));
+    const queued = Object.fromEntries(provided.filter(([k]) => !UsersService.PROFILE_IMMEDIATE_KEYS.has(k)));
+
+    if (Object.keys(immediate).length > 0) {
+      const data: { firstName?: string; lastName?: string; designation?: string; dob?: Date | null } = {};
+      if (typeof immediate.firstName === 'string') data.firstName = immediate.firstName;
+      if (typeof immediate.lastName === 'string') data.lastName = immediate.lastName;
+      if (typeof immediate.designation === 'string') data.designation = immediate.designation;
+      if ('dob' in immediate) data.dob = immediate.dob ? new Date(immediate.dob as string) : null;
+      await this.prisma.user.update({ where: { empId }, data });
+      await this.audit(empId, 'UPDATE_PROFILE', 'User', empId, null, JSON.stringify(immediate));
     }
 
-    const changes = Object.fromEntries(provided);
+    if (Object.keys(queued).length === 0) return { immediate: true };
+
     // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
     const reqId = await this.idUtils.createWithId('profileUpdateRequest', 'reqId', 'PR', async (id) => {
       await this.prisma.profileUpdateRequest.create({
-        data: { reqId: id, empId, changes: JSON.stringify(changes), status: 'Pending' },
+        data: { reqId: id, empId, changes: JSON.stringify(queued), status: 'Pending' },
       });
       return id;
     });
@@ -372,6 +387,7 @@ export class UsersService {
       team?: string;
       subDepartment?: string;
       dob?: Date | null;
+      managerId?: string;
     } = {};
     if (typeof changes.firstName === 'string') data.firstName = changes.firstName;
     if (typeof changes.lastName === 'string') data.lastName = changes.lastName;
@@ -379,6 +395,13 @@ export class UsersService {
     if (typeof changes.team === 'string') data.team = changes.team;
     if (typeof changes.subDepartment === 'string') data.subDepartment = changes.subDepartment;
     if (changes.dob !== undefined) data.dob = changes.dob ? new Date(changes.dob as string) : null;
+    // Round5 add'l-2: reference (auth.gs:493-495) resolves the requested manager's email
+    // to a real employee and silently no-ops (doesn't reject the whole approval) if the
+    // email doesn't match anyone -- mirrored exactly here.
+    if (typeof changes.newManagerEmail === 'string' && changes.newManagerEmail) {
+      const mgr = await this.prisma.user.findUnique({ where: { email: changes.newManagerEmail }, select: { empId: true } });
+      if (mgr) data.managerId = mgr.empId;
+    }
 
     await this.prisma.user.update({ where: { empId: req.empId }, data });
     await this.prisma.profileUpdateRequest.update({

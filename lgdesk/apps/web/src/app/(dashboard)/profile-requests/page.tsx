@@ -21,6 +21,8 @@ const FIELD_LABELS: Record<string, string> = {
   team: 'Team',
   subDepartment: 'Sub-department',
   dob: 'Date of birth',
+  // Round5 add'l-2
+  newManagerEmail: 'New manager (email)',
 };
 
 function describeChanges(raw: string): { label: string; value: string }[] {

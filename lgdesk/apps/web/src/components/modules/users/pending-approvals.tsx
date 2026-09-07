@@ -28,6 +28,8 @@ const PROFILE_FIELD_LABELS: Record<string, string> = {
   team: 'Team',
   subDepartment: 'Sub-department',
   dob: 'Date of birth',
+  // Round5 add'l-2
+  newManagerEmail: 'New manager (email)',
 };
 
 function describeProfileChanges(raw: string): { label: string; value: string }[] {

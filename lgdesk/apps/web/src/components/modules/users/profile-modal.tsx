@@ -41,7 +41,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
 
   const profileForm = useForm<ProfileUpdateFormValues>({
     resolver: zodResolver(profileUpdateSchema),
-    defaultValues: { firstName: '', lastName: '', team: '', designation: '' },
+    defaultValues: { firstName: '', lastName: '', team: '', designation: '', newManagerEmail: '' },
   });
 
   const passwordForm = useForm<ChangePasswordFormValues>({
@@ -57,6 +57,8 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
         lastName: currentUser.lastName ?? '',
         team: currentUser.team ?? '',
         designation: currentUser.designation ?? '',
+        // Round5 add'l-2: a request field, not a current-value field — always starts blank.
+        newManagerEmail: '',
       });
       passwordForm.reset({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setProfileMsg(null);
@@ -73,6 +75,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     if (values.lastName !== (currentUser!.lastName ?? '')) changes.lastName = values.lastName;
     if ((values.team ?? '') !== (currentUser!.team ?? '')) changes.team = values.team;
     if ((values.designation ?? '') !== (currentUser!.designation ?? '')) changes.designation = values.designation;
+    // Round5 add'l-2: request field — included whenever non-empty, not diffed against a
+    // current value (see profile-modal.schema.ts).
+    if (values.newManagerEmail) changes.newManagerEmail = values.newManagerEmail;
 
     if (Object.keys(changes).length === 0) {
       setProfileMsg({ kind: 'ok', text: 'No changes to save.' });
@@ -169,7 +174,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   name="firstName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="mb-1 block text-xs text-[var(--muted)]">First name</FormLabel>
+                      <FormLabel className="mb-1 block text-xs text-[var(--muted)]">
+                        First name <span className="text-[var(--ok)]">(immediate)</span>
+                      </FormLabel>
                       <FormControl><input className={inputClass} {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -180,7 +187,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   name="lastName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="mb-1 block text-xs text-[var(--muted)]">Last name</FormLabel>
+                      <FormLabel className="mb-1 block text-xs text-[var(--muted)]">
+                        Last name <span className="text-[var(--ok)]">(immediate)</span>
+                      </FormLabel>
                       <FormControl><input className={inputClass} {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -209,6 +218,21 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                       Team <span className="text-[var(--warn)]">(needs approval)</span>
                     </FormLabel>
                     <FormControl><input className={inputClass} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={profileForm.control}
+                name="newManagerEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1 block text-xs text-[var(--muted)]">
+                      Request a new manager <span className="text-[var(--warn)]">(needs approval)</span>
+                    </FormLabel>
+                    <FormControl>
+                      <input className={inputClass} placeholder="Manager's email — leave blank to skip" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
