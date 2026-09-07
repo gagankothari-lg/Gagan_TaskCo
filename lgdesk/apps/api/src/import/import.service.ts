@@ -8,13 +8,22 @@ import { TASK_PRIORITIES } from '../tasks/dto/create-task.dto';
 export interface ImportRow {
   type: 'Function' | 'Sub-Fn' | 'Task';
   function: string;
+  functionDescription?: string;
   subFunction?: string;
+  subFunctionDescription?: string;
   taskTitle?: string;
   assigner?: string;
   assignees?: string[];
   status?: string;
   priority?: string;
   dueDate?: string;
+  // Round5 add'l-3: reference (task-import.gs:226,229-230) carries Start Date
+  // (Function/Sub-Function only — Task has no Start_Date column in either schema)
+  // and Estimated Hours/Links (Task only, though Links also applies to
+  // Function/Sub-Function) as columns distinct from Deadline/Due Date.
+  startDate?: string;
+  estimatedHours?: number;
+  links?: string[];
   selected: boolean;
 }
 
@@ -28,6 +37,12 @@ export interface ImportStats {
 export interface PreviewResult {
   rows: ImportRow[];
   stats: ImportStats;
+  // Round5 add'l-4 / #5: names present in the file's "Given By"/assignee columns that
+  // didn't resolve to a real active employee — surfaced so the user can see and correct
+  // them before committing, mirroring task-import.gs's unmatchedAssigners/
+  // unmatchedExecutors (getMigrationPreview, task-import.gs:420-423).
+  unmatchedAssigners: string[];
+  unmatchedAssignees: string[];
 }
 
 export interface ExecuteResult {
@@ -40,13 +55,19 @@ export interface ExecuteResult {
   warnings: string[];
 }
 
-// Status/Priority/Deadline for a structure-only (Function/Sub-Fn) row — applied only when the
-// row itself creates the Function/Sub-Function record, never when a Task row is merely
-// ensuring its parent hierarchy exists (mirrors `_migInsertRows`, task-import.gs:304-311).
+// Status/Priority/Deadline/StartDate/Links for a structure-only (Function/Sub-Fn) row —
+// applied only when the row itself creates the Function/Sub-Function record, never when
+// a Task row is merely ensuring its parent hierarchy exists (mirrors `_migInsertRows`,
+// task-import.gs:304-311). `description` is intentionally NOT part of this bucket: the
+// reference applies a Function/Sub-Function's Description unconditionally whenever the
+// record is first created — including via an implicit Task-row creation — so it's passed
+// separately (see `ensureFunction`/`ensureSubFunction` below).
 interface StructureFields {
   status?: string;
   priority?: string;
   deadline?: string;
+  startDate?: string;
+  links?: string[];
 }
 
 @Injectable()
@@ -83,13 +104,30 @@ export class ImportService {
     return this.buildPreview(text);
   }
 
-  previewFromCsv(buffer: Buffer, _callerEmpId: string): PreviewResult {
+  async previewFromCsv(buffer: Buffer, _callerEmpId: string): Promise<PreviewResult> {
     return this.buildPreview(buffer.toString('utf8'));
   }
 
-  private buildPreview(csvText: string): PreviewResult {
+  private async buildPreview(csvText: string): Promise<PreviewResult> {
     const rows = this.parseRows(csvText);
-    return { rows, stats: this.computeStats(rows) };
+    // Round5 add'l-4 / #5: resolve against the same employee map executeImport will use,
+    // so what the preview banner claims is unmatched is guaranteed consistent with what
+    // actually happens on commit.
+    const empMap = await this.buildEmpMap();
+    const unmatchedAssigners = new Set<string>();
+    const unmatchedAssignees = new Set<string>();
+    for (const r of rows) {
+      if (r.assigner && !this.resolveName(empMap, r.assigner)) unmatchedAssigners.add(r.assigner);
+      for (const a of r.assignees ?? []) {
+        if (a && !this.resolveName(empMap, a)) unmatchedAssignees.add(a);
+      }
+    }
+    return {
+      rows,
+      stats: this.computeStats(rows),
+      unmatchedAssigners: [...unmatchedAssigners],
+      unmatchedAssignees: [...unmatchedAssignees],
+    };
   }
 
   private computeStats(rows: ImportRow[]): ImportStats {
@@ -173,6 +211,7 @@ export class ImportService {
     // leaves an underscore in a header value.
     const iType = col('TYPE');
     const iFn = col('FUNCTION', 'FUNCTIONS', 'FN', 'FUNC');
+    const iFnDesc = col('FUNCTION DESCRIPTION', 'FN DESCRIPTION', 'FN DESC', 'FUNCTION DESC');
     const iSub = col(
       'SUBFUNCTION',
       'SUBFUNCTIONS',
@@ -185,12 +224,16 @@ export class ImportService {
       'SF',
       'SUBFN',
     );
+    const iSubDesc = col('SUB-FUNCTION DESCRIPTION', 'SUB FUNCTION DESCRIPTION', 'SUBFN DESCRIPTION', 'SF DESCRIPTION', 'SUB-FN DESC');
     const iTitle = col('TASKTITLE', 'TASK TITLE', 'TASK', 'TASKS', 'TASK NAME', 'TITLE');
     const iAssigner = col('ASSIGNER', 'GIVEN BY', 'ASSIGNED BY', 'CREATED BY');
     const iAssignees = col('ASSIGNEES', 'ASSIGNEE', 'TASK EXECUTOR', 'ASSIGNED TO', 'EXECUTOR');
     const iStatus = col('STATUS', 'TASK STATUS');
     const iPriority = col('PRIORITY', 'TASK PRIORITY');
     const iDate = col('DUEDATE', 'DUE DATE', 'DUE', 'TASK DUE DATE', 'DEADLINE', 'END DATE', 'DATE');
+    const iStartDate = col('START DATE', 'STARTDATE');
+    const iEstHours = col('ESTIMATED HOURS', 'EST HOURS', 'EST. HOURS', 'HOURS');
+    const iLinks = col('LINKS', 'LINK', 'RELATED LINKS', 'URL', 'URLS', 'FILE LINK', 'ATTACHMENT');
 
     const get = (cells: string[], idx: number): string => (idx >= 0 && idx < cells.length ? cells[idx].trim() : '');
 
@@ -198,7 +241,9 @@ export class ImportService {
     for (let r = 1; r < grid.length; r++) {
       const cells = grid[r];
       const fn = get(cells, iFn);
+      const functionDescription = get(cells, iFnDesc) || undefined;
       const subFunction = get(cells, iSub) || undefined;
+      const subFunctionDescription = get(cells, iSubDesc) || undefined;
       const taskTitle = get(cells, iTitle) || undefined;
       const assigner = get(cells, iAssigner) || undefined;
       const assigneesRaw = get(cells, iAssignees);
@@ -208,6 +253,16 @@ export class ImportService {
       const status = get(cells, iStatus) || undefined;
       const priority = get(cells, iPriority) || undefined;
       const dueDate = get(cells, iDate) || undefined;
+      const startDate = get(cells, iStartDate) || undefined;
+      const estHoursRaw = get(cells, iEstHours);
+      const estimatedHours = estHoursRaw ? parseFloat(estHoursRaw) : undefined;
+      // Newline-separated, matching the reference's `_migNormaliseLinks`
+      // (task-import.gs:558-561) and the rebuild's own existing Links convention
+      // (CLAUDE.md "Recent Change #31" — newline-separated URLs).
+      const linksRaw = get(cells, iLinks);
+      const links = linksRaw
+        ? linksRaw.split('\n').map((s) => s.trim()).filter(Boolean)
+        : undefined;
 
       let type = this.normalizeType(get(cells, iType));
       if (!type) {
@@ -222,13 +277,18 @@ export class ImportService {
       rows.push({
         type,
         function: fn,
+        functionDescription,
         subFunction,
+        subFunctionDescription,
         taskTitle,
         assigner,
         assignees,
         status,
         priority,
         dueDate,
+        startDate,
+        estimatedHours: estimatedHours !== undefined && !isNaN(estimatedHours) ? estimatedHours : undefined,
+        links,
         selected: true,
       });
     }
@@ -259,6 +319,10 @@ export class ImportService {
     const warnings: string[] = [];
     let created = 0;
 
+    // Round5 #5: resolve "Given By" against the same active-employee map used for
+    // assignee resolution below — built once per execute call (not per row).
+    const empMap = await this.buildEmpMap();
+
     // functionName -> { functionId, fields the record was actually created with } (top-level
     // functions created/seen this run)
     const fnByName = new Map<string, { id: string; fields: StructureFields }>();
@@ -267,29 +331,49 @@ export class ImportService {
 
     const subKey = (fn: string, sub: string): string => `${fn.toLowerCase()}|||${sub.toLowerCase()}`;
 
-    const hasAnyField = (f?: StructureFields): boolean => !!(f && (f.status || f.priority || f.deadline));
+    const hasAnyField = (f?: StructureFields): boolean =>
+      !!(f && (f.status || f.priority || f.deadline || f.startDate || (f.links && f.links.length)));
     const fieldsDiffer = (a?: StructureFields, b?: StructureFields): boolean =>
       (a?.status ?? undefined) !== (b?.status ?? undefined) ||
       (a?.priority ?? undefined) !== (b?.priority ?? undefined) ||
-      (a?.deadline ?? undefined) !== (b?.deadline ?? undefined);
+      (a?.deadline ?? undefined) !== (b?.deadline ?? undefined) ||
+      (a?.startDate ?? undefined) !== (b?.startDate ?? undefined) ||
+      (a?.links?.join('\n') ?? undefined) !== (b?.links?.join('\n') ?? undefined);
 
-    const ensureFunction = async (name: string, fields?: StructureFields, rowLabel?: string): Promise<string> => {
+    const ensureFunction = async (
+      name: string,
+      assignerId: string,
+      fields?: StructureFields,
+      description?: string,
+      rowLabel?: string,
+    ): Promise<string> => {
       const key = name.toLowerCase();
       const existing = fnByName.get(key);
       if (existing) {
-        // On a cache hit, this row's own explicit Status/Priority/Deadline (if any) are NOT applied
-        // to the already-created record — surface that clearly instead of silently dropping them
-        // behind an ordinary success count.
+        // On a cache hit, this row's own explicit Status/Priority/Deadline/Start Date/Links
+        // (if any) are NOT applied to the already-created record — surface that clearly
+        // instead of silently dropping them behind an ordinary success count. (Description
+        // is deliberately excluded from this diff check — see StructureFields' doc comment.)
         if (rowLabel && hasAnyField(fields) && fieldsDiffer(fields, existing.fields)) {
           warnings.push(
-            `${rowLabel}: Function "${name}" already created earlier in this batch — Status/Priority/Deadline from this row were not applied.`,
+            `${rowLabel}: Function "${name}" already created earlier in this batch — Status/Priority/Deadline/Start Date/Links from this row were not applied.`,
           );
         }
         return existing.id;
       }
       const fn = await this.functions.createFunction(
-        { name, projId: projectId, status: fields?.status, priority: fields?.priority, deadline: fields?.deadline },
+        {
+          name,
+          projId: projectId,
+          description,
+          status: fields?.status,
+          priority: fields?.priority,
+          deadline: fields?.deadline,
+          startDate: fields?.startDate,
+          links: fields?.links,
+        },
         callerEmpId,
+        assignerId,
       );
       fnByName.set(key, { id: fn.functionId, fields: fields ?? {} });
       return fn.functionId;
@@ -298,7 +382,9 @@ export class ImportService {
     const ensureSubFunction = async (
       parentName: string,
       subName: string,
+      assignerId: string,
       fields?: StructureFields,
+      description?: string,
       rowLabel?: string,
     ): Promise<string> => {
       const key = subKey(parentName, subName);
@@ -306,22 +392,29 @@ export class ImportService {
       if (existing) {
         if (rowLabel && hasAnyField(fields) && fieldsDiffer(fields, existing.fields)) {
           warnings.push(
-            `${rowLabel}: Sub-Function "${subName}" (under "${parentName}") already created earlier in this batch — Status/Priority/Deadline from this row were not applied.`,
+            `${rowLabel}: Sub-Function "${subName}" (under "${parentName}") already created earlier in this batch — Status/Priority/Deadline/Start Date/Links from this row were not applied.`,
           );
         }
         return existing.id;
       }
-      const parentId = await ensureFunction(parentName);
+      // Parent function creation always uses this same row's resolved assignerId,
+      // matching task-import.gs's single per-row `assignerId` used for every record
+      // that row's processing happens to create.
+      const parentId = await ensureFunction(parentName, assignerId);
       const fn = await this.functions.createFunction(
         {
           name: subName,
           parentFnId: parentId,
           projId: projectId,
+          description,
           status: fields?.status,
           priority: fields?.priority,
           deadline: fields?.deadline,
+          startDate: fields?.startDate,
+          links: fields?.links,
         },
         callerEmpId,
+        assignerId,
       );
       subByKey.set(key, { id: fn.functionId, fields: fields ?? {} });
       return fn.functionId;
@@ -331,15 +424,25 @@ export class ImportService {
       const row = selected[i];
       const rowLabel = `Row ${i + 1}`;
       try {
+        // Round5 #5: resolve this row's "Given By" name against a real active employee;
+        // fall back to the importing caller only when unmatched (task-import.gs:260) —
+        // this is server-side name resolution against verified records, never a raw
+        // body-supplied assignerId.
+        const assignerId = (row.assigner && this.resolveName(empMap, row.assigner)) || callerEmpId;
+
         if (row.type === 'Function') {
           if (!row.function) throw new Error('Function name is required');
           await ensureFunction(
             row.function,
+            assignerId,
             {
               status: this.cleanStatus(row.status, warnings, rowLabel),
               priority: this.cleanPriority(row.priority, warnings, rowLabel),
               deadline: this.parseDate(row.dueDate),
+              startDate: this.parseDate(row.startDate),
+              links: row.links,
             },
+            row.functionDescription,
             rowLabel,
           );
           created++;
@@ -349,11 +452,15 @@ export class ImportService {
           await ensureSubFunction(
             row.function,
             row.subFunction,
+            assignerId,
             {
               status: this.cleanStatus(row.status, warnings, rowLabel),
               priority: this.cleanPriority(row.priority, warnings, rowLabel),
               deadline: this.parseDate(row.dueDate),
+              startDate: this.parseDate(row.startDate),
+              links: row.links,
             },
+            row.subFunctionDescription,
             rowLabel,
           );
           created++;
@@ -367,10 +474,17 @@ export class ImportService {
           let functionId: string | undefined;
           let subFnId: string | undefined;
           if (row.subFunction) {
-            functionId = await ensureFunction(row.function);
-            subFnId = await ensureSubFunction(row.function, row.subFunction);
+            // A Task row's own Function/Sub-Function Description columns (if present)
+            // still apply if this row is the one that first creates that record — matching
+            // the reference's unconditional-on-creation Description semantics (see
+            // StructureFields' doc comment). Structure fields (status/priority/deadline/
+            // startDate/links) are NOT passed here — undefined `fields` preserves the
+            // existing "don't stomp a real structure row's values with a Task row's
+            // implicit defaults" behavior.
+            functionId = await ensureFunction(row.function, assignerId, undefined, row.functionDescription);
+            subFnId = await ensureSubFunction(row.function, row.subFunction, assignerId, undefined, row.subFunctionDescription);
           } else if (row.function) {
-            functionId = await ensureFunction(row.function);
+            functionId = await ensureFunction(row.function, assignerId, undefined, row.functionDescription);
           }
 
           const assigneeNames = row.assignees ?? [];
@@ -386,9 +500,11 @@ export class ImportService {
               status: this.cleanStatus(row.status, warnings, rowLabel),
               priority: this.cleanPriority(row.priority, warnings, rowLabel),
               dueDate: this.parseDate(row.dueDate),
+              estimatedHours: row.estimatedHours,
+              links: row.links,
             },
-            // assigner defaults to the caller (set from JWT inside createTask).
             callerEmpId,
+            assignerId,
           );
           created++;
         }
@@ -401,16 +517,13 @@ export class ImportService {
     return { created, errors, warnings };
   }
 
-  // Resolve a list of "First Last" / email tokens to empIds (case-insensitive).
-  // AUDIT_REPORT.md A2 "Employee-name resolution" (Fix C): widen matching to the reference's
-  // full variant set — `_migBuildEmpMap`, task-import.gs:527-545, indexes ACTIVE-ONLY employees
-  // by full name, reversed full name, first name alone, last name alone, and email, first-match-
-  // wins for ambiguous keys. Exclude deactivated employees (`isActive: false`) so a deactivated
-  // user's name can never silently resolve during import.
-  private async resolveEmpIds(names: string[]): Promise<string[]> {
-    const wanted = names.map((n) => n.trim()).filter(Boolean);
-    if (!wanted.length) return [];
-
+  // Builds the same active-employee name→empId lookup the reference's `_migBuildEmpMap`
+  // (task-import.gs:527-545) builds — full name, reversed full name, first name alone,
+  // last name alone, email, first-match-wins for ambiguous keys — shared by assigner
+  // resolution (Round5 #5) and assignee resolution (`resolveEmpIds`) so both use
+  // identical matching rules. Excludes deactivated employees so a deactivated user's
+  // name can never silently resolve during import.
+  private async buildEmpMap(): Promise<Map<string, string>> {
     const users = await this.prisma.user.findMany({
       where: { isActive: true },
       select: { empId: true, firstName: true, lastName: true, email: true },
@@ -429,10 +542,24 @@ export class ImportService {
       claim(u.email, u.empId); // email
       claim(u.empId, u.empId); // rebuild-only extra: raw empId token
     }
+    return empMap;
+  }
 
+  private resolveName(empMap: Map<string, string>, name: string): string | undefined {
+    return empMap.get(name.trim().toLowerCase());
+  }
+
+  // Resolve a list of "First Last" / email tokens to empIds (case-insensitive).
+  // AUDIT_REPORT.md A2 "Employee-name resolution" (Fix C): widen matching to the reference's
+  // full variant set — see `buildEmpMap` above.
+  private async resolveEmpIds(names: string[]): Promise<string[]> {
+    const wanted = names.map((n) => n.trim()).filter(Boolean);
+    if (!wanted.length) return [];
+
+    const empMap = await this.buildEmpMap();
     const out: string[] = [];
     for (const name of wanted) {
-      const empId = empMap.get(name.toLowerCase());
+      const empId = this.resolveName(empMap, name);
       if (empId && !out.includes(empId)) out.push(empId);
     }
     return out;

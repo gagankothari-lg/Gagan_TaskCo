@@ -128,6 +128,12 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     tasks: 0,
     total: 0,
   });
+  // Round5 add'l-4: names from the file's "Given By"/assignee columns that didn't
+  // resolve to a real active employee — shown as a preview banner so the user can
+  // correct them before committing (unresolved ones fall back to the importer/get
+  // dropped, per the backend's documented behavior).
+  const [unmatchedAssigners, setUnmatchedAssigners] = useState<string[]>([]);
+  const [unmatchedAssignees, setUnmatchedAssignees] = useState<string[]>([]);
   // Round4 F7: the execute result, shown in-modal on the 'result' stage instead of only
   // a toast + immediate close.
   const [execResult, setExecResult] = useState<ExecuteResult | null>(null);
@@ -141,6 +147,8 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     setSelectedProjectId('');
     setRows([]);
     setStats({ functions: 0, subFunctions: 0, tasks: 0, total: 0 });
+    setUnmatchedAssigners([]);
+    setUnmatchedAssignees([]);
     setExecResult(null);
   }
 
@@ -152,6 +160,8 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
   function applyPreview(result: PreviewResult) {
     setRows(result.rows);
     setStats(result.stats);
+    setUnmatchedAssigners(result.unmatchedAssigners ?? []);
+    setUnmatchedAssignees(result.unmatchedAssignees ?? []);
     setStage('preview');
   }
 
@@ -433,6 +443,22 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
 
               {error && (
                 <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
+              )}
+
+              {(unmatchedAssigners.length > 0 || unmatchedAssignees.length > 0) && (
+                <div style={{ background: '#fff3e0', color: '#e65100', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 4 }}>
+                    <Icon name="warning" size={15} />
+                    Some names in this file didn&apos;t match an active employee
+                  </div>
+                  {unmatchedAssigners.length > 0 && (
+                    <div>Assigner (Given By) — not matched, will default to you: <strong>{unmatchedAssigners.join(', ')}</strong></div>
+                  )}
+                  {unmatchedAssignees.length > 0 && (
+                    <div>Assignee — not matched, will be skipped: <strong>{unmatchedAssignees.join(', ')}</strong></div>
+                  )}
+                  <div style={{ marginTop: 4 }}>Fix the spelling in your source file and re-preview, or continue — these rows will still import with the fallback above.</div>
+                </div>
               )}
 
               <div style={{ maxHeight: 420, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>

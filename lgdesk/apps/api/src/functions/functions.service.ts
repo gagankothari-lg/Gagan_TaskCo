@@ -74,7 +74,12 @@ export class FunctionsService {
     };
   }
 
-  async createFunction(dto: CreateFunctionDto, callerEmpId: string): Promise<WorkFunction> {
+  // overrideAssignerId: internal-only, never wired to any DTO/HTTP body field — used
+  // solely by ImportService (Round5 #5) after resolving a spreadsheet "Given By" name
+  // against a real, active employee record. callerEmpId (the actual actor, from the
+  // JWT) still owns createdById/audit/assignmentHistory below; only the business-level
+  // assignerId is overridable, and only by a trusted internal caller.
+  async createFunction(dto: CreateFunctionDto, callerEmpId: string, overrideAssignerId?: string): Promise<WorkFunction> {
     const caller = await this.getCaller(callerEmpId);
     const assigneeIds = dto.assigneeIds ?? [];
     if (!isManager(caller.role) && !this.isTmSelfAssign(assigneeIds, callerEmpId)) {
@@ -92,8 +97,8 @@ export class FunctionsService {
           projId: dto.projId,
           name: dto.name,
           description: dto.description,
-          assignerId: callerEmpId, // ← from JWT
-          createdById: callerEmpId, // ← from JWT
+          assignerId: overrideAssignerId ?? callerEmpId, // ← from JWT unless a trusted internal caller overrides it
+          createdById: callerEmpId, // ← always the real actor, from JWT — never overridable
           assigneeIds: joinIds(assigneeIds),
           assignedTeams: joinIds(teams),
           // Round4 F5: reference default is 'Yet to Start' (auth.gs createFunction),

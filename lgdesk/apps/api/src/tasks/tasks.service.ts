@@ -99,7 +99,12 @@ export class TasksService {
   }
 
   // ─────────────────────────────────────────────── mutations
-  async createTask(dto: CreateTaskDto, callerEmpId: string): Promise<Task> {
+  // overrideAssignerId: internal-only, never wired to any DTO/HTTP body field — used
+  // solely by ImportService (Round5 #5) after resolving a spreadsheet "Given By" name
+  // against a real, active employee record. callerEmpId (the actual actor, from the
+  // JWT) still owns the audit log/assignmentHistory `by` field below; only the
+  // business-level assignerId is overridable, and only by a trusted internal caller.
+  async createTask(dto: CreateTaskDto, callerEmpId: string, overrideAssignerId?: string): Promise<Task> {
     const caller = await this.getCaller(callerEmpId);
     // Rule #22: a TM/Intern may only self-assign — never another employee or a
     // team. Managers (Admin/SA/TC/TF) are unrestricted here.
@@ -132,7 +137,7 @@ export class TasksService {
           subFnId: dto.subFnId,
           assigneeIds: joinIds(assigneeIds),
           assignedTeams: joinIds(teams),
-          assignerId: callerEmpId, // ← from JWT, NEVER from body (rule #2)
+          assignerId: overrideAssignerId ?? callerEmpId, // ← from JWT, NEVER from HTTP body (rule #2); overrideAssignerId is a trusted internal-caller-only param
           status: dto.status ?? 'Not Started',
           priority: dto.priority ?? 'Medium',
           // Round4 checklist#1: recurring stays in sync as a derived legacy mirror of the

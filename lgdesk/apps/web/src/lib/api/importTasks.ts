@@ -6,13 +6,18 @@ import { apiFetch } from './client';
 export interface ImportRow {
   type: 'Function' | 'Sub-Fn' | 'Task';
   function: string;
+  functionDescription?: string;
   subFunction?: string;
+  subFunctionDescription?: string;
   taskTitle?: string;
   assigner?: string;
   assignees?: string[];
   status?: string;
   priority?: string;
   dueDate?: string;
+  startDate?: string;
+  estimatedHours?: number;
+  links?: string[];
   selected: boolean;
 }
 
@@ -26,6 +31,10 @@ export interface ImportStats {
 export interface PreviewResult {
   rows: ImportRow[];
   stats: ImportStats;
+  // Round5 add'l-4 / #5: names from the file's "Given By"/assignee columns that didn't
+  // resolve to a real active employee.
+  unmatchedAssigners: string[];
+  unmatchedAssignees: string[];
 }
 
 export interface ExecuteResult {
