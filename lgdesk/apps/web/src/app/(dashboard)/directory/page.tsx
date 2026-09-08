@@ -3,8 +3,16 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/use-auth';
 import { useTeamDirectory, useCompanyDirectory, type DirectoryUser } from '../../../lib/api/directory';
+import { usePresenceMap, type PresenceStatus } from '../../../lib/api/presence';
 import { Icon } from '../../../components/ui/icon';
 import { avatarColor, initials, rolePillClass } from '../../../lib/utils';
+
+const PRES_DOT_CLASS: Record<PresenceStatus, string> = {
+  online: 'pres-online',
+  away: 'pres-away',
+  dnd: 'pres-dnd',
+  offline: 'pres-offline',
+};
 
 type Tab = 'team' | 'company';
 
@@ -35,7 +43,7 @@ function DirTab({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-function DirCard({ u, isYou }: { u: DirectoryUser; isYou: boolean }) {
+function DirCard({ u, isYou, status }: { u: DirectoryUser; isYou: boolean; status: PresenceStatus | undefined }) {
   const name = `${u.firstName} ${u.lastName}`;
   const [hover, setHover] = useState(false);
   const openChat = () => { if (u.chatSpaceLink) window.open(u.chatSpaceLink, '_blank'); };
@@ -55,13 +63,14 @@ function DirCard({ u, isYou }: { u: DirectoryUser; isYou: boolean }) {
         transform: hover ? 'translateY(-2px)' : undefined,
       }}
     >
-      {/* Round4 S3: the presence dot here was a hardcoded `pres-online` class on every
-          card -- there is no per-employee presence backend (checklist item #12), so it
-          falsely showed every colleague as Online regardless of their real status.
-          Removed rather than left showing fake data; a real per-user indicator would
-          need the actual presence feature to exist first. */}
-      <div style={{ display: 'inline-flex', marginBottom: 6 }}>
+      {/* Round6 #12: Round4 S3 removed the old hardcoded-always-"online" dot here rather
+          than show fake data while no presence backend existed. Now backed by real data
+          (usePresenceMap, polled every 30s) -- `status` is undefined only while the poll's
+          first response hasn't landed yet, in which case no dot renders at all rather than
+          guessing. */}
+      <div style={{ display: 'inline-flex', marginBottom: 6, position: 'relative' }}>
         <div style={{ width: 54, height: 54, borderRadius: '50%', background: avatarColor(u.empId), color: '#fff', fontWeight: 700, fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(name)}</div>
+        {status && <span className={`pres-dot ${PRES_DOT_CLASS[status]}`} style={{ position: 'absolute', bottom: 2, right: 2 }} />}
       </div>
       <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3 }}>{name} {isYou && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>(You)</span>}</div>
       <span className={rolePillClass(u.role)}>{u.role}</span>
@@ -85,6 +94,7 @@ export default function DirectoryPage() {
   const [q, setQ] = useState('');
   const team = useTeamDirectory();
   const company = useCompanyDirectory();
+  const { data: presenceMap } = usePresenceMap();
 
   const active = tab === 'team' ? team : company;
 
@@ -145,13 +155,13 @@ export default function DirectoryPage() {
               <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 10 }}>{members.length} {members.length === 1 ? 'member' : 'members'}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-              {members.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} />)}
+              {members.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} status={presenceMap?.[u.empId]} />)}
             </div>
           </div>
         ))
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-          {list.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} />)}
+          {list.map((u) => <DirCard key={u.empId} u={u} isYou={u.empId === currentUser?.empId} status={presenceMap?.[u.empId]} />)}
         </div>
       )}
     </div>

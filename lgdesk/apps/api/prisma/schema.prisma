@@ -22,6 +22,15 @@ model User {
   subDepartment String?
   isActive      Boolean   @default(true)
   dob           DateTime?
+  // Round6 #12: minimal live presence backend. Vocabulary matches the reference
+  // (presence.gs:22) and the web's existing PresKey type exactly -- online/away/dnd/
+  // offline. presenceUpdatedAt is bumped on every heartbeat/explicit status set;
+  // staleness (a stopped heartbeat implying "effectively offline") is computed at
+  // read time in PresenceService, not stored -- this project has no Redis/cache
+  // dependency, so there's no TTL-backed cache to port from the reference's
+  // CacheService mechanics, just a plain Postgres column read fresh on each poll.
+  presenceStatus    String    @default("online")
+  presenceUpdatedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
