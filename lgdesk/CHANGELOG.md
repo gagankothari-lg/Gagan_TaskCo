@@ -2,6 +2,48 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND6-PRESENCE-BACKEND
+
+Closes Round 6 checklist item `#12` — a minimal, real live-presence backend, deliberately built
+Postgres-native rather than as a port of the reference's `CacheService`-TTL/`ScriptProperties`
+mechanics (`presence.gs`). This project has no Redis/cache dependency anywhere and isn't taking one
+on for a single feature — staleness is computed fresh at read time from a plain column instead.
+
+**Schema**: `User` gained `presenceStatus String @default("online")` and `presenceUpdatedAt
+DateTime?`. Status vocabulary reused as-is (`online`/`away`/`dnd`/`offline`) — matches both
+`presence.gs:22` and the web's existing `PresKey` type, no new enum invented. Migration generated
+offline (`prisma migrate diff --from-schema-datamodel`), hand-reviewed on a dedicated branch — a
+single purely-additive `ADD COLUMN` statement, no `db push`, no raw SQL.
+
+**Backend**: new `presence` module — `PATCH /presence` (bare call = heartbeat only, bumping
+`presenceUpdatedAt`; with a `status` field = an explicit user-picked change) and `GET /presence`
+(returns a `{empId: status}` map for all active employees). Caller identity always comes from
+`@CurrentUser()`, never a client-supplied `empId`. Staleness — a stopped heartbeat (closed tab,
+crashed session) reading as effectively offline regardless of the last explicit status — is computed
+inline in `PresenceService.getAll()` on every poll, not written back or handled by a cron.
+
+**Cadence chosen**: heartbeat every 3 min (matches the reference's `PRES_PING_MS` in both
+`presence.gs`/`app.js.html` exactly); staleness window 9 min — 3x the heartbeat, close to the
+reference's own 10-min `PRES_EXPIRE_MS` and comfortably above a bare 2x floor so one delayed/
+throttled heartbeat tick doesn't flicker someone to offline while genuinely present; a simple
+idle-to-away timer at 5 min of inactivity (matches the reference's `PRES_IDLE_MS` exactly), reverting
+to online on the next activity only when that away was auto-set — never overriding a status the user
+picked deliberately (mirrors `app.js.html`'s `_presActivityHandler`'s manual-vs-auto distinction).
+Directory polls every 30s, well under the staleness window.
+
+**Frontend**: `layout-client.tsx`'s presence dropdown now actually calls the endpoint (it previously
+only updated local `useState`, never persisted or broadcast to anyone); a heartbeat starts on mount
+and an idle-activity listener drives the auto-away timer. `directory/page.tsx` now polls
+`GET /presence` and renders each employee's real status dot — Round4 S3 had removed the old
+hardcoded-always-"online" dot rather than show fake data while no backend existed; this replaces the
+absence with real data instead of a new fake one, matching that fix's original intent.
+
+Live-verified on a disposable local Postgres container with two seeded users and two real Playwright
+browser sessions: UserA's manually-picked "Do Not Disturb" appeared on UserB's Company Directory view
+within one 30s poll interval; after directly backdating UserA's `presenceUpdatedAt` past the 9-min
+staleness window, UserB's view correctly flipped UserA to **offline** despite the stored status still
+being `dnd` — confirming staleness overrides the last explicit status, not just an "online" default.
+
 ## 2026-09-08 — PAUDIT-RECONCILE-ROUND5-STATUS-CHECKLIST
 
 Documentation-only correction, no code change. `AUDIT_REPORT_ROUND4_2026-09-02.md`'s Section 5

@@ -22,6 +22,7 @@ import { WeeklySummaryModule } from './weekly-summary/weekly-summary.module';
 import { ImportModule } from './import/import.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { NotesModule } from './notes/notes.module';
+import { PresenceModule } from './presence/presence.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { NotesModule } from './notes/notes.module';
     ImportModule,
     CalendarModule,
     NotesModule,
+    PresenceModule,
   ],
   controllers: [AppController, HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

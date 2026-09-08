@@ -12,6 +12,7 @@ import { ProfileModal } from '../../components/modules/users/profile-modal';
 import { ClockWidget } from '../../components/modules/work-duration/clock-widget';
 import { WeekGlanceWidget } from '../../components/modules/work-log/week-glance-widget';
 import { useRegistrations, useProfileRequests } from '../../lib/api/teamMembers';
+import { useSetPresence, HEARTBEAT_MS, IDLE_MS } from '../../lib/api/presence';
 
 type NavItem = { label: string; icon: string; href: string; badge?: number };
 
@@ -74,6 +75,69 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [importOpen, setImportOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const presWrap = useRef<HTMLDivElement>(null);
+  const setPresence = useSetPresence();
+  // Tracks whether the current 'away' state was auto-set by the idle timer (vs. the
+  // user deliberately picking Away from the dropdown) -- only an auto-away should be
+  // cleared by the next bit of activity (Round6 #12, mirrors app.js.html's
+  // `_presActivityHandler`'s manual-vs-auto distinction).
+  const autoAwayRef = useRef(false);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Manual status pick: always explicit, always clears the auto-away flag.
+  function pickPresence(k: PresKey) {
+    autoAwayRef.current = false;
+    setPres(k);
+    setPresOpen(false);
+    setPresence.mutate(k);
+  }
+
+  // Heartbeat: touch presenceUpdatedAt every HEARTBEAT_MS while the app is open, plus
+  // once immediately on mount (matches the reference's initial `_presPing('online')`).
+  useEffect(() => {
+    if (!user) return;
+    setPresence.mutate('online');
+    const id = setInterval(() => setPresence.mutate(undefined), HEARTBEAT_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.empId]);
+
+  // Idle-to-away: simple version of the reference's idle timer (app.js.html
+  // PRES_IDLE_MS/_presResetIdleTimer) -- 5 min of no mouse/keyboard/touch/scroll
+  // activity auto-flips 'online' to 'away'; the next bit of activity flips back, but
+  // only if that 'away' was auto-set, never overriding a manually chosen status.
+  useEffect(() => {
+    if (!user) return;
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setPres((current) => {
+          if (current !== 'online') return current;
+          autoAwayRef.current = true;
+          setPresence.mutate('away');
+          return 'away';
+        });
+      }, IDLE_MS);
+    };
+    const onActivity = () => {
+      setPres((current) => {
+        if (current === 'away' && autoAwayRef.current) {
+          autoAwayRef.current = false;
+          setPresence.mutate('online');
+          return 'online';
+        }
+        return current;
+      });
+      resetIdleTimer();
+    };
+    resetIdleTimer();
+    const events: (keyof DocumentEventMap)[] = ['mousemove', 'click', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((ev) => document.addEventListener(ev, onActivity, { passive: true }));
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      events.forEach((ev) => document.removeEventListener(ev, onActivity));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.empId]);
 
   // Protect: bounce unauthenticated users to /login once bootstrap settles.
   useEffect(() => {
@@ -288,7 +352,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               {(Object.keys(PRES) as PresKey[]).map((k) => (
                 <div
                   key={k}
-                  onClick={() => { setPres(k); setPresOpen(false); }}
+                  onClick={() => pickPresence(k)}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--p3)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
