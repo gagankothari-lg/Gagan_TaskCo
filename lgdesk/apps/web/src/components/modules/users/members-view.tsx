@@ -159,7 +159,7 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
 
       {/* Reference (view-team-mgmt / view-org-page) order: pending registrations,
           then pending profile updates, then pending DDRs — all above the table. */}
-      <PendingRegistrationsSection />
+      <PendingRegistrationsSection employees={employees} />
       <PendingProfileUpdatesSection employees={employees} />
       <DdrSection employees={employees} />
 

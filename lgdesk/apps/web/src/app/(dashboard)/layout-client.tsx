@@ -54,13 +54,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading, logout, refresh, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
   const managerLoaded = !!user && isManager(user.role);
-  // Registrations/Profile Updates have no dedicated nav item otherwise (Master
-  // Reference Part 24: Team Members' 3 pending queues = Registrations, Profile
-  // Updates, Due-Date Requests) — badge counts mirror pendingLeaveCount/pendingDdrCount.
+  // Round5 add'l-1: Registrations/Profile Updates no longer have their own nav items —
+  // both are embedded-only now (members-view.tsx), matching the reference (Part 10's
+  // full nav table has no standalone entries for either). Their pending counts fold into
+  // Team Members'/Organisation's own badge instead of disappearing, matching the
+  // reference's actual composition: Team Management's badge combines all 3 pending
+  // queues (Registrations, Profile Updates, Due-Date Requests) into one number.
   const { data: registrations } = useRegistrations(managerLoaded);
   const { data: profileRequests } = useProfileRequests(managerLoaded);
   const pendingRegCount = useMemo(() => (registrations ?? []).filter((r) => r.status === 'Pending').length, [registrations]);
   const pendingProfileCount = useMemo(() => (profileRequests ?? []).filter((r) => r.status === 'Pending').length, [profileRequests]);
+  const pendingTeamMgmtCount = pendingDdrCount + pendingRegCount + pendingProfileCount;
 
   const [mobNavOpen, setMobNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -120,21 +124,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       { label: 'Team Tasks', icon: 'groups', href: '/tasks/team' },
       { label: 'Team Projects', icon: 'folder_special', href: '/projects/team' },
       { label: 'Team Work Logs', icon: 'monitoring', href: '/work-log/team' },
-      { label: 'Team Members', icon: 'table_rows', href: '/team-members', badge: pendingDdrCount },
-      { label: 'Registrations', icon: 'person_add', href: '/registrations', badge: pendingRegCount },
-      { label: 'Profile Updates', icon: 'edit_note', href: '/profile-requests', badge: pendingProfileCount },
+      { label: 'Team Members', icon: 'table_rows', href: '/team-members', badge: pendingTeamMgmtCount },
     ];
     const company: NavItem[] = [
       { label: 'All Tasks', icon: 'table_rows', href: '/tasks/all' },
       { label: 'All Projects', icon: 'folder_special', href: '/projects/all' },
-      { label: 'Organisation', icon: 'corporate_fare', href: '/organisation' },
+      { label: 'Organisation', icon: 'corporate_fare', href: '/organisation', badge: pendingTeamMgmtCount },
       { label: 'Forms', icon: 'description', href: '/forms' },
     ];
     // MIS Report — gated by hasMisAccess alone (Part 10: "any role"), NOT by
     // isManager, so it is kept out of the `team` block on purpose.
     const misReport: NavItem = { label: 'MIS Report', icon: 'assessment', href: '/mis-report' };
     return { mySpace, team, company, misReport };
-  }, [openTaskCount, pendingLeaveCount, pendingDdrCount, pendingRegCount, pendingProfileCount]);
+  }, [openTaskCount, pendingLeaveCount, pendingTeamMgmtCount]);
 
   // Longest-prefix match so exactly one nav item is active (e.g. /tasks/team beats /tasks).
   const activeHref = useMemo(() => {
