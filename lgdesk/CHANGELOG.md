@@ -2,6 +2,28 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PAUDIT-RECONCILE-ROUND5-STATUS-CHECKLIST
+
+Documentation-only correction, no code change. `AUDIT_REPORT_ROUND4_2026-09-02.md`'s Section 5
+"Still Open" checklist claimed (as of 2026-09-02) that 26 items were `CONFIRMED-STILL-OPEN`. That
+was accurate when written, but went stale the very next day: `PFIX-ROUND4-SCHEMA-BATCH`
+(2026-09-03) had already resolved 4 of them, and the checklist rows were never updated to say so.
+Found while scoping what to work on next after Round 5's decision-blocked items closed out.
+
+Corrected 4 rows in `AUDIT_REPORT_ROUND4_2026-09-02.md`'s §5, each re-verified directly against
+current `schema.prisma`/source (not just trusted from the earlier fix's own commit message):
+
+- **#1** Recurring task cadence — `Task.recurrencePattern` (One Time/Daily/Weekly/Monthly/
+  Quarterly) exists, added by checklist#1 (`1431bcf`).
+- **#6** `Holiday.description` — exists, added by checklist#6 (`21f71df`).
+- **#7** `Announcement.type`/`priority` — exist, added by checklist#7 (`31b7411`).
+- **#10** `Task`→Project/Function `onDelete` policy — explicit `SetNull` confirmed on all 3
+  relations, added as part of F4's 20-relation batch (`00a0b4f`).
+
+Also added a reconciliation note to §5's summary paragraph, which had asserted "zero were
+silently resolved" — narrowly true only at the moment it was written. The remaining 22 checklist
+items were re-confirmed still accurate as of today.
+
 ## 2026-09-08 — PFIX-ROUND5-TASK-DELETE-ASSIGNEE-FIX
 
 Direct follow-up to `#14` (`PFIX-ROUND5-DELETE-OWNERSHIP-RULE`), which correctly fixed
