@@ -2,7 +2,7 @@
 
 Internal task/project/work-log/leave management system for LG. NestJS API + Next.js web app, npm workspaces monorepo.
 
-- **Web (live):** https://lgdesk-frontend.vercel.app
+- **Web (live):** https://testtaskco.vercel.app
 - **API (live):** https://gagan-taskco.onrender.com
 - Full deploy runbook: [`DEPLOY.md`](./DEPLOY.md)
 - Session rules / architecture reference for AI coding agents: [`CLAUDE.md`](./CLAUDE.md)

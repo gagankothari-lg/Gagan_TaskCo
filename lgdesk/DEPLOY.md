@@ -13,7 +13,7 @@
 ## ✅ LIVE (current, as of 2026-07-30)
 | | |
 |---|---|
-| **App (web)** | https://lgdesk-frontend.vercel.app — Vercel project `gagan09/lgdesk-frontend` |
+| **App (web)** | https://testtaskco.vercel.app — Vercel project `gagan09/test_teskco` |
 | **API** | https://gagan-taskco.onrender.com — Render Web Service `srv-d9lg2unqj5pc7390sjlg` |
 | **Health** | `GET /api/health` → `{"ok":true,...}` · helmet headers ✓ |
 | **Verified** | login ✓ · `/api/auth/me` ✓ · no `passwordHash` leak ✓ · CORS from web origin ✓ · login rate-limit 5/min returns 429 ✓ (see `E2E_TEST_LOG.md` Round 3 for the full live-production verification pass) |
