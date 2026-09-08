@@ -2,6 +2,37 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND5-TASK-DELETE-ASSIGNEE-FIX
+
+Direct follow-up to `#14` (`PFIX-ROUND5-DELETE-OWNERSHIP-RULE`), which correctly fixed
+`projects.service.ts` but explicitly left `tasks.service.ts`'s `canDeleteTask` alone, noting it
+needed "a swap to assignee-match, not a delete." Re-reading `auth.gs`'s `deleteTask` directly
+confirmed that, plus a second, previously-unflagged bug found during this re-read.
+
+**Fixes two things, not one:**
+1. **Over-grant** (`#14`'s own finding) — a team-match-against-`assignedTeams` branch let any
+   TC/TF whose team happened to match delete a task with zero ownership/assignment
+   relationship to it at all. `auth.gs` has no such branch. Removed.
+2. **Under-grant** (newly found, not previously flagged) — the owner check was gated behind
+   `!isManager(caller.role)`, so a TC/TF who is a task's own creator/assigner but not
+   team-matched and not an assignee was wrongly *denied*. `auth.gs`'s `isOwner` check has no
+   role gate at all. This exact bug was already caught and fixed on the edit side
+   (`canModifyTask`/`#2`) but `canDeleteTask` kept its own separate, still-broken copy that
+   survived both `#2` and `#14`.
+
+New rule (backend `tasks.service.ts` and frontend `rbac.ts`, kept in lockstep): Admin/SA
+always; the task's own owner/assigner (any role, no manager gate); or a manager who is also a
+listed assignee.
+
+Live-verified on a disposable local Postgres container, all 5 non-admin cases plus Admin:
+team-matched-but-unrelated now correctly denied (over-grant fixed); an owner who is **not**
+team-matched now correctly succeeds — **a real new capability for existing users**, not just a
+narrowing; manager-assignee unchanged; non-manager owner unchanged (matches `#2`); no
+relationship still denied; Admin unaffected. `task-row.tsx`/`task-detail-modal.tsx` and
+`tasks.service.ts:274`'s `deleteTask` confirmed to just consume the boolean, no changes
+needed. Both workspaces type-check clean (`tsc --noEmit`) and `nest build` also builds clean.
+Commit `1304944`.
+
 ## 2026-09-08 — PFIX-ROUND5-NAV-DEDUP
 
 Closed checklist add'l-1 (Registrations/Profile Updates as standalone nav items), which also
