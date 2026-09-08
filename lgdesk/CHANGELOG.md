@@ -43,6 +43,47 @@ browser sessions: UserA's manually-picked "Do Not Disturb" appeared on UserB's C
 within one 30s poll interval; after directly backdating UserA's `presenceUpdatedAt` past the 9-min
 staleness window, UserB's view correctly flipped UserA to **offline** despite the stored status still
 being `dnd` — confirming staleness overrides the last explicit status, not just an "online" default.
+## 2026-09-08 — PFIX-ROUND6-INTERN-WORKLOG-DURATION
+
+Batches Round 6's two decided schema-shaped items (`add'l-6`, `add'l-9`) into one migration, plus a
+documentation-only closure of `#11` alongside it.
+
+**add'l-6 — Intern clock-derived duration never reached `InternWorkLog`.** `syncWorkLog`
+(`work-duration.service.ts`) unconditionally wrote to `WorkLog`, silently matching zero rows for an
+Intern (Business Rule #11: Intern logs live in `InternWorkLog` ONLY) — `InternWorkLog` had no
+`workDuration` column at all to write to even if it had tried. Fixed: added a nullable
+`InternWorkLog.workDuration Float?` column, and `syncWorkLog` now resolves the caller's role
+(`prisma.user.findUnique`) and branches — `internWorkLog.workDuration` for an Intern,
+`workLog.workDuration` otherwise — mirroring the same role-check pattern already used in
+`work-log.service.ts`. The existing admin-triggered bulk sync (`syncWorkDurationsToWorkLog`) now
+correctly reaches Interns too, since it calls the same fixed `syncWorkLog` per session.
+
+**add'l-9 — `grossMinutes`/`netMinutes` couldn't hold the reference's fractional-minute precision.**
+`WorkDuration.grossMinutes`/`netMinutes` and `WorkLog.workDuration` (Int) widened to `Float` in the
+same migration — a safe, lossless direction for existing rows. All 4 sites that compute gross/net
+from raw elapsed-time math (`clockOut`, `editTime`, `editBreak`, `autoClockOut`) now round via a new
+shared `round2()` helper (`parseFloat(n.toFixed(2))`), matching the reference's own auto-close
+precision exactly (`work-duration.gs:419`) instead of leaving 3 of the 4 write sites at whole-minute
+precision. `totalBreakMins`/`WorkBreak.durationMins` deliberately left as `Int` — out of scope.
+
+Schema change generated offline (`prisma migrate diff --from-schema-datamodel`, no live DB
+connection) on a dedicated branch (`schema/round6-intern-worklog-duration`), hand-reviewed before
+application — no `db push`, no raw SQL. Migration:
+`20260908074202_intern_worklog_duration_and_widening` — 3 pure `ALTER COLUMN`/`ADD COLUMN`
+statements, no drop-and-recreate. Live-verified on a disposable local Postgres container: an Intern's
+clock-out populates `internWorkLog.workDuration` and produces no `WorkLog` row; a Team Member's
+clock-out still populates `workLog.workDuration` and produces no `InternWorkLog` row; a simulated
+auto-clocked-out session produced a genuinely fractional (2-decimal) `netMinutes`, not a value
+silently truncated back to a whole number.
+
+**#11 — `nightlyArchive`'s Postgres strategy — closed, not-applicable, no code.** Re-derived directly
+from `LGDesk_Master_Reference.md` Part 63 that `nightlyArchive`'s entire purpose is working around
+Google Sheets' row-count/cache-payload ceilings (explicitly cited: "> 5,000 rows", "> 90KB"), with no
+mention of compliance/retention anywhere — Postgres has no equivalent ceiling, so there's no rebuild
+gap to close. Noted, not fixed, a pre-existing doc-vs-code discrepancy found during the investigation:
+Part 63 claims 5 archived entities; the reference's actual code only ever archives 2
+(`['Tasks','Projects']`). `AUDIT_REPORT_ROUND4_2026-09-02.md`'s §5 checklist rows #11/add'l-6/add'l-9
+updated to reflect all three closures.
 
 ## 2026-09-08 — PAUDIT-RECONCILE-ROUND5-STATUS-CHECKLIST
 
