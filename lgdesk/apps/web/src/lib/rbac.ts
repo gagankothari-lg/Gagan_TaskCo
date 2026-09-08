@@ -44,14 +44,17 @@ export function canLogTaskProgress(user: Caller, task: Task): boolean {
   return false;
 }
 
-// Round5 #2: widened from a `user.role === 'Team Member'` literal (which excluded
-// Interns) to any non-manager, mirroring tasks.service.ts `canDeleteTask` exactly --
-// auth.gs's deleteTask isOwner check has no role restriction beyond the outer admin gate.
+// Round5 #14-followup: mirrors tasks.service.ts canDeleteTask's rewrite exactly -- see
+// that file for the full reasoning. Two bugs fixed: the team-match branch (over-grant,
+// #14) is gone, and the owner check (task.assignerId === user.empId) no longer has the
+// incorrect `!isManager` gate that wrongly denied a manager who owns a task they aren't
+// team-matched to (under-grant, found during this fix). Assignee check reuses
+// canEditTask's own `task.assigneeIds.includes(user.empId)` pattern above.
 export function canDeleteTask(user: Caller, task: Task): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
-  if (isManager(user.role) && user.team && task.assignedTeams.includes(user.team)) return true;
-  if (!isManager(user.role) && task.assignerId === user.empId) return true;
+  if (task.assignerId === user.empId) return true;
+  if (isManager(user.role) && task.assigneeIds.includes(user.empId)) return true;
   return false;
 }
 

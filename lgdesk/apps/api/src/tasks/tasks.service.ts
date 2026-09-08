@@ -329,18 +329,26 @@ export class TasksService {
     return false;
   }
 
-  // Round5 #2: Admin/SA always; TC/TF within their own team (flat Team-string match
-  // against assignedTeams); any non-manager (TM or Intern) who created the task
-  // (assignerId is set to the creator at creation) — own-created only. The prior
-  // `caller.role === 'Team Member'` literal excluded Interns; confirmed
-  // (PINVESTIGATE-ROUND5-DECISIONS) that's a documentation error, not a considered
-  // design — auth.gs's deleteTask's isOwner check has no role restriction at all
-  // beyond the outer admin gate. Widened to match, mirroring canModifyTask's own
-  // already-role-agnostic pattern above rather than writing a new parallel check.
+  // Round5 #14-followup: Admin/SA always; the task's own owner/assigner (any role, no
+  // manager gate); OR a manager who is also a listed assignee. Two bugs fixed relative
+  // to the prior version (re-derived directly from auth.gs's deleteTask, which has no
+  // team qualifier anywhere):
+  //   1. Over-grant (#14's own finding): the team-match-against-assignedTeams branch
+  //      let any TC/TF whose team happened to match delete the task with zero
+  //      ownership/assignment relationship to it at all. auth.gs has no such branch —
+  //      removed.
+  //   2. Under-grant (found during this fix's own re-read, not previously flagged): the
+  //      owner check was gated behind `!isManager(caller.role)`, so a TC/TF who is a
+  //      task's own creator/assigner but not team-matched and not an assignee was
+  //      wrongly denied. auth.gs's `isOwner` check has no role gate at all — this exact
+  //      bug was already caught and fixed on the edit side (canModifyTask above, and
+  //      #2's fix to it) but canDeleteTask kept its own separate, still-broken copy.
+  // The assignee check reuses canModifyTask's own parseIds(task.assigneeIds) pattern
+  // rather than inventing a different shape for it.
   canDeleteTask(task: TaskRow, caller: Caller): boolean {
     if (isAdmin(caller.role)) return true;
-    if (isManager(caller.role) && caller.team && parseIds(task.assignedTeams).includes(caller.team)) return true;
-    if (!isManager(caller.role) && task.assignerId === caller.empId) return true;
+    if (task.assignerId === caller.empId) return true;
+    if (isManager(caller.role) && parseIds(task.assigneeIds).includes(caller.empId)) return true;
     return false;
   }
 
