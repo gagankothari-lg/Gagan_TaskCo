@@ -2,6 +2,30 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND5-CROSS-MIDNIGHT-CONFIRM
+
+Closed checklist #15 (WorkLog cross-midnight typo-vs-overnight ambiguity), replacing the
+"accepted trade-off" framing with an actual fix. `PINVESTIGATE-ROUND5-DECISIONS` had already
+established the structural limit — a bare HH:MM plus a clock-in instant can't distinguish a
+typo from a genuine overnight shift — and the chosen fix: confirm before committing,
+surfaced only when the ambiguous branch would fire.
+
+Added `applyTimeIst`/`crossMidnightHours` to `apps/web/src/lib/api/workDuration.ts`, a
+client-side mirror of `work-duration.service.ts`'s private `applyTime` resolver (same
+IST-anchor, same `dayOffset` retry, same `<=` comparison), so the confirmation shown to the
+user is guaranteed to match what the server will actually do — no new API round-trip, since
+both entry points (`ChangeClockOutModal`'s hour/minute fields, `EditDayModal`'s time inputs)
+already have every value needed to decide this synchronously on submit. Confirmation uses
+`window.confirm()`, matching the app's own existing convention. `EditDayModal`'s check is
+anchored to the newly-edited start time, not the original clock-in, matching the backend's
+own newClockIn-then-newClockOut composition when both are edited in the same submission.
+
+Verified via a standalone hand-trace of the exact ported logic: an ambiguous entry (typed
+time at-or-before clock-in, including the exact-equal edge case) correctly triggers with the
+right next-day shift length shown; a normal same-day entry correctly triggers nothing. Web
+workspace builds clean (backend untouched — this is a frontend-only addition). Commit
+`e075993`.
+
 ## 2026-09-08 — PFIX-ROUND5-DELETE-OWNERSHIP-RULE
 
 Closed checklist #14 (`projects.service.ts` `canDelete()` team-match over-grant).
