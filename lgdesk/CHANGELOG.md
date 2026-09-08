@@ -2,6 +2,43 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND5-NAV-DEDUP
+
+Closed checklist add'l-1 (Registrations/Profile Updates as standalone nav items), which also
+resolves F46 (duplicate approval surfaces), F48 (embedded Reject had no reason field), and
+F49 (inconsistent name resolution) — all three were symptoms of the same underlying
+duplication, not separate fixes.
+
+Both renderers (the standalone `/registrations`/`/profile-requests` pages and the embedded
+`PendingRegistrationsSection`/`PendingProfileUpdatesSection` in `pending-approvals.tsx`) were
+read and compared in full before removing anything. Concrete differences found and how each
+was resolved in the merge:
+- **Reject-reason collection** — standalone only. Ported into a shared `RejectReasonModal`
+  now used by both embedded sections, so it isn't lost.
+- **Registration's manager display** — standalone showed a raw `EMP-XXXXX` ID (F49); embedded
+  showed nothing. Neither was correct — now resolves the real name via the same `nameFor()`
+  helper `members-view.tsx` already uses for DDR/manager display elsewhere on the page.
+- **Profile-update name resolution** — already correct and identical on both sides, no change
+  needed.
+
+Removed the standalone nav items/pages. Their "own badge" counts weren't just dropped: folded
+`pendingRegCount`/`pendingProfileCount` into a combined badge alongside `pendingDdrCount` on
+**both** Team Members and Organisation (Organisation had no badge at all before), matching the
+reference's actual composition — Team Management's badge combines all 3 pending queues into
+one number. Old `/registrations`/`/profile-requests` links now redirect client-side to
+`/team-members` instead of 404ing, reusing the app's existing `router.replace` pattern
+(`layout-client.tsx`'s unauthenticated-user redirect).
+
+Due-Date Requests (the reference's third pending queue) was left untouched — it has no
+standalone-page duplication, so it was out of scope here.
+
+Verified live with Playwright against a disposable local Postgres container (both torn down
+after): old routes redirect correctly; both sections render on Team Members (TC) and
+Organisation (Admin); the registration card shows a resolved manager name, not a raw ID; the
+reject-reason modal works end-to-end; approve works from Organisation; the combined nav badge
+is correct and updates live as requests resolve (2 → 1 after a reject). Web workspace builds
+clean, zero warnings. Commit `bcf477d`.
+
 ## 2026-09-08 — PFIX-ROUND5-CROSS-MIDNIGHT-CONFIRM
 
 Closed checklist #15 (WorkLog cross-midnight typo-vs-overnight ambiguity), replacing the
