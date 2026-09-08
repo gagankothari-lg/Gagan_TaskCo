@@ -154,7 +154,11 @@ export class TasksService {
     );
     await this.audit(callerEmpId, 'CREATE', created.taskId);
     if (created.dueDate) {
-      void this.calendar.createGCalEvent({
+      // Round6 #13: routes to each ASSIGNEE's personal calendar (calendar.gs
+      // _tryCalTaskSync), not the single shared calendar. A team-only task (no
+      // individual assigneeIds) produces zero events, matching the reference exactly.
+      void this.calendar.syncRoutedEvent({
+        recipientEmpIds: parseIds(created.assigneeIds),
         title: `[Task] ${created.title}`,
         description: `Status: ${created.status} · Priority: ${created.priority}`,
         startDate: created.dueDate,
@@ -256,14 +260,23 @@ export class TasksService {
     const updated = await this.prisma.task.update({ where: { taskId }, data });
     await this.audit(callerEmpId, 'UPDATE', taskId, JSON.stringify(before), JSON.stringify(dto));
     if (updated.dueDate) {
-      const calParams = { title: `[Task] ${updated.title}`, description: `Status: ${updated.status} · Priority: ${updated.priority}`, startDate: updated.dueDate, allDay: true };
-      if (updated.calEventId) {
-        void this.calendar.updateGCalEvent(updated.calEventId, calParams).catch(() => undefined);
-      } else {
-        void this.calendar.createGCalEvent({ ...calParams, colorId: '6' }).then((eventId) => {
-          if (eventId) this.prisma.task.update({ where: { taskId }, data: { calEventId: eventId } }).catch(() => undefined);
-        }).catch(() => undefined);
-      }
+      // Round6 #13: an existing calEventId is deleted from wherever it actually lives
+      // (reassignment may have moved which assignee's calendar it was in) and fresh
+      // copies are recreated for the CURRENT assignee list -- see syncRoutedEvent's own
+      // comment for why this is a delete+recreate, not a true per-calendar patch.
+      void this.calendar.syncRoutedEvent({
+        recipientEmpIds: parseIds(updated.assigneeIds),
+        existingEventId: updated.calEventId,
+        title: `[Task] ${updated.title}`,
+        description: `Status: ${updated.status} · Priority: ${updated.priority}`,
+        startDate: updated.dueDate,
+        allDay: true,
+        colorId: '6',
+      }).then((eventId) => {
+        if (eventId !== updated.calEventId) {
+          this.prisma.task.update({ where: { taskId }, data: { calEventId: eventId } }).catch(() => undefined);
+        }
+      }).catch(() => undefined);
     }
     return this.mapTask(updated);
   }
@@ -272,7 +285,9 @@ export class TasksService {
     const caller = await this.getCaller(callerEmpId);
     const task = await this.requireTask(taskId);
     if (!this.canDeleteTask(task, caller)) throw new ForbiddenException();
-    if (task.calEventId) void this.calendar.deleteGCalEvent(task.calEventId).catch(() => undefined);
+    // Round6 #13: event lives in an assignee's personal calendar, not the shared one --
+    // search-and-delete rather than a targeted single-calendar delete.
+    if (task.calEventId) void this.calendar.deleteGCalEventFromAnyCalendar(task.calEventId).catch(() => undefined);
     await this.prisma.task.delete({ where: { taskId } }); // ProgressUpdates cascade via FK
     await this.audit(callerEmpId, 'DELETE', taskId);
     return { ok: true };

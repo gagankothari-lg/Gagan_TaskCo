@@ -4,9 +4,10 @@ import { MeetingsController } from './meetings.controller';
 import { GoogleCalendarService } from './google-calendar.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { EmailModule } from '../email/email.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
-  imports: [EmailModule],
+  imports: [EmailModule, CalendarModule],
   controllers: [MeetingsController],
   providers: [MeetingsService, GoogleCalendarService, IdUtilsService],
   exports: [MeetingsService],

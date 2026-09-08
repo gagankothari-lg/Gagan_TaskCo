@@ -31,6 +31,12 @@ model User {
   // CacheService mechanics, just a plain Postgres column read fresh on each poll.
   presenceStatus    String    @default("online")
   presenceUpdatedAt DateTime?
+  // Round6 #13: caches the Google Calendar ID of this employee's personal "TM: {name}"
+  // calendar (calendar.gs:36-71's _getOrCreateUserCal, ported as CalendarService's
+  // getOrCreateUserCalendar) so repeat lookups don't re-hit the Calendar API. Deliberately
+  // never cleared on deactivation -- the reference has no cleanup step either (confirmed:
+  // no ACL-remove/calendar-delete call exists anywhere in calendar.gs/auth.gs).
+  personalCalendarId String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

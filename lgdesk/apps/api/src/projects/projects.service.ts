@@ -114,7 +114,10 @@ export class ProjectsService {
     );
     await this.audit(callerEmpId, 'CREATE', created.projId);
     if (created.deadline) {
-      void this.calendar.createGCalEvent({
+      // Round6 #13: routes to each OWNER's personal calendar (calendar.gs
+      // _tryCalProjectSync), not the single shared calendar.
+      void this.calendar.syncRoutedEvent({
+        recipientEmpIds: parseIds(created.ownerIds),
         title: `[Project] ${created.name}`,
         description: `Status: ${created.status} · Priority: ${created.priority}`,
         startDate: created.deadline,
@@ -153,14 +156,21 @@ export class ProjectsService {
     const updated = await this.prisma.project.update({ where: { projId }, data });
     await this.audit(callerEmpId, 'UPDATE', projId);
     if (updated.deadline) {
-      const calParams = { title: `[Project] ${updated.name}`, description: `Status: ${updated.status} · Priority: ${updated.priority}`, startDate: updated.deadline, allDay: true };
-      if (updated.calEventId) {
-        void this.calendar.updateGCalEvent(updated.calEventId, calParams).catch(() => undefined);
-      } else {
-        void this.calendar.createGCalEvent({ ...calParams, colorId: '9' }).then((eventId) => {
-          if (eventId) this.prisma.project.update({ where: { projId }, data: { calEventId: eventId } }).catch(() => undefined);
-        }).catch(() => undefined);
-      }
+      // Round6 #13: delete-old-wherever-it-is + recreate-for-current-owners, same
+      // reasoning as tasks.service.ts's updateTask -- see syncRoutedEvent's comment.
+      void this.calendar.syncRoutedEvent({
+        recipientEmpIds: parseIds(updated.ownerIds),
+        existingEventId: updated.calEventId,
+        title: `[Project] ${updated.name}`,
+        description: `Status: ${updated.status} · Priority: ${updated.priority}`,
+        startDate: updated.deadline,
+        allDay: true,
+        colorId: '9',
+      }).then((eventId) => {
+        if (eventId !== updated.calEventId) {
+          this.prisma.project.update({ where: { projId }, data: { calEventId: eventId } }).catch(() => undefined);
+        }
+      }).catch(() => undefined);
     }
     return this.mapProject(updated);
   }
@@ -169,7 +179,8 @@ export class ProjectsService {
     const caller = await this.getCaller(callerEmpId);
     const project = await this.requireProject(projId);
     if (!this.canDelete(project, caller)) throw new ForbiddenException();
-    if (project.calEventId) void this.calendar.deleteGCalEvent(project.calEventId).catch(() => undefined);
+    // Round6 #13: event lives in an owner's personal calendar, not the shared one.
+    if (project.calEventId) void this.calendar.deleteGCalEventFromAnyCalendar(project.calEventId).catch(() => undefined);
     await this.prisma.project.delete({ where: { projId } });
     await this.audit(callerEmpId, 'DELETE', projId);
     return { ok: true };

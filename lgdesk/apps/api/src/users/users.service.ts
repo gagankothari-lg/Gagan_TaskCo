@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { EmailService } from '../email/email.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { isAdmin, MANUAL_MANAGER_ROLES } from '../common/constants';
 import { RegisterRequestDto } from '../auth/dto/register-request.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -70,6 +71,7 @@ export class UsersService {
     private readonly idUtils: IdUtilsService,
     private readonly email: EmailService,
     private readonly config: ConfigService,
+    private readonly calendar: CalendarService,
   ) {}
 
   // ─────────────────────────────────────────────── reads
@@ -276,6 +278,14 @@ export class UsersService {
     await this.audit(callerEmpId, 'APPROVE_REGISTRATION', 'RegistrationRequest', req.regId, null, empId);
     this.clearOrgCache();
 
+    // Round6 #13: the natural creation hook for a new employee's personal "TM: {name}"
+    // calendar (calendar.gs's setupUserCalendars does this in bulk for existing
+    // employees once; a new employee's equivalent one-time moment is approval, when
+    // their User row first exists). Fire-and-forget, matching this file's own
+    // sendRegistrationApproved just below -- a Calendar failure must never block or
+    // fail the approval itself (rule #21: DB is source of truth).
+    this.calendar.getOrCreateUserCalendar(empId, req.email, `${req.firstName} ${req.lastName}`.trim()).catch(() => undefined);
+
     const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk-frontend.vercel.app';
     this.email.sendRegistrationApproved({
       applicantEmail: req.email,
@@ -477,6 +487,12 @@ export class UsersService {
     return { oldRole, newRole };
   }
 
+  // Round6 #13: deliberately does NOT touch personalCalendarId or attempt any ACL
+  // unshare/calendar-delete step. Confirmed directly against the reference (grepped
+  // calendar.gs/auth.gs for any deactivate-time cleanup) -- there is no ACL-remove or
+  // calendar-delete call anywhere; a deactivated employee's "TM: {name}" calendar and
+  // its share simply persist untouched forever. Matching that, not inventing cleanup
+  // the reference doesn't have.
   async deactivateEmployee(targetEmpId: string, callerEmpId: string) {
     const target = await this.prisma.user.findUnique({ where: { empId: targetEmpId } });
     if (!target) throw new NotFoundException('Employee not found');
