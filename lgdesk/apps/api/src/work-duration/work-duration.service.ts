@@ -95,13 +95,13 @@ export class WorkDurationService {
     }
     // AUDIT_REPORT.md A3 item 2: reference keeps gross elapsed time as a raw (unrounded)
     // float and rounds only once, at the very end, on (gross − totalBreak)
-    // (work-duration.gs:129-130, Math.round). The rebuild previously floored gross to a
-    // whole minute before subtracting the break (Math.floor), which systematically
-    // under-counts net work minutes for any real (sub-minute) timestamp. Compute the raw
-    // float gross minutes and round only the final net figure to match the reference.
+    // (work-duration.gs:129-130). Round6 add'l-9: grossMinutes/netMinutes are now Float
+    // columns (were Int) -- round to 2 decimal places, matching the reference's exact
+    // auto-close precision (work-duration.gs:419's parseFloat(x.toFixed(2))), applied
+    // uniformly here too so every write site to these columns behaves consistently.
     const grossMinutesRaw = (clockOut.getTime() - s.clockIn.getTime()) / 60000;
-    const grossMinutes = Math.round(grossMinutesRaw);
-    const netMinutes = Math.max(0, Math.round(grossMinutesRaw - s.totalBreakMins));
+    const grossMinutes = this.round2(grossMinutesRaw);
+    const netMinutes = Math.max(0, this.round2(grossMinutesRaw - s.totalBreakMins));
     const notes = dto?.reason ? this.appendNote(s.notes, `Clock-out reason [${new Date().toISOString()}]: ${dto.reason}`) : s.notes;
 
     await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut, status: 'COMPLETED', grossMinutes, netMinutes, notes } });
@@ -156,12 +156,12 @@ export class WorkDurationService {
     }
     let net = s.netMinutes;
     if (newClockOut) {
-      // FIX B: match clockOut()/endBreak()'s AUDIT_REPORT.md A3 item 2 fix — round the raw
+      // FIX B: match clockOut()'s AUDIT_REPORT.md A3 item 2 fix — round the raw
       // (unrounded) elapsed float once, at the end, instead of flooring gross to a whole
-      // minute first. Math.floor here undercounted by up to 59s per edit.
+      // minute first. Round6 add'l-9: 2-decimal precision, matching the now-Float columns.
       const grossRaw = (newClockOut.getTime() - newClockIn.getTime()) / 60000;
-      const gross = Math.round(grossRaw);
-      net = Math.max(0, Math.round(grossRaw - (dto.breakMins ?? s.totalBreakMins)));
+      const gross = this.round2(grossRaw);
+      net = Math.max(0, this.round2(grossRaw - (dto.breakMins ?? s.totalBreakMins)));
       data.grossMinutes = gross;
       data.netMinutes = net;
     }
@@ -178,11 +178,11 @@ export class WorkDurationService {
     const data: Record<string, unknown> = { totalBreakMins: dto.breakMins };
     let net = s.netMinutes;
     if (s.clockIn && s.clockOut) {
-      // FIX B: same rounding fix as clockOut()/endBreak() — round the raw elapsed float once,
-      // don't floor gross to a whole minute first (undercounted by up to 59s per edit).
+      // FIX B: same rounding fix as clockOut() — round the raw elapsed float once, don't
+      // floor gross to a whole minute first. Round6 add'l-9: 2-decimal precision.
       const grossRaw = (s.clockOut.getTime() - s.clockIn.getTime()) / 60000;
-      const gross = Math.round(grossRaw);
-      net = Math.max(0, Math.round(grossRaw - dto.breakMins));
+      const gross = this.round2(grossRaw);
+      net = Math.max(0, this.round2(grossRaw - dto.breakMins));
       data.grossMinutes = gross;
       data.netMinutes = net;
     }
@@ -266,11 +266,16 @@ export class WorkDurationService {
     });
     for (const s of sessions) {
       if (!s.clockIn) continue;
-      // FIX B: same rounding fix as clockOut()/endBreak() — round the raw elapsed float once,
-      // don't floor gross to a whole minute first (undercounted by up to 59s per auto-close).
+      // FIX B: same rounding fix as clockOut() — round the raw elapsed float once, don't
+      // floor gross to a whole minute first. Round6 add'l-9: grossMinutes/netMinutes are
+      // now Float columns -- round to 2 decimals, matching the reference's own auto-close
+      // precision exactly (work-duration.gs:419's parseFloat(x.toFixed(2))). This is the
+      // one write site the original finding specifically named, but all four sites now
+      // share the same precision so the same columns never behave inconsistently
+      // depending on which path wrote them.
       const grossRaw = (today.getTime() - s.clockIn.getTime()) / 60000;
-      const gross = Math.round(grossRaw);
-      const net = Math.max(0, Math.round(grossRaw - s.totalBreakMins));
+      const gross = this.round2(grossRaw);
+      const net = Math.max(0, this.round2(grossRaw - s.totalBreakMins));
       const notes = this.appendNote(s.notes, `Auto-closed [${new Date().toISOString()}]: session crossed the midnight-UTC boundary.`);
       await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut: today, status: 'AUTO_CLOSED', grossMinutes: gross, netMinutes: net, autoClocked: true, notes } });
       await this.syncWorkLog(s.empId, s.date, net);
@@ -301,9 +306,25 @@ export class WorkDurationService {
     return caller;
   }
 
-  // Sync net minutes into the day's WorkLog row (no-op if no row exists).
+  // Round6 add'l-6: previously always wrote to WorkLog, which silently matched zero rows
+  // for an Intern (Business Rule #11: Intern logs live in InternWorkLog ONLY, never
+  // WorkLog). Branch by the caller's actual role -- mirrors the `role === 'Intern'`
+  // check work-log.service.ts already uses for the same WorkLog/InternWorkLog split.
   private async syncWorkLog(empId: string, date: Date, netMinutes: number) {
-    await this.prisma.workLog.updateMany({ where: { empId, date }, data: { workDuration: netMinutes } });
+    const caller = await this.prisma.user.findUnique({ where: { empId }, select: { role: true } });
+    if (caller?.role === 'Intern') {
+      await this.prisma.internWorkLog.updateMany({ where: { empId, date }, data: { workDuration: netMinutes } });
+    } else {
+      await this.prisma.workLog.updateMany({ where: { empId, date }, data: { workDuration: netMinutes } });
+    }
+  }
+
+  // Round6 add'l-9: shared 2-decimal rounding for grossMinutes/netMinutes/workDuration
+  // now that those columns are Float, matching the reference's own precision exactly
+  // (work-duration.gs:419's parseFloat(netWorkMins.toFixed(2))) instead of leaving some
+  // write sites at whole-minute precision and others fractional.
+  private round2(n: number): number {
+    return parseFloat(n.toFixed(2));
   }
 
   private appendNote(notes: string | null, line: string): string {

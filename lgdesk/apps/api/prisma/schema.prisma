@@ -207,7 +207,8 @@ model WorkLog {
   remark         String?
   status         String?
   comments       String?
-  workDuration   Int?
+  // Round6 add'l-9: widened Int -> Float, same reasoning as WorkDuration.grossMinutes/netMinutes above.
+  workDuration   Float?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -232,6 +233,11 @@ model InternWorkLog {
   work2ndHalf String?
   extraHours  Float    @default(0)
   remark      String?
+  // Round6 add'l-6: new column -- InternWorkLog previously had no equivalent to WorkLog's
+  // workDuration at all, so syncWorkLog's write for an Intern silently matched zero rows.
+  // Float from the start (add'l-9's widening decision applied here directly, rather than
+  // adding as Int and re-widening in the same migration).
+  workDuration Float?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -251,8 +257,12 @@ model WorkDuration {
   clockIn        DateTime?
   clockOut       DateTime?
   totalBreakMins Int       @default(0)
-  grossMinutes   Int       @default(0)
-  netMinutes     Int       @default(0)
+  // Round6 add'l-9: widened Int -> Float. Reference (work-duration.gs:408-419) stores
+  // fractional-minute precision (parseFloat(x.toFixed(2))) on the auto-clock-out path;
+  // the rebuild's Int columns couldn't represent that even in principle. Int -> Float is
+  // a safe, lossless widening for existing rows (no truncation in this direction).
+  grossMinutes   Float     @default(0)
+  netMinutes     Float     @default(0)
   status         String    @default("IDLE")
   autoClocked    Boolean   @default(false)
   notes          String?

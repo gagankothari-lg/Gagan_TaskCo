@@ -1,0 +1,12 @@
+-- AlterTable
+ALTER TABLE "work_logs" ALTER COLUMN "workDuration" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "intern_work_logs" ADD COLUMN     "workDuration" DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "work_durations" ALTER COLUMN "grossMinutes" SET DEFAULT 0,
+ALTER COLUMN "grossMinutes" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "netMinutes" SET DEFAULT 0,
+ALTER COLUMN "netMinutes" SET DATA TYPE DOUBLE PRECISION;
+
