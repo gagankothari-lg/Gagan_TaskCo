@@ -93,3 +93,29 @@ export function istHHMM(iso: string): string {
     hour12: false,
   });
 }
+
+// Round5 #15: client-side mirror of work-duration.service.ts's private `applyTime` — builds
+// the instant `hhmm` resolves to when anchored to `anchorIso`'s IST calendar day (optionally
+// shifted by `dayOffset` whole days first). Kept in lockstep with the backend's exact
+// semantics so the ambiguity check below matches what the server will actually do, without
+// a round-trip.
+export function applyTimeIst(anchorIso: string, hhmm: string, dayOffset = 0): Date {
+  const [hh, mm] = hhmm.split(':').map(Number);
+  const anchor = new Date(anchorIso);
+  const shifted = dayOffset ? new Date(anchor.getTime() + dayOffset * 86400000) : anchor;
+  const dateStr = shifted.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  return new Date(`${dateStr}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00+05:30`);
+}
+
+// Round5 #15: returns the resulting shift length in hours for the next-day interpretation
+// ONLY when the same-day reading of `hhmm` would land at-or-before `afterIso` — the exact
+// ambiguity work-duration.service.ts's applyTime resolver silently retries on server-side
+// (a bare HH:MM plus a clock-in instant can't distinguish a typo from a genuine overnight
+// shift). Returns null for an unambiguous entry — no confirmation needed, most entries.
+export function crossMidnightHours(afterIso: string, hhmm: string): number | null {
+  const after = new Date(afterIso);
+  const sameDay = applyTimeIst(afterIso, hhmm, 0);
+  if (sameDay > after) return null;
+  const nextDay = applyTimeIst(afterIso, hhmm, 1);
+  return Math.round(((nextDay.getTime() - after.getTime()) / 3600000) * 10) / 10;
+}

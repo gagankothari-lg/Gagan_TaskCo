@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { Icon } from '../../ui/icon';
-import { useClockOut, istHHMM } from '../../../lib/api/workDuration';
+import { useClockOut, istHHMM, crossMidnightHours } from '../../../lib/api/workDuration';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '../../ui/form';
@@ -38,7 +38,7 @@ export function AnalogClock({ hour, minute, size = 120 }: { hour: number; minute
   );
 }
 
-export function ChangeClockOutModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ChangeClockOutModal({ open, onClose, clockInIso }: { open: boolean; onClose: () => void; clockInIso?: string }) {
   const clockOut = useClockOut();
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +64,19 @@ export function ChangeClockOutModal({ open, onClose }: { open: boolean; onClose:
   async function onSubmit(values: ChangeClockOutFormValues) {
     setError(null);
     const customTime = `${pad(values.hour)}:${pad(values.minute)}`;
+    // Round5 #15: the backend silently reads an at-or-before-clock-in time as "tomorrow" —
+    // confirm with the user before submitting, showing the actual resolved interpretation,
+    // rather than letting a typo silently produce a wildly wrong session length. Matches the
+    // app's existing window.confirm() convention (e.g. "Clock out now?" above).
+    if (clockInIso) {
+      const hours = crossMidnightHours(clockInIso, customTime);
+      if (hours !== null) {
+        const ok = window.confirm(
+          `This looks like it crosses into the next day — ${customTime} tomorrow, a ${hours}h shift. Continue?`,
+        );
+        if (!ok) return;
+      }
+    }
     try {
       await clockOut.mutateAsync({ customTime, reason: values.reason || undefined });
       onClose();

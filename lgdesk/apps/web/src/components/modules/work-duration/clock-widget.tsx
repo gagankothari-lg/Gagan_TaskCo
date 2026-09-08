@@ -321,13 +321,14 @@ export function ClockWidget() {
         </>
       )}
 
-      <ChangeClockOutModal open={customOpen} onClose={() => setCustomOpen(false)} />
+      <ChangeClockOutModal open={customOpen} onClose={() => setCustomOpen(false)} clockInIso={session?.clockIn ?? undefined} />
       <EditDayModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
         initialStart={session?.clockIn ? istHHMM(session.clockIn) : undefined}
         initialEnd={session?.clockOut ? istHHMM(session.clockOut) : undefined}
         initialBreak={session?.totalBreakMins}
+        anchorIso={session?.clockIn ?? session?.date ?? undefined}
       />
     </div>
   );

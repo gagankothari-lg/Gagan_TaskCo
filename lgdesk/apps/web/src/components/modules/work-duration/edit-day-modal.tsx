@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
 import { Icon } from '../../ui/icon';
-import { useEditTime } from '../../../lib/api/workDuration';
+import { useEditTime, applyTimeIst, crossMidnightHours } from '../../../lib/api/workDuration';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { Spinner } from '../../ui/spinner';
 import { AnalogClock } from './change-clock-out-modal';
@@ -19,7 +19,7 @@ function toMinutes(hhmm: string): number {
 }
 const pad = (n: number) => String(n).padStart(2, '0');
 
-export function EditDayModal({ open, onClose, initialStart, initialEnd, initialBreak }: { open: boolean; onClose: () => void; initialStart?: string; initialEnd?: string; initialBreak?: number }) {
+export function EditDayModal({ open, onClose, initialStart, initialEnd, initialBreak, anchorIso }: { open: boolean; onClose: () => void; initialStart?: string; initialEnd?: string; initialBreak?: number; anchorIso?: string }) {
   const editTime = useEditTime();
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +54,21 @@ export function EditDayModal({ open, onClose, initialStart, initialEnd, initialB
 
   async function onSubmit(values: EditDayFormValues) {
     setError(null);
+    // Round5 #15: mirrors work-duration.service.ts's editTime resolver exactly — the new
+    // clock-in is startTime anchored to the session's own day, and it's THAT instant (not
+    // the original clockIn) that endTime's ambiguity is checked against, since the user may
+    // be editing both in the same submission. Only warns when endTime would silently be
+    // read as tomorrow; a normal same-day entry is untouched.
+    if (anchorIso && values.endTime) {
+      const newClockIn = applyTimeIst(anchorIso, values.startTime);
+      const hours = crossMidnightHours(newClockIn.toISOString(), values.endTime);
+      if (hours !== null) {
+        const ok = window.confirm(
+          `This looks like it crosses into the next day — ${values.endTime} tomorrow, a ${hours}h shift. Continue?`,
+        );
+        if (!ok) return;
+      }
+    }
     try {
       await editTime.mutateAsync({ startTime: values.startTime, endTime: values.endTime || undefined, breakMins: values.breakMins, reason: values.reason });
       onClose();
