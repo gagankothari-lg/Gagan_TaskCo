@@ -2,6 +2,107 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-08 — PFIX-ROUND6-CALENDAR-PER-EMPLOYEE-ACL
+
+**Status: `FIXED-IN-SOURCE, LIVE-VERIFICATION-PENDING`.** No Google credentials exist in any
+environment for this project (`GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_PRIVATE_KEY`/
+`GOOGLE_CALENDAR_ID`) — this is a structurally-correct, code-complete rebuild, verified by
+hand-trace and a clean `nest build` (the `googleapis` package's own TypeScript definitions
+schema-check every API call shape used below), not by exercising a real Calendar API. Do not
+treat this as "confirmed working" until credentials are provisioned and the items listed at the
+bottom of this entry are checked live.
+
+Closes Round 6 checklist item `#13`. Reference (`calendar.gs:36-152`) creates one "TM: {name}"
+Google Calendar per active employee, shared read-only with that employee, and routes
+Tasks→assignee, Projects→owner, Leaves→employee's-own; the rebuild previously routed everything
+from every employee into one single `GOOGLE_CALENDAR_ID` — a real privacy gap for leave records
+specifically. Rebuilt the full per-employee + ACL model to match.
+
+**Domain-wide-delegation investigation (done first, before writing any lifecycle code):**
+Concluded NO domain-wide delegation is needed for this feature. Creating a calendar the service
+account owns (`calendars.insert`) and ACL-sharing it read-only with an arbitrary email
+(`acl.insert`, `role:'reader'`) is a fundamentally different operation from *impersonating* that
+user or writing into a calendar they already own — delegation only matters for the latter.
+Confirmed via: (a) Google's own `acl.insert` reference docs list no delegation prerequisite, only
+the `calendar`/`calendar.acls` scopes already in use; (b) a Google Calendar Community thread
+titled "Service accounts cannot invite attendees without Domain-Wide Delegation of Authority"
+confirms the delegation requirement is specifically scoped to the ATTENDEE-INVITE mechanism
+(`events.insert`/`patch` with an `attendees[]` array + `sendUpdates`) — a different code path
+entirely from ACL sharing; (c) the reference's own design corroborates this distinction —
+`meet.gs`'s `_tryCalMeetingSync` deliberately avoids the attendee-invite mechanism for
+per-employee visibility, using a plain `createEvent` (no attendees) into each person's own
+calendar specifically because that path doesn't require delegation. **Related finding, NOT part
+of this ticket's scope:** `google-calendar.service.ts`'s pre-existing `createCalendarEvent`
+(Meet-link creation) DOES use `attendees:[...]` + `sendUpdates:'all'` — that pre-existing call
+would very likely hit exactly the delegation error above if ever exercised with a real
+non-delegated service account. Untouched here; flagging for whoever eventually provisions
+credentials and tests the Meet-link flow.
+
+**Schema**: `User.personalCalendarId String?` — caches the resolved personal-calendar ID so
+repeat lookups skip the Calendar API. Migration generated offline (`migrate diff
+--from-schema-datamodel`), hand-reviewed, dedicated branch — single additive `ADD COLUMN`, no
+`db push`, no raw SQL.
+
+**`CalendarService` additions**: `getOrCreateUserCalendar` (mirrors `_getOrCreateUserCal` —
+create-or-reuse a "TM: {name}" calendar, ACL-share reader with the employee, persist the ID);
+`resolvePersonalCalendar` (cache-check → lazy-create; falls back to the shared calendar when an
+employee has no email, matching the reference's own `_getOrCreateUserCal` fallback exactly);
+`syncRoutedEvent` (mirrors `_tryCalTaskSync`/`_tryCalProjectSync` — one event per recipient,
+title suffixed with their name, only the LAST recipient's event ID is tracked, matching the
+reference's own single-`Cal_Event_ID`-column limitation; CREATE and UPDATE both funnel through
+here as delete-wherever-it-lives-then-recreate-for-current-recipients, matching the reference's
+own fallthrough — not a true per-calendar patch, since there's no per-recipient event-ID
+tracking to patch against); `deleteGCalEventFromAnyCalendar` (mirrors `_calFindAndDelete` —
+brute-force search across every calendar the service account owns via
+`calendarList.list({minAccessRole:'owner'})`, needed because reassignment can move which
+employee's calendar held the last copy, and nothing records which calendar a given `calEventId`
+was created in).
+
+**Routing changes**: `tasks.service.ts` (create/update/delete) → each **assignee's** calendar;
+a team-only task (no individual assignees) produces zero events, matching the reference exactly
+(`_tryCalTaskSync` has no team-to-calendar fallback). `projects.service.ts` → each **owner's**
+calendar, same multi-recipient shape. `calendar.service.ts`'s `syncLeave`/`deleteLeaveEvent` →
+the **requester's own** calendar (single recipient, true in-place patch still valid — a leave's
+owner never changes). `fullDailySync`'s task/project reconciliation loop → same per-recipient
+routing (note: an already-synced row's daily refresh is now a delete+recreate instead of an
+in-place patch, for the same "don't know which calendar it's actually in" reason). Holidays
+(`syncHoliday`) **unchanged** — stays on the single shared calendar, matching the reference.
+Meetings (`meetings.service.ts`'s `syncToCalendar`, mirroring `meet.gs:274-313`
+`_tryCalMeetingSync`) now ALSO copies a plain, no-attendee event into every invited attendee's
+(and the organizer's) own personal calendar, alongside the existing single Meet-link event —
+deliberately separate, convenience-visibility layer vs. the authoritative invite, exactly as the
+reference does it.
+
+**Lifecycle wiring**: `users.service.ts`'s `approveRegistration` now creates the new employee's
+personal calendar right after their `User` row exists (fire-and-forget, never blocks approval).
+`deactivateEmployee` deliberately left untouched — confirmed directly against the reference
+(grepped `calendar.gs`/`auth.gs` for any deactivate-time ACL-remove/calendar-delete call): there
+is none. A deactivated employee's calendar and its share persist untouched forever, matching the
+reference, not a gap.
+
+**Verification**: `npm run build:api` clean (the `googleapis` package's TypeScript definitions
+schema-check every Calendar API call used, including `calendars.insert`/`acl.insert`/
+`calendarList.list`/`events.delete`, all confirmed to exist with the exact shapes used).
+Hand-traced 6 scenarios against the actual code paths: a 2-assignee task (2 events, one per
+assignee's calendar, last-assignee's ID tracked); a 1-owner project (1 event, owner's calendar);
+an approved leave (1 event, requester's own calendar); a team-only task (0 events); a
+reassignment (stale event correctly found-and-removed from the ORIGINAL assignee's calendar via
+brute-force search, fresh event created in the new assignee's calendar); the unconfigured/no-op
+path (every new method short-circuits at `!this.cal` exactly like the pre-existing guards).
+
+**Explicitly still `LIVE-VERIFICATION-PENDING`** once Google credentials are provisioned:
+- Calendar creation actually succeeds against the real API (`calendars.insert`).
+- The ACL share is actually visible to the employee (`acl.insert` + the employee can see the
+  calendar appear, or needs to manually accept it — depends on Workspace admin sharing settings,
+  a policy question that can't be checked without live access).
+- Multi-assignee/multi-owner routing behaves as decided (each assignee/owner's calendar actually
+  receives its own event).
+- The reassignment brute-force delete (`deleteGCalEventFromAnyCalendar`) actually finds and
+  removes the stale event at real API scale.
+- Whether the pre-existing Meet-link attendee-invite call (unrelated to this ticket) actually
+  fails with the delegation error predicted above, or works for some other reason not yet
+  understood.
+
 ## 2026-09-08 — PAUDIT-RECONCILE-ROUND5-STATUS-CHECKLIST
 
 Documentation-only correction, no code change. `AUDIT_REPORT_ROUND4_2026-09-02.md`'s Section 5

@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { GoogleCalendarService } from './google-calendar.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { EmailService } from '../email/email.service';
 import { isAdmin, isManager, parseIds, joinIds } from '../common/constants';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
@@ -31,6 +32,10 @@ export class MeetingsService {
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
     private readonly calendar: GoogleCalendarService,
+    // Round6 #13: reuses CalendarService's per-employee calendar lifecycle
+    // (resolvePersonalCalendar/createGCalEvent) for the personal-calendar-copy step --
+    // GoogleCalendarService stays focused on the Meet-link/attendee-invite event only.
+    private readonly calendarLifecycle: CalendarService,
     private readonly email: EmailService,
   ) {}
 
@@ -97,7 +102,7 @@ export class MeetingsService {
     const meetingId = meeting.meetingId;
 
     // Calendar sync — fire-and-forget; never blocks/fails the response.
-    void this.syncToCalendar(meeting.id, meetingId, meetType, attendeeIds, attendeeTeams, dto, start, end);
+    void this.syncToCalendar(meeting.id, meetingId, meetType, attendeeIds, attendeeTeams, dto, start, end, callerEmpId);
     // AUDIT_REPORT.md A5 finding 6 (`meet.gs:433-457` _sendMeetingGmail): "A meeting has
     // been scheduled" notification email — fire-and-forget, independent of Calendar/Meet
     // (needs no Google credentials, uses the existing Resend-backed EmailService).
@@ -162,20 +167,26 @@ export class MeetingsService {
   // meetType 'company' invites every active employee regardless of attendeeIds/Teams
   // (Master Reference Meeting Templates table: "All employees ... auto-added").
   private async resolveAttendeesToEmails(meetType: string, attendeeIds: string[], attendeeTeams: string[]): Promise<string[]> {
+    return (await this.resolveAttendees(meetType, attendeeIds, attendeeTeams)).map((a) => a.email);
+  }
+
+  // Round6 #13: same resolution as resolveAttendeesToEmails, but keeps empId alongside
+  // email -- syncToCalendar needs empId to route each attendee's personal-calendar copy
+  // (CalendarService.resolvePersonalCalendar takes an empId, not an email).
+  private async resolveAttendees(meetType: string, attendeeIds: string[], attendeeTeams: string[]): Promise<{ empId: string; email: string }[]> {
     if (meetType === 'company') {
-      const users = await this.prisma.user.findMany({ where: { isActive: true }, select: { email: true } });
-      return users.map((u) => u.email);
+      return this.prisma.user.findMany({ where: { isActive: true }, select: { empId: true, email: true } });
     }
-    const emails = new Set<string>();
+    const byEmpId = new Map<string, string>();
     if (attendeeIds.length) {
-      const users = await this.prisma.user.findMany({ where: { empId: { in: attendeeIds } }, select: { email: true } });
-      users.forEach((u) => emails.add(u.email));
+      const users = await this.prisma.user.findMany({ where: { empId: { in: attendeeIds } }, select: { empId: true, email: true } });
+      users.forEach((u) => byEmpId.set(u.empId, u.email));
     }
     if (attendeeTeams.length) {
-      const users = await this.prisma.user.findMany({ where: { team: { in: attendeeTeams }, isActive: true }, select: { email: true } });
-      users.forEach((u) => emails.add(u.email));
+      const users = await this.prisma.user.findMany({ where: { team: { in: attendeeTeams }, isActive: true }, select: { empId: true, email: true } });
+      users.forEach((u) => byEmpId.set(u.empId, u.email));
     }
-    return [...emails];
+    return [...byEmpId.entries()].map(([empId, email]) => ({ empId, email }));
   }
 
   // AUDIT_REPORT.md A5 finding 6: mirrors `_sendMeetingGmail` (`meet.gs:433-457`) — sent to
@@ -215,12 +226,34 @@ export class MeetingsService {
     dto: CreateMeetingDto,
     start: Date,
     end: Date,
+    organizerEmpId: string,
   ) {
     try {
-      const attendeeEmails = await this.resolveAttendeesToEmails(meetType, attendeeIds, attendeeTeams);
+      const attendees = await this.resolveAttendees(meetType, attendeeIds, attendeeTeams);
+      const attendeeEmails = attendees.map((a) => a.email);
       const result = await this.calendar.createCalendarEvent({ meetingId, title: dto.title, description: dto.description, startTime: start, endTime: end, attendeeEmails });
       if (result) {
         await this.prisma.meeting.update({ where: { id }, data: { calEventId: result.calEventId, meetLink: result.meetLink } });
+      }
+      // Round6 #13 (meet.gs:274-313 _tryCalMeetingSync): ALSO copy a plain, no-attendee
+      // event into each invited employee's own personal "TM: {name}" calendar, so it
+      // shows up there without them needing to accept the real Calendar invite above.
+      // Deliberately separate from the Meet-link event just created -- this is the
+      // convenience-visibility layer, not the authoritative invite. Includes the
+      // organizer too, matching the reference's explicit `allEmails.push(orgEmail)`.
+      const recipientEmpIds = new Set(attendees.map((a) => a.empId));
+      recipientEmpIds.add(organizerEmpId);
+      const description = (result?.meetLink ? `Join Meeting: ${result.meetLink}\n` : '') + (dto.description ?? '');
+      for (const empId of recipientEmpIds) {
+        const target = await this.calendarLifecycle.resolvePersonalCalendar(empId);
+        if (!target) continue;
+        await this.calendarLifecycle.createGCalEvent({
+          title: dto.title,
+          description,
+          startDate: start,
+          endDate: end,
+          calendarId: target.calendarId,
+        });
       }
     } catch {
       // Calendar is secondary — swallow.
