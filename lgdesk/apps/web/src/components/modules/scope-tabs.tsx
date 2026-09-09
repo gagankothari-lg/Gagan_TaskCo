@@ -12,6 +12,9 @@ export type Scope = 'mine' | 'team' | 'all';
 const SCOPE_LABELS: Record<Scope, string> = { mine: 'My', team: 'Team', all: 'All' };
 
 export function ScopeTabs({ tabs, active, onChange }: { tabs: Scope[]; active: Scope; onChange: (scope: Scope) => void }) {
+  // A single-entry tabs array (a non-manager's ['mine']) has nothing to switch to --
+  // render nothing rather than a pointless one-pill bar.
+  if (tabs.length < 2) return null;
   return (
     <div className="scope-tabs" role="tablist">
       {tabs.map((scope) => (

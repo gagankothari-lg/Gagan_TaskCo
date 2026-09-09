@@ -14,7 +14,11 @@ import { WeekGlanceWidget } from '../../components/modules/work-log/week-glance-
 import { useRegistrations, useProfileRequests } from '../../lib/api/teamMembers';
 import { useSetPresence, HEARTBEAT_MS, IDLE_MS } from '../../lib/api/presence';
 
-type NavItem = { label: string; icon: string; href: string; badge?: number };
+// PREORDER-SIDEBAR: gate is applied at render time (manager -> isManager(role),
+// misAccess -> user.hasMisAccess), same checks as before -- this is a pure reorder,
+// not a permissions change. A plain item (no `gate`) is unconditional, as today.
+type NavItem = { label: string; icon: string; href: string; badge?: number; gate?: 'manager' | 'misAccess' };
+type NavRow = NavItem | { divider: true };
 
 // Mobile (<=768px) is a deliberately reduced feature set (Full Mobile Redesign
 // is a separate, later roadmap item) — these 8 nav items are hidden below the
@@ -162,50 +166,46 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   );
 
   // Nav skeleton per LGDesk_Master_Reference.md Part 10 (Navigation Structure).
-  // PCONSOLIDATE-TASKS-PROJECTS-NAV: flattened from the prior three labelled groups
-  // (My Space / Team / Company) into one list with no section headers -- Tasks/
-  // Projects now carry their own in-page My/Team/All tab bar instead of Team Tasks/
-  // Team Projects/All Tasks/All Projects being separate nav entries+routes. Role-gating
-  // is still per-item (`.nav-mgr-only`), just applied to `managerOnly` as a whole block
-  // at render time instead of via three named groups.
-  const groups = useMemo(() => {
-    const core: NavItem[] = [
-      { label: 'Dashboard', icon: 'home', href: '/dashboard' },
-      { label: 'Plan My Week', icon: 'calendar_view_week', href: '/tasks/plan-week' },
-      { label: 'Tasks', icon: 'task_alt', href: '/tasks', badge: openTaskCount },
-      { label: 'Projects', icon: 'folder_open', href: '/projects' },
-      { label: 'Work Log', icon: 'edit_note', href: '/work-log' },
-      { label: 'Calendar', icon: 'calendar_month', href: '/calendar' },
-      { label: 'Meetings', icon: 'video_call', href: '/meetings' },
-      { label: 'Org Chart', icon: 'account_tree', href: '/org-chart' },
-      { label: 'My Leaves', icon: 'event_available', href: '/leaves' },
-      { label: 'Directory', icon: 'contacts', href: '/directory' },
-      { label: 'Notes', icon: 'checklist_rtl', href: '/notes' },
-    ];
-    // Leave Approvals/Team Work Logs/Team Members/Organisation/Forms — `.nav-mgr-only`
-    // in the source doc, i.e. gated by isManager(role) as a whole block.
-    const managerOnly: NavItem[] = [
-      { label: 'Leave Approvals', icon: 'pending_actions', href: '/leaves/approvals', badge: pendingLeaveCount },
-      { label: 'Team Work Logs', icon: 'monitoring', href: '/work-log/team' },
-      { label: 'Team Members', icon: 'table_rows', href: '/team-members', badge: pendingTeamMgmtCount },
-      { label: 'Organisation', icon: 'corporate_fare', href: '/organisation', badge: pendingTeamMgmtCount },
-      { label: 'Forms', icon: 'description', href: '/forms' },
-    ];
-    // MIS Report — gated by hasMisAccess alone (Part 10: "any role"), NOT by
-    // isManager, so it is kept out of the `managerOnly` block on purpose.
-    const misReport: NavItem = { label: 'MIS Report', icon: 'assessment', href: '/mis-report' };
-    return { core, managerOnly, misReport };
-  }, [openTaskCount, pendingLeaveCount, pendingTeamMgmtCount]);
+  // PCONSOLIDATE-TASKS-PROJECTS-NAV flattened the prior three labelled groups (My
+  // Space/Team/Company) into one list with no section headers. PREORDER-SIDEBAR
+  // (this pass) reorders that flat list into clusters separated by unlabeled visual
+  // dividers -- every gate (manager -> isManager(role), misAccess -> hasMisAccess) is
+  // exactly what it was before, just relocated; this is a pure reorder, not a
+  // permissions change. PMERGE-LEAVES-PAGES folded Leave Approvals into the single,
+  // always-visible Leaves entry (which now carries the badge Leave Approvals used to).
+  const groups = useMemo((): NavRow[] => [
+    { label: 'Dashboard', icon: 'home', href: '/dashboard' },
+    { label: 'Work Log', icon: 'edit_note', href: '/work-log' },
+    { label: 'MIS Report', icon: 'assessment', href: '/mis-report', gate: 'misAccess' },
+    { label: 'Team Work Logs', icon: 'monitoring', href: '/work-log/team', gate: 'manager' },
+    { label: 'Plan My Week', icon: 'calendar_view_week', href: '/tasks/plan-week' },
+    { label: 'Tasks', icon: 'task_alt', href: '/tasks', badge: openTaskCount },
+    { label: 'Projects', icon: 'folder_open', href: '/projects' },
+    { divider: true },
+    { label: 'Calendar', icon: 'calendar_month', href: '/calendar' },
+    { label: 'Meetings', icon: 'video_call', href: '/meetings' },
+    { label: 'Notes', icon: 'checklist_rtl', href: '/notes' },
+    { label: 'Forms', icon: 'description', href: '/forms', gate: 'manager' },
+    { divider: true },
+    { label: 'Leaves', icon: 'event_available', href: '/leaves', badge: pendingLeaveCount },
+    { divider: true },
+    { label: 'Team Members', icon: 'table_rows', href: '/team-members', badge: pendingTeamMgmtCount, gate: 'manager' },
+    { label: 'Organisation', icon: 'corporate_fare', href: '/organisation', badge: pendingTeamMgmtCount, gate: 'manager' },
+    { label: 'Directory', icon: 'contacts', href: '/directory' },
+    { label: 'Org Chart', icon: 'account_tree', href: '/org-chart' },
+    { divider: true },
+  ], [openTaskCount, pendingLeaveCount, pendingTeamMgmtCount]);
 
   // Longest-prefix match so exactly one nav item is active (e.g. /leaves/approvals
   // beats /leaves). Computed over every reachable item regardless of manager/misAccess
-  // gating (unchanged from before the flatten) -- a gated-out href just never matches.
+  // gating (unchanged from before the flatten/reorder) -- a gated-out href just never
+  // matches; dividers carry no href and are skipped.
   const activeHref = useMemo(() => {
-    const all = [...groups.core, groups.misReport, ...groups.managerOnly];
     let best = '';
-    for (const it of all) {
-      if (pathname === it.href || pathname.startsWith(it.href + '/')) {
-        if (it.href.length > best.length) best = it.href;
+    for (const entry of groups) {
+      if ('divider' in entry) continue;
+      if (pathname === entry.href || pathname.startsWith(entry.href + '/')) {
+        if (entry.href.length > best.length) best = entry.href;
       }
     }
     return best;
@@ -316,9 +316,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* 4. .sb-scroll — the only scrollable child. */}
         <div className="sb-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-          {groups.core.map(renderItem)}
-          {user.hasMisAccess && renderItem(groups.misReport)}
-          {manager && groups.managerOnly.map(renderItem)}
+          {groups.map((entry, i) => {
+            if ('divider' in entry) return <div key={`div-${i}`} className="nav-divider" />;
+            if (entry.gate === 'manager' && !manager) return null;
+            if (entry.gate === 'misAccess' && !user.hasMisAccess) return null;
+            return renderItem(entry);
+          })}
 
           <div className="nav-sec sb-label">Chats</div>
           <button
