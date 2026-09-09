@@ -152,7 +152,13 @@ export class MeetingsService {
     }
 
     await this.prisma.meeting.update({ where: { meetingId }, data: { status: 'Cancelled' } });
-    if (meeting.calEventId) void this.calendar.cancelCalendarEvent(meeting.calEventId);
+    if (meeting.calEventId) {
+      // Domain-wide delegation (2026-09-09): cancellation must be done AS the organizer
+      // too, since the event now lives on the organizer's own primary calendar, not the
+      // service account's — see google-calendar.service.ts's header comment.
+      const organizerEmail = await this.getEmail(meeting.organizerId);
+      if (organizerEmail) void this.calendar.cancelCalendarEvent(organizerEmail, meeting.calEventId);
+    }
     await this.audit(callerEmpId, 'MEETING_CANCEL', meetingId);
     return { ok: true };
   }
@@ -162,6 +168,13 @@ export class MeetingsService {
     const caller = await this.prisma.user.findUnique({ where: { empId }, select: { empId: true, role: true, team: true } });
     if (!caller) throw new ForbiddenException();
     return caller;
+  }
+
+  // Domain-wide delegation (2026-09-09): every GoogleCalendarService call now needs the
+  // organizer's real email to impersonate them — this is the single lookup point for that.
+  private async getEmail(empId: string): Promise<string | null> {
+    const user = await this.prisma.user.findUnique({ where: { empId }, select: { email: true } });
+    return user?.email ?? null;
   }
 
   // meetType 'company' invites every active employee regardless of attendeeIds/Teams
@@ -231,7 +244,14 @@ export class MeetingsService {
     try {
       const attendees = await this.resolveAttendees(meetType, attendeeIds, attendeeTeams);
       const attendeeEmails = attendees.map((a) => a.email);
-      const result = await this.calendar.createCalendarEvent({ meetingId, title: dto.title, description: dto.description, startTime: start, endTime: end, attendeeEmails });
+      // Domain-wide delegation (2026-09-09): the invite/Meet-link event is now created
+      // AS the organizer (impersonation), so their email is required up front — if it
+      // can't be resolved, skip the invite layer entirely (personal-calendar-copy loop
+      // below still runs regardless, so the meeting is never silently lost).
+      const organizerEmail = await this.getEmail(organizerEmpId);
+      const result = organizerEmail
+        ? await this.calendar.createCalendarEvent({ meetingId, organizerEmail, title: dto.title, description: dto.description, startTime: start, endTime: end, attendeeEmails })
+        : null;
       if (result) {
         await this.prisma.meeting.update({ where: { id }, data: { calEventId: result.calEventId, meetLink: result.meetLink } });
       }
