@@ -9,19 +9,19 @@ datasource db {
 
 // ─── USER ──────────────────────────────────────────────────────
 model User {
-  id            String    @id @default(cuid())
-  empId         String    @unique
-  firstName     String
-  lastName      String
-  email         String    @unique
-  passwordHash  String
-  role          String
-  designation   String?
-  managerId     String?
-  team          String?
-  subDepartment String?
-  isActive      Boolean   @default(true)
-  dob           DateTime?
+  id                 String    @id @default(cuid())
+  empId              String    @unique
+  firstName          String
+  lastName           String
+  email              String    @unique
+  passwordHash       String
+  role               String
+  designation        String?
+  managerId          String?
+  team               String?
+  subDepartment      String?
+  isActive           Boolean   @default(true)
+  dob                DateTime?
   // Round6 #12: minimal live presence backend. Vocabulary matches the reference
   // (presence.gs:22) and the web's existing PresKey type exactly -- online/away/dnd/
   // offline. presenceUpdatedAt is bumped on every heartbeat/explicit status set;
@@ -29,33 +29,34 @@ model User {
   // read time in PresenceService, not stored -- this project has no Redis/cache
   // dependency, so there's no TTL-backed cache to port from the reference's
   // CacheService mechanics, just a plain Postgres column read fresh on each poll.
-  presenceStatus    String    @default("online")
-  presenceUpdatedAt DateTime?
+  presenceStatus     String    @default("online")
+  presenceUpdatedAt  DateTime?
   // Round6 #13: caches the Google Calendar ID of this employee's personal "TM: {name}"
   // calendar (calendar.gs:36-71's _getOrCreateUserCal, ported as CalendarService's
   // getOrCreateUserCalendar) so repeat lookups don't re-hit the Calendar API. Deliberately
   // never cleared on deactivation -- the reference has no cleanup step either (confirmed:
   // no ACL-remove/calendar-delete call exists anywhere in calendar.gs/auth.gs).
   personalCalendarId String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Round4 F4: managerId is optional/nullable (org-hierarchy pointer, not a dependent
   // record) -- deleting a manager should orphan the link, not block or cascade.
-  manager           User?                  @relation("Reports", fields: [managerId], references: [empId], onDelete: SetNull)
-  reports           User[]                 @relation("Reports")
-  workLogs          WorkLog[]
-  internWorkLogs    InternWorkLog[]
-  workDurations     WorkDuration[]
-  leaves            Leave[]
-  todos             Todo[]
-  notes             Note[]
-  ideas             Idea[]
-  weeklySummaries   WeeklySummary[]
-  progressUpdates   ProgressUpdate[]
-  profileUpdateReqs ProfileUpdateRequest[]
-  misAccess         MisAccess?
-  auditLogs         AuditLog[]
+  manager            User?                  @relation("Reports", fields: [managerId], references: [empId], onDelete: SetNull)
+  reports            User[]                 @relation("Reports")
+  workLogs           WorkLog[]
+  internWorkLogs     InternWorkLog[]
+  workDurations      WorkDuration[]
+  alternateSaturdays AlternateSaturday[]
+  leaves             Leave[]
+  todos              Todo[]
+  notes              Note[]
+  ideas              Idea[]
+  weeklySummaries    WeeklySummary[]
+  progressUpdates    ProgressUpdate[]
+  profileUpdateReqs  ProfileUpdateRequest[]
+  misAccess          MisAccess?
+  auditLogs          AuditLog[]
 
   @@map("users")
 }
@@ -125,9 +126,9 @@ model Task {
   // Round4 F4: projId/functionId are optional categorization pointers (a task doesn't stop
   // existing if its project/function is deleted) -- SetNull, matching the subFunction
   // precedent immediately below (already explicit before this batch).
-  project         Project?       @relation(fields: [projId], references: [projId], onDelete: SetNull)
-  function        WorkFunction?  @relation("FunctionTasks", fields: [functionId], references: [functionId], onDelete: SetNull)
-  subFunction     WorkFunction?  @relation("SubFunctionTasks", fields: [subFnId], references: [functionId], onDelete: SetNull)
+  project         Project?         @relation(fields: [projId], references: [projId], onDelete: SetNull)
+  function        WorkFunction?    @relation("FunctionTasks", fields: [functionId], references: [functionId], onDelete: SetNull)
+  subFunction     WorkFunction?    @relation("SubFunctionTasks", fields: [subFnId], references: [functionId], onDelete: SetNull)
   progressUpdates ProgressUpdate[]
   attachments     Attachment[]
 
@@ -207,25 +208,32 @@ model WorkFunction {
 
 // ─── WORK LOG ──────────────────────────────────────────────────
 model WorkLog {
-  id             String   @id @default(cuid())
-  logId          String   @unique
-  empId          String
-  date           DateTime @db.Date
-  month          String?
-  dayName        String?
-  attendance     String   @default("Present")
-  purpose        String?
-  leaveRequested String?
-  work1stHalf    String?
-  work2ndHalf    String?
-  extraHours     Float    @default(0)
-  remark         String?
-  status         String?
-  comments       String?
+  id               String   @id @default(cuid())
+  logId            String   @unique
+  empId            String
+  date             DateTime @db.Date
+  month            String?
+  dayName          String?
+  attendance       String   @default("Present")
+  purpose          String?
+  leaveRequested   String?
+  work1stHalf      String?
+  work2ndHalf      String?
+  extraHours       Float    @default(0)
+  remark           String?
+  status           String?
+  comments         String?
   // Round6 add'l-9: widened Int -> Float, same reasoning as WorkDuration.grossMinutes/netMinutes above.
-  workDuration   Float?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  workDuration     Float?
+  // Daily check-in + auto-attendance engine: tracks whether attendance/extraHours on this
+  // row were set by a human (submitWorkLog/updateWorkLog/adminSubmitWorkLog explicitly
+  // setting one of those two fields) or by the automatic clock-derived classifier. The
+  // auto engine only ever overwrites attendance/extraHours on a MANUAL row's workDuration
+  // (raw minutes) -- never the classification itself -- so a deliberate manual correction
+  // is never silently clobbered by the next clock-out/auto-clock-out/daily-status call.
+  attendanceSource String   @default("AUTO")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Round4 F4: required FK to User, an attendance/audit record. The app has no
   // hard-delete-user feature (only soft `deactivateEmployee`) -- Restrict makes that
@@ -237,24 +245,24 @@ model WorkLog {
 }
 
 model InternWorkLog {
-  id          String   @id @default(cuid())
-  logId       String   @unique
-  empId       String
-  date        DateTime @db.Date
-  month       String?
-  dayName     String?
-  attendance  String   @default("Present")
-  work1stHalf String?
-  work2ndHalf String?
-  extraHours  Float    @default(0)
-  remark      String?
+  id           String   @id @default(cuid())
+  logId        String   @unique
+  empId        String
+  date         DateTime @db.Date
+  month        String?
+  dayName      String?
+  attendance   String   @default("Present")
+  work1stHalf  String?
+  work2ndHalf  String?
+  extraHours   Float    @default(0)
+  remark       String?
   // Round6 add'l-6: new column -- InternWorkLog previously had no equivalent to WorkLog's
   // workDuration at all, so syncWorkLog's write for an Intern silently matched zero rows.
   // Float from the start (add'l-9's widening decision applied here directly, rather than
   // adding as Int and re-widening in the same migration).
   workDuration Float?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Round4 F4: same reasoning as WorkLog.user above.
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
@@ -281,11 +289,19 @@ model WorkDuration {
   status         String    @default("IDLE")
   autoClocked    Boolean   @default(false)
   notes          String?
+  // Daily check-in popup (Feature 1): null until the employee answers "Are you working
+  // today?" for this session's date -- the frontend uses isWorking === null to decide
+  // whether to show the modal. workMode is only meaningful when isWorking = true; drives
+  // the Present-{WFO/WFH}/Extra {Full,Half} Day-{WFO/WFH} suffix in the auto-attendance
+  // engine (work-log.service.ts's computeAttendance). Not applicable to Interns -- this
+  // whole feature is gated to non-Intern roles.
+  isWorking      Boolean?
+  workMode       String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   // Round4 F4: same reasoning as WorkLog.user above -- clock-session audit record.
-  user   User         @relation(fields: [empId], references: [empId], onDelete: Restrict)
+  user   User        @relation(fields: [empId], references: [empId], onDelete: Restrict)
   breaks WorkBreak[]
 
   @@unique([empId, date])
@@ -293,11 +309,11 @@ model WorkDuration {
 }
 
 model WorkBreak {
-  id             String    @id @default(cuid())
-  sessionId      String
-  breakStart     DateTime
-  breakEnd       DateTime?
-  durationMins   Int       @default(0)
+  id           String    @id @default(cuid())
+  sessionId    String
+  breakStart   DateTime
+  breakEnd     DateTime?
+  durationMins Int       @default(0)
 
   // Round4 F4: DEVIATES from this batch's own "make everything Restrict" starting
   // suggestion -- flagged explicitly per instruction. sessionId is a REQUIRED FK (not
@@ -318,20 +334,20 @@ model WorkBreak {
 
 // ─── LEAVE ─────────────────────────────────────────────────────
 model Leave {
-  id          String    @id @default(cuid())
-  leaveId     String    @unique
+  id          String   @id @default(cuid())
+  leaveId     String   @unique
   empId       String
   leaveType   String
-  startDate   DateTime  @db.Date
-  endDate     DateTime  @db.Date
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
   days        Float
   reason      String
-  status      String    @default("Pending")
+  status      String   @default("Pending")
   reviewedBy  String?
   reviewNotes String?
   calEventId  String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Round4 F4: same reasoning as WorkLog.user above -- leave history is an audit record.
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
@@ -341,7 +357,7 @@ model Leave {
 
 model Holiday {
   id          String   @id @default(cuid())
-  date        DateTime @db.Date @unique
+  date        DateTime @unique @db.Date
   name        String
   // Round4 checklist#6: reference has a description field on Holiday; the rebuild didn't.
   description String?
@@ -351,35 +367,56 @@ model Holiday {
   @@map("holidays")
 }
 
+// Feature 3 (daily check-in + auto-attendance): per-employee, per-month choice of which
+// 2 Saturdays are "off" (Alternate Week Off). No row for a given (empId, month) means the
+// employee hasn't set a preference yet -- the classifier then defaults to that month's
+// 1st and 3rd Saturday (matching the app's prior global-fixed-1st/3rd/5th assumption, now
+// computed per employee instead of hardcoded for everyone). Editable for any month, past
+// or future -- a change to an already-elapsed month retroactively re-runs the classifier
+// for the two affected Saturdays (work-log.service.ts's recomputeAlternateSaturdayImpact).
+model AlternateSaturday {
+  id        String   @id @default(cuid())
+  empId     String
+  month     String // "YYYY-MM"
+  offDate1  DateTime @db.Date
+  offDate2  DateTime @db.Date
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [empId], references: [empId], onDelete: Cascade)
+
+  @@unique([empId, month])
+  @@map("alternate_saturdays")
+}
+
 // ─── MEETING ───────────────────────────────────────────────────
 model Meeting {
-  id              String    @id @default(cuid())
-  meetingId       String    @unique
-  title           String
-  description     String?
-  organizerId     String
-  attendeeIds     String    @default("")
-  attendeeTeams   String    @default("")
-  meetType        String    @default("personal")
-  startTime       DateTime
-  endTime         DateTime
-  meetLink        String?
-  calEventId      String?
-  status          String    @default("Scheduled")
-  cancelReason    String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            String   @id @default(cuid())
+  meetingId     String   @unique
+  title         String
+  description   String?
+  organizerId   String
+  attendeeIds   String   @default("")
+  attendeeTeams String   @default("")
+  meetType      String   @default("personal")
+  startTime     DateTime
+  endTime       DateTime
+  meetLink      String?
+  calEventId    String?
+  status        String   @default("Scheduled")
+  cancelReason  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@map("meetings")
 }
 
 // ─── ANNOUNCEMENT ──────────────────────────────────────────────
 model Announcement {
-  id          String    @id @default(cuid())
-  title       String
-  content     String    @default("")
-  authorId    String
-  visibility  String    @default("Organisation")
+  id         String    @id @default(cuid())
+  title      String
+  content    String    @default("")
+  authorId   String
+  visibility String    @default("Organisation")
   // Round4 checklist#7: re-derived from the reference's actual LIVE-reachable markup
   // (index.html #nb-type/#nb-priority selects), which outranks LGDesk_Master_Reference.md
   // Part 60 (that doc disagrees with the live selects and is stale here) and is narrower
@@ -387,14 +424,14 @@ model Announcement {
   // synthesized notice kinds like Birthday/Meeting/Holiday -- not real Announcement values).
   // type: General/Emergency/Reminder. priority: Normal/High/Urgent (drives the notice
   // board's "Urgent" badge, _renderNoticeBoard's `n.priority === 'Urgent'` check).
-  type        String    @default("General")
-  priority    String    @default("Normal")
-  startDate   DateTime?
-  expiresAt   DateTime?
-  isPinned    Boolean   @default(false)
-  isActive    Boolean   @default(true) // BR-4 soft delete — never hard-deleted
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  type       String    @default("General")
+  priority   String    @default("Normal")
+  startDate  DateTime?
+  expiresAt  DateTime?
+  isPinned   Boolean   @default(false)
+  isActive   Boolean   @default(true) // BR-4 soft delete — never hard-deleted
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@map("announcements")
 }
@@ -410,6 +447,7 @@ model Todo {
 
   // Round4 F4: same reasoning as WorkLog.user above.
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
+
   @@map("todos")
 }
 
@@ -425,6 +463,7 @@ model Note {
 
   // Round4 F4: same reasoning as WorkLog.user above.
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
+
   @@map("notes")
 }
 
@@ -439,6 +478,7 @@ model Idea {
 
   // Round4 F4: same reasoning as WorkLog.user above.
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
+
   @@map("ideas")
 }
 
@@ -513,6 +553,7 @@ model MisAccess {
 
   // Round4 F4: same reasoning as WorkLog.user above.
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
+
   @@map("mis_access")
 }
 
@@ -539,8 +580,8 @@ model ProgressUpdate {
 
 // ─── REGISTRATION REQUEST ──────────────────────────────────────
 model RegistrationRequest {
-  id            String   @id @default(cuid())
-  regId         String   @unique
+  id            String    @id @default(cuid())
+  regId         String    @unique
   firstName     String
   lastName      String
   // NOT @unique: a Rejected request must not permanently block re-registration.
@@ -552,8 +593,8 @@ model RegistrationRequest {
   team          String?
   subDepartment String?
   managerId     String?
-  role          String   @default("Team Member")
-  status        String   @default("Pending")
+  role          String    @default("Team Member")
+  status        String    @default("Pending")
   reviewedBy    String?
   notes         String?
   // Round4 F11: the registration form already collects DOB (registration-modal.tsx) but it
@@ -561,23 +602,23 @@ model RegistrationRequest {
   // DateTime? to exactly match User.dob so approval-time promotion (approveRegistration)
   // needs no format conversion between the two.
   dob           DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@map("registration_requests")
 }
 
 // ─── PROFILE UPDATE REQUEST ────────────────────────────────────
 model ProfileUpdateRequest {
-  id          String   @id @default(cuid())
-  reqId       String   @unique
-  empId       String
-  changes     String
-  status      String   @default("Pending")
-  reviewedBy  String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  reqId      String   @unique
+  empId      String
+  changes    String
+  status     String   @default("Pending")
+  reviewedBy String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Round4 F4: same reasoning as WorkLog.user above.
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)

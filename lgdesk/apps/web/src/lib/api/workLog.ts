@@ -90,3 +90,27 @@ export function useSetWorkLogComment() {
     onSuccess: () => invalidate(qc),
   });
 }
+
+// Daily check-in brief Feature 3: self-service, per-employee choice of which 2 Saturdays
+// in a month are "off" (Alternate Week Off) -- no time restriction, changeable for any
+// month past or future.
+export interface AlternateSaturdaysView {
+  saturdays: string[];
+  offDates: [string, string];
+}
+
+export function useAlternateSaturdays(month: string) {
+  return useQuery({
+    queryKey: ['work-logs', 'alternate-saturdays', month],
+    queryFn: () => apiFetch<AlternateSaturdaysView>('/work-logs/alternate-saturdays', { params: { month } }),
+  });
+}
+
+export function useSetAlternateSaturdays() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: { month: string; offDates: [string, string] }) =>
+      apiFetch<{ ok: true }>('/work-logs/alternate-saturdays', { method: 'PUT', body: dto }),
+    onSuccess: () => invalidate(qc),
+  });
+}

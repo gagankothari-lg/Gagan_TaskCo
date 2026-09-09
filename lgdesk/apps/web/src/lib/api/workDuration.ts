@@ -15,6 +15,33 @@ export function useWorkDurationStatus() {
   });
 }
 
+// Daily check-in popup (Feature 1). isWorking === null means today hasn't been answered
+// yet -- the frontend uses that to decide whether to show the modal on load.
+export interface DailyStatus {
+  isWorking: boolean | null;
+  workMode: string | null;
+}
+
+export function useDailyStatus(enabled = true) {
+  return useQuery({
+    queryKey: ['work-duration', 'daily-status'],
+    queryFn: () => apiFetch<DailyStatus>('/work-duration/daily-status'),
+    enabled,
+  });
+}
+
+export function useSetDailyStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: { isWorking: boolean; workMode?: 'WFO' | 'WFH' }) =>
+      apiFetch<ClockStatus>('/work-duration/daily-status', { method: 'POST', body: dto }),
+    onSuccess: () => {
+      invalidate(qc);
+      qc.invalidateQueries({ queryKey: ['work-duration', 'daily-status'] });
+    },
+  });
+}
+
 export function useTeamClockStatus() {
   return useQuery({
     queryKey: ['work-duration', 'team-status'],

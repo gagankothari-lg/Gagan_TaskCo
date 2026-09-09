@@ -12,6 +12,15 @@ import { CreateWorkLogDto } from './dto/create-work-log.dto';
 import { UpdateWorkLogDto } from './dto/update-work-log.dto';
 import { CreateInternLogDto } from './dto/create-intern-log.dto';
 import { AdminCreateLogDto } from './dto/admin-create-log.dto';
+import { SetAlternateSaturdaysDto } from './dto/set-alternate-saturdays.dto';
+import {
+  DayType,
+  computeAttendance,
+  roundMinutesToHalfHour,
+  saturdaysInMonth,
+  defaultAlternateSaturdays,
+  isSaturdayIso,
+} from './attendance-classifier';
 
 // Intern attendance strings that count as an off/leave day.
 const INTERN_OFF_PATTERNS = /^\s*(holiday|leave|week.?off|off|absent|half.?day|sick|vacation|alt.?week)\s*$/i;
@@ -57,6 +66,13 @@ export class WorkLogService {
       remark: dto.remark,
       status,
       comments: manager ? dto.comments : undefined,
+      // Daily check-in engine: only mark this row MANUAL when the caller actually typed an
+      // attendance/extraHours value -- a submit that only touches notes/purpose shouldn't
+      // lock the row out of future auto-classification. `undefined` here (rather than
+      // omitting the key) is deliberate: on create it lets the schema's own AUTO default
+      // apply; on update it's a no-op that leaves whatever attendanceSource the row
+      // already had untouched.
+      attendanceSource: dto.attendance !== undefined || dto.extraHours !== undefined ? 'MANUAL' : undefined,
     };
 
     // Collision-safe: retry on a unique-ID race (concurrent submissions from other users).
@@ -131,6 +147,10 @@ export class WorkLogService {
     // status/comments are manager-only.
     if (manager && dto.status !== undefined) data.status = dto.status;
     if (manager && dto.comments !== undefined) data.comments = dto.comments;
+    // Daily check-in engine: an explicit attendance/extraHours edit is exactly the
+    // "manager or employee deliberately hand-edited this" signal the auto engine must
+    // never silently override again.
+    if (dto.attendance !== undefined || dto.extraHours !== undefined) data.attendanceSource = 'MANUAL';
 
     const updated = await this.prisma.workLog.update({ where: { logId }, data });
     await this.audit(callerEmpId, 'WORKLOG_UPDATE', logId);
@@ -270,6 +290,8 @@ export class WorkLogService {
       month: this.monthOf(date), dayName: this.dayNameOf(date), attendance: dto.attendance ?? 'Present-WFO',
       purpose: dto.purpose, leaveRequested: dto.leaveRequested, work1stHalf: dto.work1stHalf, work2ndHalf: dto.work2ndHalf,
       extraHours: dto.extraHours ?? 0, remark: dto.remark, status: dto.status, comments: dto.comments,
+      // Daily check-in engine: same MANUAL-marking rule as submitWorkLog/updateWorkLog above.
+      attendanceSource: dto.attendance !== undefined || dto.extraHours !== undefined ? 'MANUAL' : undefined,
     };
     const log = await this.idUtils.createWithId('workLog', 'logId', 'WL', (logId) =>
       this.runUpsert(
@@ -310,6 +332,135 @@ export class WorkLogService {
       out.push({ empId: m.empId, name: `${m.firstName} ${m.lastName}`, P: c.present, LF: c.leaveFullDay, LH: c.leaveHalfDay, H: c.holiday, W: c.weekOff, AW: c.altWeekOff, EF: c.extraFull, EH: c.extraHalf, otHours });
     }
     return out;
+  }
+
+  // ─────────────────────────────────────────────── auto-attendance engine (daily check-in)
+
+  // Precedence: Holiday > Week Off (Sunday) > Alternate Week Off (this employee's chosen
+  // off-Saturday) > Working Day. A Holiday falling on a Sunday or an employee's chosen
+  // Alternate Saturday still resolves to Holiday -- checked first, unconditionally.
+  async classifyDayType(empId: string, date: Date): Promise<DayType> {
+    const holiday = await this.prisma.holiday.findUnique({ where: { date } });
+    if (holiday) return 'Holiday';
+    const dow = date.getUTCDay();
+    if (dow === 0) return 'WeekOff';
+    if (dow === 6) {
+      const iso = date.toISOString().slice(0, 10);
+      const [off1, off2] = await this.getAlternateSaturdayOffDates(empId, this.monthOf(date));
+      if (iso === off1 || iso === off2) return 'AlternateWeekOff';
+    }
+    return 'WorkingDay';
+  }
+
+  /** This employee's 2 off-Saturdays for `month` ("YYYY-MM") -- their saved choice, or the
+   * 1st/3rd Saturday default if they've never set one. */
+  async getAlternateSaturdayOffDates(empId: string, month: string): Promise<[string, string]> {
+    const row = await this.prisma.alternateSaturday.findUnique({ where: { empId_month: { empId, month } } });
+    if (row) return [this.isoDate(row.offDate1), this.isoDate(row.offDate2)];
+    return defaultAlternateSaturdays(month);
+  }
+
+  async getAlternateSaturdaysView(empId: string, month: string) {
+    return { saturdays: saturdaysInMonth(month), offDates: await this.getAlternateSaturdayOffDates(empId, month) };
+  }
+
+  async setAlternateSaturdays(empId: string, dto: SetAlternateSaturdaysDto): Promise<{ ok: true }> {
+    const { month } = dto;
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('month must be "YYYY-MM"');
+    if (dto.offDates.length !== 2) throw new BadRequestException('offDates must contain exactly 2 dates');
+    // Normalize both possible ISO shapes (date-only "YYYY-MM-DD" or a full datetime) to a
+    // plain date string before comparing/validating.
+    const offDates = dto.offDates.map((iso) => this.isoDate(this.normalizeDate(iso)));
+    const [a, b] = offDates;
+    if (a === b) throw new BadRequestException('offDates must be 2 distinct dates');
+    for (const iso of offDates) {
+      if (!isSaturdayIso(iso)) throw new BadRequestException(`${iso} is not a Saturday`);
+      if (!iso.startsWith(month)) throw new BadRequestException(`${iso} is not in ${month}`);
+    }
+
+    // The PREVIOUS off-dates (saved choice or default) -- needed so we know which dates'
+    // WorkLog classification may now be stale and need retroactive recompute.
+    const previous = await this.getAlternateSaturdayOffDates(empId, month);
+
+    const offDate1 = this.normalizeDate(a);
+    const offDate2 = this.normalizeDate(b);
+    await this.prisma.alternateSaturday.upsert({
+      where: { empId_month: { empId, month } },
+      create: { empId, month, offDate1, offDate2 },
+      update: { offDate1, offDate2 },
+    });
+
+    // No time restriction on this save (confirmed intentional) -- only the Saturday(s)
+    // whose off/working classification actually changed (symmetric difference of previous
+    // vs. new -- a date present in both, e.g. one the employee kept, is a no-op) needs its
+    // already-recorded WorkLog row (if any) re-run through the classifier, using whatever
+    // netMinutes/workMode that date's WorkDuration session already has (0/null if none
+    // exists), so a correction to a past month actually lands in WorkLog.
+    const removed = previous.filter((iso) => !offDates.includes(iso));
+    const added = offDates.filter((iso) => !previous.includes(iso));
+    const changedDates = new Set([...removed, ...added]);
+    for (const iso of changedDates) {
+      await this.recomputeWorkLogForDate(empId, this.normalizeDate(iso));
+    }
+    return { ok: true };
+  }
+
+  /** Re-runs the classify-and-upsert engine for one specific date, using whatever
+   * WorkDuration session (netMinutes/workMode) already exists for it, or 0/null if none --
+   * used after an Alternate Saturday change retroactively alters a date's day-type. */
+  private async recomputeWorkLogForDate(empId: string, date: Date): Promise<void> {
+    const session = await this.prisma.workDuration.findUnique({ where: { empId_date: { empId, date } } });
+    await this.classifyAndSyncWorkLog(empId, date, session?.netMinutes ?? 0, session?.workMode ?? null);
+  }
+
+  /**
+   * The auto-attendance engine itself. Called from WorkDurationService on every clock-out/
+   * edit-time/edit-break/auto-clock-out and from the daily-status endpoint, and from the
+   * Alternate-Saturday retroactive recompute above. Non-Intern only -- WorkDurationService's
+   * own syncWorkLog keeps the Intern branch (InternWorkLog, workDuration-only) untouched.
+   *
+   * A MANUAL row (attendanceSource: 'MANUAL' -- a human explicitly set attendance/
+   * extraHours through submitWorkLog/updateWorkLog/adminSubmitWorkLog) is never overwritten
+   * here beyond its raw workDuration minutes, so a deliberate correction can't be silently
+   * clobbered by the next clock event.
+   */
+  async classifyAndSyncWorkLog(empId: string, date: Date, netMinutes: number, workMode: string | null): Promise<void> {
+    const existing = await this.prisma.workLog.findUnique({ where: { empId_date: { empId, date } } });
+    if (existing?.attendanceSource === 'MANUAL') {
+      await this.prisma.workLog.update({ where: { id: existing.id }, data: { workDuration: netMinutes } });
+      return;
+    }
+
+    const dayType = await this.classifyDayType(empId, date);
+    const hours = roundMinutesToHalfHour(netMinutes);
+    const { attendance, extraHours } = computeAttendance(dayType, hours, workMode);
+    const data = {
+      month: this.monthOf(date),
+      dayName: this.dayNameOf(date),
+      attendance,
+      extraHours,
+      workDuration: netMinutes,
+      attendanceSource: 'AUTO',
+    };
+
+    if (existing) {
+      await this.prisma.workLog.update({ where: { id: existing.id }, data });
+      return;
+    }
+    try {
+      await this.idUtils.createWithId('workLog', 'logId', 'WL', (logId) =>
+        this.prisma.workLog.create({ data: { logId, empId, date, ...data } }),
+      );
+    } catch (err) {
+      // A concurrent write (e.g. a manual submit landing at the same instant) may have
+      // created the row a moment ago -- re-run once against whatever's actually there now
+      // rather than bubbling a raw conflict into the calling clock action.
+      if (this.isDateConflict(err)) {
+        await this.classifyAndSyncWorkLog(empId, date, netMinutes, workMode);
+        return;
+      }
+      throw err;
+    }
   }
 
   // ═══════════════════════════════════════════════ helpers
@@ -354,6 +505,10 @@ export class WorkLogService {
   private normalizeDate(iso: string): Date {
     const d = new Date(iso);
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  }
+
+  private isoDate(d: Date): string {
+    return d.toISOString().slice(0, 10);
   }
 
   private startOfTodayUtc(): Date {

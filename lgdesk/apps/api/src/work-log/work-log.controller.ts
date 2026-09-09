@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { IsNotEmpty, IsString } from 'class-validator';
 import { WorkLogService } from './work-log.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -10,6 +10,7 @@ import { CreateWorkLogDto } from './dto/create-work-log.dto';
 import { UpdateWorkLogDto } from './dto/update-work-log.dto';
 import { CreateInternLogDto } from './dto/create-intern-log.dto';
 import { AdminCreateLogDto } from './dto/admin-create-log.dto';
+import { SetAlternateSaturdaysDto } from './dto/set-alternate-saturdays.dto';
 
 export class SetStatusDto {
   @IsString() @IsNotEmpty({ message: 'status is required' }) status!: string;
@@ -53,6 +54,18 @@ export class WorkLogController {
   @Get('week-summary')
   weekSummary(@CurrentUser() user: AuthedUser, @Query('start') start: string, @Query('end') end: string) {
     return this.workLog.getWeekSummary(user.empId, start, end);
+  }
+
+  // Feature 3 (daily check-in brief): self-service, no manager/admin gate -- an employee
+  // sets their own Alternate Saturday choice for any month, past or future.
+  @Get('alternate-saturdays')
+  getAlternateSaturdays(@CurrentUser() user: AuthedUser, @Query('month') month: string) {
+    return this.workLog.getAlternateSaturdaysView(user.empId, month);
+  }
+
+  @Put('alternate-saturdays')
+  setAlternateSaturdays(@CurrentUser() user: AuthedUser, @Body() dto: SetAlternateSaturdaysDto) {
+    return this.workLog.setAlternateSaturdays(user.empId, dto);
   }
 
   @Roles(...MANAGER_ROLES)

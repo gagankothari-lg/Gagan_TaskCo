@@ -8,15 +8,17 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { CalendarService } from '../calendar/calendar.service';
-import { isAdmin, isManager } from '../common/constants';
+import { WorkLogService } from '../work-log/work-log.service';
+import { isAdmin, isManager, WORK_MODES } from '../common/constants';
 import { ClockOutDto } from './dto/clock-out.dto';
 import { EditTimeDto } from './dto/edit-time.dto';
 import { EditBreakDto } from './dto/edit-break.dto';
+import { SetDailyStatusDto } from './dto/set-daily-status.dto';
 
 type SessionRow = {
   id: string; sessionId: string; empId: string; date: Date; clockIn: Date | null; clockOut: Date | null;
   totalBreakMins: number; grossMinutes: number; netMinutes: number; status: string; autoClocked: boolean;
-  notes: string | null;
+  notes: string | null; isWorking: boolean | null; workMode: string | null;
 };
 
 const STATUS_ORDER: Record<string, number> = { ACTIVE: 0, ON_BREAK: 1, COMPLETED: 2, AUTO_CLOSED: 3, IDLE: 4 };
@@ -27,6 +29,7 @@ export class WorkDurationService {
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
     private readonly calendar: CalendarService,
+    private readonly workLog: WorkLogService,
   ) {}
 
   // ─────────────────────────────────────────────── clock actions
@@ -42,6 +45,69 @@ export class WorkDurationService {
     await this.prisma.workDuration.update({ where: { id: s.id }, data });
     await this.audit(empId, 'CLOCK_IN', s.sessionId);
     return this.getStatus(empId);
+  }
+
+  // ─────────────────────────────────────────────── daily check-in popup (Feature 1)
+
+  // Not applicable to Interns -- they keep their existing manual InternWorkLog flow
+  // untouched, no popup, no WFO/WFH, no auto-classification.
+  async getDailyStatus(empId: string): Promise<{ isWorking: boolean | null; workMode: string | null }> {
+    const s = await this.getOrCreateTodaySession(empId);
+    return { isWorking: s.isWorking, workMode: s.workMode };
+  }
+
+  /**
+   * "Are you working today?" Yes/No (+ WFO/WFH) submission -- this modal answer IS the
+   * clock-in action for a first/renewed "Yes", not a separate step before an existing
+   * Clock In button. Editable for the rest of the UTC day, same edit-window policy as
+   * clock times generally.
+   *
+   * Branches on the CURRENT stored isWorking vs. the requested value:
+   *  - null/false -> true : proceeds to clock in (clockIn() itself rejects if already
+   *    ACTIVE/ON_BREAK, so that guard isn't duplicated here).
+   *  - true -> false        : rejected while ACTIVE/ON_BREAK ("clock out first"); recorded
+   *    immediately (0 worked hours -> classifies to 'Leave Full Day' on a Working Day) when
+   *    IDLE/COMPLETED/AUTO_CLOSED.
+   *  - true -> true          : a WFO<->WFH mode change while already answered "yes" today --
+   *    never re-triggers clock-in and never throws; if today's session already has a
+   *    completed clock-out (real recorded hours), the classification is re-run so the
+   *    -WFO/-WFH suffix on the existing WorkLog row updates to match.
+   *  - false -> false        : idempotent re-record of "not working".
+   */
+  async setDailyStatus(empId: string, dto: SetDailyStatusDto) {
+    if (dto.isWorking && !dto.workMode) throw new BadRequestException('workMode is required when isWorking is true');
+    if (!dto.isWorking && dto.workMode) throw new BadRequestException('workMode must not be set when isWorking is false');
+
+    const caller = await this.getCaller(empId);
+    if (caller.role === 'Intern') throw new ForbiddenException('Not applicable to Interns');
+
+    const s = await this.getOrCreateTodaySession(empId);
+
+    if (!dto.isWorking) {
+      if (s.status === 'ACTIVE' || s.status === 'ON_BREAK') {
+        throw new ConflictException('Clock out before marking today as not working.');
+      }
+      await this.prisma.workDuration.update({ where: { id: s.id }, data: { isWorking: false, workMode: null } });
+      await this.syncWorkLog(empId, s.date, 0, null);
+      await this.audit(empId, 'DAILY_STATUS_NOT_WORKING', s.sessionId);
+      return this.getStatus(empId);
+    }
+
+    if (s.isWorking === true) {
+      // Already answered "yes" today -- WFO<->WFH mode-only update, never re-clocks-in.
+      await this.prisma.workDuration.update({ where: { id: s.id }, data: { workMode: dto.workMode } });
+      // Only reclassify if there's a completed clock-out to actually reflect (matches
+      // editBreak()'s own `if (s.clockOut)` convention) -- re-running the classifier off
+      // netMinutes=0 mid-shift, before any clock-out has happened today, would wrongly
+      // write 'Leave Full Day' over a session that's still genuinely in progress.
+      if (s.clockOut) await this.syncWorkLog(empId, s.date, s.netMinutes, dto.workMode!);
+      await this.audit(empId, 'DAILY_STATUS_MODE_CHANGE', s.sessionId);
+      return this.getStatus(empId);
+    }
+
+    // null/false -> true: record the answer, then clock in for real.
+    await this.prisma.workDuration.update({ where: { id: s.id }, data: { isWorking: true, workMode: dto.workMode } });
+    return this.clockIn(empId);
   }
 
   async startBreak(empId: string) {
@@ -105,7 +171,7 @@ export class WorkDurationService {
     const notes = dto?.reason ? this.appendNote(s.notes, `Clock-out reason [${new Date().toISOString()}]: ${dto.reason}`) : s.notes;
 
     await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut, status: 'COMPLETED', grossMinutes, netMinutes, notes } });
-    await this.syncWorkLog(empId, s.date, netMinutes);
+    await this.syncWorkLog(empId, s.date, netMinutes, s.workMode);
     await this.audit(empId, 'CLOCK_OUT', s.sessionId);
     return this.getStatus(empId);
   }
@@ -168,7 +234,7 @@ export class WorkDurationService {
     data.notes = this.appendNote(s.notes, `Time edited [${new Date().toISOString()}] by ${empId}: start=${dto.startTime} end=${dto.endTime ?? '-'} break=${dto.breakMins ?? '-'} reason=${dto.reason}`);
 
     await this.prisma.workDuration.update({ where: { id: s.id }, data });
-    if (newClockOut) await this.syncWorkLog(empId, s.date, net);
+    if (newClockOut) await this.syncWorkLog(empId, s.date, net, s.workMode);
     await this.audit(empId, 'EDIT_TIME', s.sessionId);
     return this.getStatus(empId);
   }
@@ -188,7 +254,7 @@ export class WorkDurationService {
     }
     data.notes = this.appendNote(s.notes, `Break edited [${new Date().toISOString()}] by ${empId}: break=${dto.breakMins}`);
     await this.prisma.workDuration.update({ where: { id: s.id }, data });
-    if (s.clockOut) await this.syncWorkLog(empId, s.date, net);
+    if (s.clockOut) await this.syncWorkLog(empId, s.date, net, s.workMode);
     await this.audit(empId, 'EDIT_BREAK', s.sessionId);
     return { totalBreakMins: dto.breakMins, netMinutes: net };
   }
@@ -241,7 +307,7 @@ export class WorkDurationService {
     const caller = await this.getCaller(callerEmpId);
     if (!isAdmin(caller.role)) throw new ForbiddenException();
     const sessions = await this.prisma.workDuration.findMany({ where: { netMinutes: { gt: 0 } } });
-    for (const s of sessions) await this.syncWorkLog(s.empId, s.date, s.netMinutes);
+    for (const s of sessions) await this.syncWorkLog(s.empId, s.date, s.netMinutes, s.workMode);
     return { synced: sessions.length };
   }
 
@@ -278,7 +344,7 @@ export class WorkDurationService {
       const net = Math.max(0, this.round2(grossRaw - s.totalBreakMins));
       const notes = this.appendNote(s.notes, `Auto-closed [${new Date().toISOString()}]: session crossed the midnight-UTC boundary.`);
       await this.prisma.workDuration.update({ where: { id: s.id }, data: { clockOut: today, status: 'AUTO_CLOSED', grossMinutes: gross, netMinutes: net, autoClocked: true, notes } });
-      await this.syncWorkLog(s.empId, s.date, net);
+      await this.syncWorkLog(s.empId, s.date, net, s.workMode);
       await this.audit(s.empId, 'AUTO_CLOSE', s.sessionId);
     }
   }
@@ -310,12 +376,18 @@ export class WorkDurationService {
   // for an Intern (Business Rule #11: Intern logs live in InternWorkLog ONLY, never
   // WorkLog). Branch by the caller's actual role -- mirrors the `role === 'Intern'`
   // check work-log.service.ts already uses for the same WorkLog/InternWorkLog split.
-  private async syncWorkLog(empId: string, date: Date, netMinutes: number) {
+  //
+  // Daily check-in + auto-attendance engine (implementation brief 2026-09-09): for
+  // non-Interns this now delegates to WorkLogService's classify-and-upsert engine
+  // (attendance/extraHours derived from the day's type + hours worked), instead of the
+  // previous no-op-if-missing workLog.updateMany. Interns are explicitly out of scope for
+  // this feature -- their branch is unchanged.
+  private async syncWorkLog(empId: string, date: Date, netMinutes: number, workMode: string | null) {
     const caller = await this.prisma.user.findUnique({ where: { empId }, select: { role: true } });
     if (caller?.role === 'Intern') {
       await this.prisma.internWorkLog.updateMany({ where: { empId, date }, data: { workDuration: netMinutes } });
     } else {
-      await this.prisma.workLog.updateMany({ where: { empId, date }, data: { workDuration: netMinutes } });
+      await this.workLog.classifyAndSyncWorkLog(empId, date, netMinutes, workMode);
     }
   }
 

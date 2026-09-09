@@ -89,6 +89,11 @@ export const ATTENDANCE_TYPES = [
 
 export const CLOCK_STATES = ['IDLE','ACTIVE','ON_BREAK','COMPLETED'] as const;
 
+// Daily check-in popup (Feature 1) + auto-attendance engine (Feature 2). Only meaningful
+// when WorkDuration.isWorking = true -- drives the -WFO/-WFH suffix on Present/Extra
+// Full Day/Extra Half Day attendance labels (ATTENDANCE_TYPES above).
+export const WORK_MODES = ['WFO', 'WFH'] as const;
+
 export const ID_PREFIXES = {
   task:        'TSK',
   project:     'PRJ',

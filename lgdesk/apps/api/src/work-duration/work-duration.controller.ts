@@ -8,6 +8,7 @@ import { ADMIN_ROLES, MANAGER_ROLES } from '../common/constants';
 import { ClockOutDto } from './dto/clock-out.dto';
 import { EditTimeDto } from './dto/edit-time.dto';
 import { EditBreakDto } from './dto/edit-break.dto';
+import { SetDailyStatusDto } from './dto/set-daily-status.dto';
 
 interface AuthedUser {
   empId: string;
@@ -22,6 +23,16 @@ export class WorkDurationController {
   @Post('clock-in')
   clockIn(@CurrentUser() user: AuthedUser) {
     return this.wd.clockIn(user.empId);
+  }
+
+  @Get('daily-status')
+  dailyStatus(@CurrentUser() user: AuthedUser) {
+    return this.wd.getDailyStatus(user.empId);
+  }
+
+  @Post('daily-status')
+  setDailyStatus(@CurrentUser() user: AuthedUser, @Body() dto: SetDailyStatusDto) {
+    return this.wd.setDailyStatus(user.empId, dto);
   }
 
   @Post('clock-out')

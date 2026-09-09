@@ -8,14 +8,17 @@ import {
   useClockOut,
   useStartBreak,
   useEndBreak,
+  useDailyStatus,
   hmsFromMs,
   hmsFromMin,
   istHHMM,
 } from '../../../lib/api/workDuration';
 import { apiErrorMessage } from '../../../lib/api/client';
 import { toast } from '../../../lib/toast';
+import { useAuth } from '../../../hooks/use-auth';
 import { ChangeClockOutModal } from './change-clock-out-modal';
 import { EditDayModal } from './edit-day-modal';
+import { DailyCheckinModal } from './daily-checkin-modal';
 
 // PFIX-CLOCK-IN-OUT: rebuilt to match reference/app.js.html's _wdRenderStatus() +
 // _wdUpdateHeaderBtn() (the collapsed `wd-hdr-btn` + expandable `wd-popup`/`wd-widget`
@@ -63,16 +66,27 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function ClockWidget() {
+  const { user } = useAuth();
+  // Daily check-in popup (implementation brief 2026-09-09, Feature 1) doesn't apply to
+  // Interns -- they keep their existing manual InternWorkLog flow untouched.
+  const isIntern = user?.role === 'Intern';
   const { data } = useWorkDurationStatus();
   const clockIn = useClockIn();
   const clockOut = useClockOut();
   const startBreak = useStartBreak();
   const endBreak = useEndBreak();
+  const { data: dailyStatus } = useDailyStatus(!isIntern);
   const [now, setNow] = useState(() => Date.now());
   const [popupOpen, setPopupOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [checkinOpen, setCheckinOpen] = useState(false);
+
+  // Auto-open once per day, as soon as we know today hasn't been answered yet.
+  useEffect(() => {
+    if (!isIntern && dailyStatus && dailyStatus.isWorking === null) setCheckinOpen(true);
+  }, [isIntern, dailyStatus]);
 
   const status = data?.status ?? 'IDLE';
   useEffect(() => {
@@ -192,7 +206,7 @@ export function ClockWidget() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-1.5">
       <button
         onClick={() => setPopupOpen((o) => !o)}
         className="inline-flex items-center gap-2 rounded-[8px] bg-white/15 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25"
@@ -201,6 +215,19 @@ export function ClockWidget() {
         <span className={status === 'IDLE' ? '' : 'font-mono'}>{collapsedContent}</span>
         <Icon name="expand_more" size={14} className={`text-white/70 transition-transform ${popupOpen ? 'rotate-180' : ''}`} />
       </button>
+
+      {/* Daily check-in reopen affordance -- always visible for non-Interns so today's
+          Yes/No + WFO/WFH answer stays editable for the rest of the UTC day, not just on
+          first login. */}
+      {!isIntern && (
+        <button
+          onClick={() => setCheckinOpen(true)}
+          title="Are you working today?"
+          className="inline-flex items-center justify-center rounded-[8px] bg-white/15 p-1.5 text-white hover:bg-white/25"
+        >
+          <Icon name="event_available" size={14} />
+        </button>
+      )}
 
       {popupOpen && (
         <>
@@ -321,6 +348,7 @@ export function ClockWidget() {
         </>
       )}
 
+      {!isIntern && <DailyCheckinModal open={checkinOpen} onClose={() => setCheckinOpen(false)} />}
       <ChangeClockOutModal open={customOpen} onClose={() => setCustomOpen(false)} clockInIso={session?.clockIn ?? undefined} />
       <EditDayModal
         open={editOpen}

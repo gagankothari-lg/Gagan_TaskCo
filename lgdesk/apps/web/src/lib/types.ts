@@ -413,6 +413,8 @@ export interface WorkDurationSession {
   status: string;
   autoClocked: boolean;
   notes?: string | null;
+  isWorking?: boolean | null;
+  workMode?: string | null;
 }
 
 export interface WorkBreakEntry {

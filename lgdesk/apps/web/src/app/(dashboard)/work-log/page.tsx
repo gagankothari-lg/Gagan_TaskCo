@@ -7,6 +7,7 @@ import { useMyWorkLogs, useSubmitWorkLog } from '../../../lib/api/workLog';
 import { useHolidays } from '../../../lib/api/leaves';
 import { WorkRow, type WorkRowHandle } from '../../../components/modules/work-log/work-row';
 import { WeeklySummaryModal } from '../../../components/modules/weekly-summary/weekly-summary-modal';
+import { AlternateSaturdaysModal } from '../../../components/modules/work-log/alternate-saturdays-modal';
 import { Icon } from '../../../components/ui/icon';
 import { fmtDateRange, hms } from '../../../lib/utils';
 import { isoDate as iso } from '../../../lib/attendance';
@@ -69,6 +70,7 @@ export default function WorkLogPage() {
   const [mode, setMode] = useState<Mode>('week');
   const [anchor, setAnchor] = useState(() => new Date());
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [altSatOpen, setAltSatOpen] = useState(false);
   const submit = useSubmitWorkLog();
   const { data: holidays, isLoading: holidaysLoading } = useHolidays();
 
@@ -159,11 +161,19 @@ export default function WorkLogPage() {
           <button className="btn btn-ghost btn-sm" onClick={() => setSummaryOpen(true)} title="View AI-generated weekly summary for MIS">
             <Icon name="summarize" size={16} /> Weekly Summary
           </button>
+          {/* Daily check-in brief Feature 3 -- not applicable to Interns (they don't
+              participate in the auto-attendance/Alternate-Saturday engine at all). */}
+          {currentUser?.role !== 'Intern' && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setAltSatOpen(true)} title="Choose your Alternate Saturday off-days">
+              <Icon name="event_available" size={16} /> Alternate Saturdays
+            </button>
+          )}
           <button className="btn btn-ghost btn-sm" aria-label="Refresh" title="Refresh" onClick={() => void refetch()}><Icon name="refresh" size={16} /></button>
         </div>
       </div>
 
       <WeeklySummaryModal open={summaryOpen} onClose={() => setSummaryOpen(false)} weekLabel={label} weekStart={iso(mondayOf(anchor))} />
+      <AlternateSaturdaysModal open={altSatOpen} onClose={() => setAltSatOpen(false)} />
 
       {isLoading ? (
         <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
