@@ -1,23 +1,16 @@
 'use client';
 
-import { useAuth } from '../../../../hooks/use-auth';
-import { isManager } from '../../../../lib/auth';
-import { TaskListView } from '../../../../components/modules/tasks/task-list-view';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-// Gated by isManager (not isAdmin): TC/TF can reach "All Tasks" too (nav shows
-// it to every manager) — TasksService team-scopes the 'all' branch for them
-// server-side, so Admin/SA still get the org-wide view here.
-export default function AllTasksPage() {
-  const { currentUser } = useAuth();
-  if (!currentUser) return null;
-  if (!isManager(currentUser.role)) {
-    return (
-      <div className="p-6">
-        <div className="rounded-[6px] border border-[#30363D] bg-[#21262D] p-6 text-sm text-[#8B949E]">
-          You don&apos;t have access to this page.
-        </div>
-      </div>
-    );
-  }
-  return <TaskListView scope="all" title="All Tasks" subtitle="Company-wide tasks" showTeamSelector />;
+// PCONSOLIDATE-TASKS-PROJECTS-NAV: All Tasks is no longer a standalone route -- it's
+// the All tab on the single /tasks page now. Old bookmarks/links land here and are
+// sent on rather than 404ing, same client-side redirect pattern already used elsewhere
+// in this app (profile-requests/registrations pages, Round5 add'l-1).
+export default function AllTasksRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/tasks');
+  }, [router]);
+  return null;
 }

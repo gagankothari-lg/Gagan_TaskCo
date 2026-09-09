@@ -338,6 +338,17 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 .tl-tab.active { background: var(--p); color: #fff; border-color: var(--p); }
 .tl-tab:not(.active):hover { background: var(--p3); color: var(--p); border-color: var(--p2); }
 
+/* ── SCOPE TABS (My/Team/All, e.g. Tasks/Projects) ──────
+   Deliberately a bolder, single-bordered segmented control -- visually distinct from
+   .tl-tabs' individually-pilled look (task-list-view.tsx's own showOwnershipTabs/
+   showTeamTabs rows), so a manager on the Team scope tab, who also sees a .tl-tabs
+   ownership row underneath, isn't looking at two identical-looking tab bars stacked. */
+.scope-tabs { display: inline-flex; border: 1.5px solid var(--p); border-radius: var(--r); overflow: hidden; margin-bottom: 14px; }
+.scope-tab { padding: 8px 20px; border: none; background: var(--surface); color: var(--p); font-size: 13px; font-weight: 700; cursor: pointer; }
+.scope-tab + .scope-tab { border-left: 1.5px solid var(--p); }
+.scope-tab.active { background: var(--p); color: #fff; }
+.scope-tab:not(.active):hover { background: var(--p3); }
+
 /* ── TLM MEMBER CARDS ────────────────────────────────── */
 .tlm-card { background: var(--surface); border-radius: var(--r); box-shadow: var(--sh); padding: 14px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
 .tlm-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.12); }

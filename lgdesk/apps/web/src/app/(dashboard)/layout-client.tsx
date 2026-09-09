@@ -28,7 +28,6 @@ const MOBILE_HIDDEN_LABELS = new Set([
   'Meetings',
   'Org Chart',
   'Directory',
-  'Team Tasks',
   'Team Members',
   'Organisation',
   'Forms',
@@ -163,16 +162,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   );
 
   // Nav skeleton per LGDesk_Master_Reference.md Part 10 (Navigation Structure).
-  // Section grouping (My Space / Team / Company) is informal in the source
-  // doc — role-gating is really per-item (`.nav-mgr-only`) — but the task
-  // brief and the pre-existing implementation both use these three labelled
-  // groups, so that convention is kept here.
+  // PCONSOLIDATE-TASKS-PROJECTS-NAV: flattened from the prior three labelled groups
+  // (My Space / Team / Company) into one list with no section headers -- Tasks/
+  // Projects now carry their own in-page My/Team/All tab bar instead of Team Tasks/
+  // Team Projects/All Tasks/All Projects being separate nav entries+routes. Role-gating
+  // is still per-item (`.nav-mgr-only`), just applied to `managerOnly` as a whole block
+  // at render time instead of via three named groups.
   const groups = useMemo(() => {
-    const mySpace: NavItem[] = [
+    const core: NavItem[] = [
       { label: 'Dashboard', icon: 'home', href: '/dashboard' },
       { label: 'Plan My Week', icon: 'calendar_view_week', href: '/tasks/plan-week' },
-      { label: 'My Tasks', icon: 'task_alt', href: '/tasks', badge: openTaskCount },
-      { label: 'My Projects', icon: 'folder_open', href: '/projects' },
+      { label: 'Tasks', icon: 'task_alt', href: '/tasks', badge: openTaskCount },
+      { label: 'Projects', icon: 'folder_open', href: '/projects' },
       { label: 'Work Log', icon: 'edit_note', href: '/work-log' },
       { label: 'Calendar', icon: 'calendar_month', href: '/calendar' },
       { label: 'Meetings', icon: 'video_call', href: '/meetings' },
@@ -181,30 +182,26 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       { label: 'Directory', icon: 'contacts', href: '/directory' },
       { label: 'Notes', icon: 'checklist_rtl', href: '/notes' },
     ];
-    // Team Tasks/Projects/Logs/Members + Leave Approvals — `.nav-mgr-only` in
-    // the source doc, i.e. gated by isManager(role) as a whole block.
-    const team: NavItem[] = [
+    // Leave Approvals/Team Work Logs/Team Members/Organisation/Forms — `.nav-mgr-only`
+    // in the source doc, i.e. gated by isManager(role) as a whole block.
+    const managerOnly: NavItem[] = [
       { label: 'Leave Approvals', icon: 'pending_actions', href: '/leaves/approvals', badge: pendingLeaveCount },
-      { label: 'Team Tasks', icon: 'groups', href: '/tasks/team' },
-      { label: 'Team Projects', icon: 'folder_special', href: '/projects/team' },
       { label: 'Team Work Logs', icon: 'monitoring', href: '/work-log/team' },
       { label: 'Team Members', icon: 'table_rows', href: '/team-members', badge: pendingTeamMgmtCount },
-    ];
-    const company: NavItem[] = [
-      { label: 'All Tasks', icon: 'table_rows', href: '/tasks/all' },
-      { label: 'All Projects', icon: 'folder_special', href: '/projects/all' },
       { label: 'Organisation', icon: 'corporate_fare', href: '/organisation', badge: pendingTeamMgmtCount },
       { label: 'Forms', icon: 'description', href: '/forms' },
     ];
     // MIS Report — gated by hasMisAccess alone (Part 10: "any role"), NOT by
-    // isManager, so it is kept out of the `team` block on purpose.
+    // isManager, so it is kept out of the `managerOnly` block on purpose.
     const misReport: NavItem = { label: 'MIS Report', icon: 'assessment', href: '/mis-report' };
-    return { mySpace, team, company, misReport };
+    return { core, managerOnly, misReport };
   }, [openTaskCount, pendingLeaveCount, pendingTeamMgmtCount]);
 
-  // Longest-prefix match so exactly one nav item is active (e.g. /tasks/team beats /tasks).
+  // Longest-prefix match so exactly one nav item is active (e.g. /leaves/approvals
+  // beats /leaves). Computed over every reachable item regardless of manager/misAccess
+  // gating (unchanged from before the flatten) -- a gated-out href just never matches.
   const activeHref = useMemo(() => {
-    const all = [...groups.mySpace, groups.misReport, ...groups.team, ...groups.company];
+    const all = [...groups.core, groups.misReport, ...groups.managerOnly];
     let best = '';
     for (const it of all) {
       if (pathname === it.href || pathname.startsWith(it.href + '/')) {
@@ -319,18 +316,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* 4. .sb-scroll — the only scrollable child. */}
         <div className="sb-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-          <div className="nav-sec sb-label">My Space</div>
-          {groups.mySpace.map(renderItem)}
+          {groups.core.map(renderItem)}
           {user.hasMisAccess && renderItem(groups.misReport)}
-
-          {manager && (
-            <>
-              <div className="nav-sec sb-label">Team</div>
-              {groups.team.map(renderItem)}
-              <div className="nav-sec sb-label">Company</div>
-              {groups.company.map(renderItem)}
-            </>
-          )}
+          {manager && groups.managerOnly.map(renderItem)}
 
           <div className="nav-sec sb-label">Chats</div>
           <button
