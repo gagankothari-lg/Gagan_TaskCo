@@ -17,6 +17,7 @@ import { InlineStatusPill } from '../../../components/modules/tasks/inline-statu
 import { avatarColor } from '../../../lib/avatar-colors';
 import { initials, fmtDate, isClosedTaskStatus, utcDayStart, todayUtcStart } from '../../../lib/utils';
 import { toast } from '../../../lib/toast';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 import type { Task } from '../../../lib/types';
 
 function greeting(): string {
@@ -217,25 +218,25 @@ export default function DashboardPage() {
   const myScore = data?.scoreboard.find((r) => r.empId === currentUser?.empId);
   const scoreboardTitle = admin ? 'Company Scoreboard' : manager ? 'Team Scoreboard' : 'Personal Scoreboard';
 
+  usePageHeader({
+    title: <span id="dash-greeting">{greeting()}, {currentUser?.firstName}!</span>,
+    subtitle: <span id="dash-date">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>,
+  });
+
   return (
     <div className="flex flex-col gap-5">
-      {/* Page header — greeting + date, plus the reference's manager-only "Forms" and
-          "Log Today's Work" actions (reference lines 1949-1958). */}
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title" id="dash-greeting">{greeting()}, {currentUser?.firstName}!</div>
-          <div className="ph-sub" id="dash-date">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-        </div>
-        <div className="ph-actions">
-          {manager && (
-            <button className="btn btn-outline" onClick={() => router.push('/forms')}>
-              <Icon name="description" size={15} /> Forms
-            </button>
-          )}
-          <button className="btn btn-accent" onClick={() => router.push('/work-log')}>
-            <Icon name="edit_note" size={15} /> Log Today&apos;s Work
+      {/* Page header actions — the reference's manager-only "Forms" and "Log Today's
+          Work" actions (reference lines 1949-1958). Greeting/date now render in the
+          shared navbar via usePageHeader() above. */}
+      <div className="ph-actions ph-actions-solo">
+        {manager && (
+          <button className="btn btn-outline" onClick={() => router.push('/forms')}>
+            <Icon name="description" size={15} /> Forms
           </button>
-        </div>
+        )}
+        <button className="btn btn-accent" onClick={() => router.push('/work-log')}>
+          <Icon name="edit_note" size={15} /> Log Today&apos;s Work
+        </button>
       </div>
 
       {/* 6 stat cards — the reference's `.stats-grid` only ever reflows to 2 columns on

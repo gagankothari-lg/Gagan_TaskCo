@@ -302,6 +302,25 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 .ph-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .ph-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+/* PNAV-HEADER-RELOCATE: a page's action row (search/tabs/buttons) once its title+
+   subtitle have moved out of the page body and into the shared navbar -- same visual
+   rhythm as .ph-actions, just also carrying the margin-bottom .ph used to provide. */
+.ph-actions-solo { margin-bottom: 20px; }
+
+/* Light-text variants of .ph-title/.ph-sub for use inside the dark navy <header> —
+   .ph-title/.ph-sub themselves stay dark-text (var(--text)/var(--muted)) since a couple
+   of non-migrated views may still render them on a light surface. */
+.hdr-page-title { font-size: 17px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hdr-page-sub { font-size: 11.5px; color: rgba(255, 255, 255, 0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+
+/* PTASK-FILTERBAR-COMPACT: fixed equal-width columns for the Classification/People/
+   Status/Dates clusters (Search was removed as a duplicate) -- replaces auto-fit's
+   uneven per-row stretching, which was the direct cause of same-count clusters
+   rendering at different widths. Groupings/labels themselves are unchanged. */
+.task-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .task-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .task-filter-grid { grid-template-columns: 1fr; } }
+
 /* ── PRESENCE DOTS ───────────────────────────────────── */
 .pres-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; }
 .pres-online  { background: #22c55e; }

@@ -14,6 +14,7 @@ import { TaskDetailModal } from '../../../components/modules/tasks/task-detail-m
 import { Spinner } from '../../../components/ui/spinner';
 import { Popover, PopoverTrigger, PopoverContent } from '../../../components/ui/popover';
 import { cn } from '../../../lib/utils';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 
 const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -232,21 +233,17 @@ export default function CalendarPage() {
     });
   }, [weeks, barsByDay, active, year, month]);
 
+  usePageHeader({ title: 'Calendar', subtitle: "Tasks, deadlines, leaves & holidays across the team" });
+
   return (
     <div className="p-6">
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">Calendar</div>
-          <div className="ph-sub">Tasks, deadlines, leaves &amp; holidays across the team</div>
+      {admin && (
+        <div className="ph-actions ph-actions-solo">
+          <button onClick={() => { setHolidayDefaultDate(undefined); setHolidayOpen(true); }} className="btn btn-primary">
+            <Icon name="add" size={15} /> Add Holiday
+          </button>
         </div>
-        {admin && (
-          <div className="ph-actions">
-            <button onClick={() => { setHolidayDefaultDate(undefined); setHolidayOpen(true); }} className="btn btn-primary">
-              <Icon name="add" size={15} /> Add Holiday
-            </button>
-          </div>
-        )}
-      </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">

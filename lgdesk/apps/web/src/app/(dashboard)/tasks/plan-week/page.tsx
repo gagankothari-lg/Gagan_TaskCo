@@ -8,6 +8,7 @@ import { Badge } from '../../../../components/ui/badge';
 import { TaskDetailModal } from '../../../../components/modules/tasks/task-detail-modal';
 import { InlineStatusPill } from '../../../../components/modules/tasks/inline-status-pill';
 import { isClosedTaskStatus } from '../../../../lib/utils';
+import { usePageHeader } from '../../../../components/layout/page-header-context';
 import type { Task } from '../../../../lib/types';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -99,20 +100,17 @@ export default function PlanWeekPage() {
     );
   }
 
+  usePageHeader({
+    title: 'Plan My Week',
+    subtitle: `${fmtDayMonth(weekStart)} – ${fmtDayMonth(addDays(weekStart, 6))} ${addDays(weekStart, 6).getFullYear()}`,
+  });
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">Plan My Week</div>
-          <div className="ph-sub">
-            {fmtDayMonth(weekStart)} – {fmtDayMonth(addDays(weekStart, 6))} {addDays(weekStart, 6).getFullYear()}
-          </div>
-        </div>
-        <div className="ph-actions">
-          <button className="btn btn-ghost btn-sm" aria-label="Previous week" onClick={() => shift(-7)}><Icon name="chevron_left" size={16} /></button>
-          <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
-          <button className="btn btn-ghost btn-sm" aria-label="Next week" onClick={() => shift(7)}><Icon name="chevron_right" size={16} /></button>
-        </div>
+      <div className="ph-actions ph-actions-solo">
+        <button className="btn btn-ghost btn-sm" aria-label="Previous week" onClick={() => shift(-7)}><Icon name="chevron_left" size={16} /></button>
+        <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
+        <button className="btn btn-ghost btn-sm" aria-label="Next week" onClick={() => shift(7)}><Icon name="chevron_right" size={16} /></button>
       </div>
 
       {/* Overdue (week-relative) */}

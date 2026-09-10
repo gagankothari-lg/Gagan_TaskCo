@@ -12,6 +12,7 @@ import { LeaveStatusBadge } from '../../../components/modules/leaves/leave-statu
 import { LeaveTypePill } from '../../../components/modules/leaves/leave-type-pill';
 import { Spinner } from '../../../components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/dialog';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 
 const fmtLong = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const fmtShort = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
@@ -43,18 +44,14 @@ function MyLeavesSection() {
     }
   }
 
+  usePageHeader({ title: 'My Leaves', subtitle: 'Your leave requests and their status' });
+
   return (
     <div>
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">My Leaves</div>
-          <div className="ph-sub">Your leave requests and their status</div>
-        </div>
-        <div className="ph-actions">
-          <button onClick={() => setOpen(true)} className="btn btn-accent">
-            + Request Leave
-          </button>
-        </div>
+      <div className="ph-actions ph-actions-solo">
+        <button onClick={() => setOpen(true)} className="btn btn-accent">
+          + Request Leave
+        </button>
       </div>
 
       {isLoading ? (

@@ -13,6 +13,7 @@ import { ClockWidget } from '../../components/modules/work-duration/clock-widget
 import { WeekGlanceWidget } from '../../components/modules/work-log/week-glance-widget';
 import { useRegistrations, useProfileRequests } from '../../lib/api/teamMembers';
 import { useSetPresence, HEARTBEAT_MS, IDLE_MS } from '../../lib/api/presence';
+import { PageHeaderProvider, usePageHeaderSlot } from '../../components/layout/page-header-context';
 
 // PREORDER-SIDEBAR: gate is applied at render time (manager -> isManager(role),
 // misAccess -> user.hasMisAccess), same checks as before -- this is a pure reorder,
@@ -54,6 +55,14 @@ function Spinner() {
 }
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  return (
+    <PageHeaderProvider>
+      <DashboardShellInner>{children}</DashboardShellInner>
+    </PageHeaderProvider>
+  );
+}
+
+function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, isLoading, logout, refresh, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
@@ -210,6 +219,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
     return best;
   }, [groups, pathname]);
+
+  const pageHeader = usePageHeaderSlot();
 
   if (isLoading || !user) return <Spinner />;
 
@@ -408,17 +419,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         style={{
           position: 'fixed', top: 0, left: sidebarVar, right: 0, height: 'var(--hh)',
           background: 'var(--p)', zIndex: 100, display: 'flex', alignItems: 'center',
-          gap: 10, padding: '0 16px', color: '#fff', transition: 'left 0.15s ease',
+          gap: 16, padding: '0 16px', color: '#fff', transition: 'left 0.15s ease',
         }}
       >
-        <button
-          aria-label="Open navigation"
-          className="md:hidden"
-          onClick={() => setMobNavOpen((v) => !v)}
-          style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex' }}
-        >
-          <Icon name="menu" size={24} />
-        </button>
+        {/* PNAV-HEADER-RELOCATE: the current page's title/subtitle (and, on Tasks/
+            Projects, the My/Team/All ScopeTabs) now render here instead of in the page
+            body -- this replaces the old mobile-only hamburger button entirely. */}
+        {pageHeader && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="hdr-page-title">{pageHeader.title}</div>
+              {pageHeader.subtitle && <div className="hdr-page-sub">{pageHeader.subtitle}</div>}
+            </div>
+            {pageHeader.tabs}
+          </div>
+        )}
 
         <div style={{ flex: 1 }} />
 

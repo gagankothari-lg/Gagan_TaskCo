@@ -12,6 +12,7 @@ import { WeekMemberCard } from '../../../../components/modules/work-log/team/wee
 import { MonthMemberCard } from '../../../../components/modules/work-log/team/month-member-card';
 import { Icon } from '../../../../components/ui/icon';
 import { Spinner } from '../../../../components/ui/spinner';
+import { usePageHeader } from '../../../../components/layout/page-header-context';
 import type { TeamOverviewRow, WorkLogEntry } from '../../../../lib/types';
 
 type Period = 'day' | 'week' | 'month' | 'custom';
@@ -195,6 +196,14 @@ export default function TeamWorkLogPage() {
   }, [logs, dateFilter]);
   const byDateEntryCount = useMemo(() => byDateGroups.reduce((sum, g) => sum + g.entries.length, 0), [byDateGroups]);
 
+  usePageHeader({
+    title: 'Team Work Logs',
+    subtitle:
+      view === 'date'
+        ? `${range.label} — ${byDateEntryCount} entr${byDateEntryCount === 1 ? 'y' : 'ies'} across ${byDateGroups.length} day${byDateGroups.length === 1 ? '' : 's'}`
+        : `${range.label} — ${activeCount}/${roster.length} members active`,
+  });
+
   if (!currentUser) return null;
   if (!isManager(currentUser.role)) {
     return (
@@ -235,19 +244,9 @@ export default function TeamWorkLogPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Header */}
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">Team Work Logs</div>
-          <div className="ph-sub">
-            {view === 'date'
-              ? `${range.label} — ${byDateEntryCount} entr${byDateEntryCount === 1 ? 'y' : 'ies'} across ${byDateGroups.length} day${byDateGroups.length === 1 ? '' : 's'}`
-              : `${range.label} — ${activeCount}/${roster.length} members active`}
-          </div>
-        </div>
-
-        <div className="ph-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
-          {/* Range navigation */}
+      {/* Header actions */}
+      <div className="ph-actions ph-actions-solo" style={{ flexWrap: 'wrap', gap: 8 }}>
+        {/* Range navigation */}
           {period !== 'custom' && (
             <div className="tl-range-bar" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button className="btn btn-ghost btn-sm" aria-label="Previous" onClick={() => stepAnchor(-1)}><Icon name="chevron_left" size={16} /></button>
@@ -294,7 +293,6 @@ export default function TeamWorkLogPage() {
           )}
 
           <button className="btn btn-ghost btn-sm" aria-label="Refresh" onClick={refresh}><Icon name="refresh" size={16} /></button>
-        </div>
       </div>
 
       {/* Body */}

@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from '../../ui/avatar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../ui/table';
 import { ChangeRoleModal } from './change-role-modal';
 import { PendingRegistrationsSection, PendingProfileUpdatesSection } from './pending-approvals';
+import { usePageHeader } from '../../layout/page-header-context';
 import type { User, DueDateRequest } from '../../../lib/types';
 
 interface MembersViewProps {
@@ -148,14 +149,10 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
     return [...scoped].sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
   }, [employees, scope, currentUser]);
 
+  usePageHeader({ title, subtitle });
+
   return (
     <div>
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">{title}</div>
-          <div className="ph-sub">{subtitle}</div>
-        </div>
-      </div>
 
       {/* Reference (view-team-mgmt / view-org-page) order: pending registrations,
           then pending profile updates, then pending DDRs — all above the table. */}

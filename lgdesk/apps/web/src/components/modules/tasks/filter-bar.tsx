@@ -87,12 +87,12 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
   );
 }
 
-export function FilterBar({ value, onChange, employees, projects, functions, scope, taskQuery, onTaskQueryChange }: {
+export function FilterBar({ value, onChange, employees, projects, functions, taskQuery, onTaskQueryChange }: {
   value: ColFilter; onChange: (next: ColFilter) => void;
   employees: User[]; projects: Project[]; functions: WorkFunction[];
-  // Hides the Assignee filter for the "mine" scope (every task is already the current
-  // user's), matching the reference's blank filter cell for that task-sheet instance.
-  scope?: string;
+  // PTASK-FILTERBAR-COMPACT: Assigned To is now always shown in the People cluster
+  // (previously hidden for scope === 'mine') per explicit request — the `scope` prop
+  // that used to gate it is no longer needed anywhere in this component.
   taskQuery: string; onTaskQueryChange: (q: string) => void;
 }) {
   const set = (patch: Partial<ColFilter>) => onChange({ ...value, ...patch });
@@ -161,7 +161,7 @@ export function FilterBar({ value, onChange, employees, projects, functions, sco
   const clearAll = () => { onChange(DEFAULT_COL_FILTER); onTaskQueryChange(''); };
 
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--surface)', padding: '12px 14px', marginBottom: 14 }}>
+    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--surface)', padding: '10px 14px', marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>Filters</span>
         {isFiltering ? (
@@ -169,7 +169,7 @@ export function FilterBar({ value, onChange, employees, projects, functions, sco
         ) : null}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+      <div className="task-filter-grid">
         {/* Function + Sub-Function + Project — same cascading Project → Function →
             Sub-Function pruning as before (`setProject`/`setFunction` above); Project is
             available ONLY here, never as a table column (FIX A). */}
@@ -186,9 +186,7 @@ export function FilterBar({ value, onChange, employees, projects, functions, sco
         </FilterCluster>
 
         <FilterCluster label="People">
-          {scope !== 'mine' && (
-            <CompactMultiSelect placeholder="Assigned To" options={empOpts} selectedIds={value.assignee} onChange={(v) => set({ assignee: v })} />
-          )}
+          <CompactMultiSelect placeholder="Assigned To" options={empOpts} selectedIds={value.assignee} onChange={(v) => set({ assignee: v })} />
           <CompactMultiSelect placeholder="Assigned By" options={empOpts} selectedIds={value.assigner} onChange={(v) => set({ assigner: v })} />
         </FilterCluster>
 
@@ -204,9 +202,6 @@ export function FilterBar({ value, onChange, employees, projects, functions, sco
           <DateField label="Due by" value={value.due} onChange={(v) => set({ due: v })} />
         </FilterCluster>
 
-        <FilterCluster label="Search">
-          <input type="text" className="fc" placeholder="Search task…" value={taskQuery} onChange={(e) => onTaskQueryChange(e.target.value)} />
-        </FilterCluster>
       </div>
     </div>
   );

@@ -33,9 +33,10 @@ export default function TasksPage() {
   const cfg = TAB_CONFIG[activeTab];
 
   return (
-    <div>
-      <ScopeTabs tabs={manager ? ['mine', 'team', 'all'] : ['mine']} active={activeTab} onChange={selectTab} />
-      <TaskListView scope={activeTab} {...cfg} />
-    </div>
+    <TaskListView
+      scope={activeTab}
+      {...cfg}
+      scopeTabsSlot={<ScopeTabs tabs={manager ? ['mine', 'team', 'all'] : ['mine']} active={activeTab} onChange={selectTab} />}
+    />
   );
 }

@@ -11,6 +11,7 @@ import { AlternateSaturdaysModal } from '../../../components/modules/work-log/al
 import { Icon } from '../../../components/ui/icon';
 import { fmtDateRange, hms } from '../../../lib/utils';
 import { isoDate as iso } from '../../../lib/attendance';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 import type { WorkLogEntry, WorkLogInput } from '../../../lib/types';
 
 function mondayOf(d: Date): Date {
@@ -140,36 +141,32 @@ export default function WorkLogPage() {
     ? fmtDateRange(rangeStart, rangeEnd)
     : anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
+  usePageHeader({ title: 'Work Log', subtitle: label });
+
   return (
     <div>
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">Work Log</div>
-          <div className="ph-sub">{label}</div>
+      <div className="ph-actions ph-actions-solo" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <div className="tl-tabs">
+          <button className={`tl-tab${mode === 'week' ? ' active' : ''}`} onClick={() => changeMode('week')}>Week</button>
+          <button className={`tl-tab${mode === 'month' ? ' active' : ''}`} onClick={() => changeMode('month')}>Month</button>
         </div>
-        <div className="ph-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <div className="tl-tabs">
-            <button className={`tl-tab${mode === 'week' ? ' active' : ''}`} onClick={() => changeMode('week')}>Week</button>
-            <button className={`tl-tab${mode === 'month' ? ' active' : ''}`} onClick={() => changeMode('month')}>Month</button>
-          </div>
-          <div className="wl-nav" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button className="tl-nav-btn" style={navBtnStyle} onClick={() => shift(-1)} aria-label="Previous" title="Previous"><Icon name="chevron_left" size={16} /></button>
-            <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
-            <span className="wl-week-label" style={{ fontWeight: 600, minWidth: 220, textAlign: 'center', fontSize: 13 }}>{label}</span>
-            <button className="tl-nav-btn" style={navBtnStyle} onClick={() => shift(1)} aria-label="Next" title="Next"><Icon name="chevron_right" size={16} /></button>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setSummaryOpen(true)} title="View AI-generated weekly summary for MIS">
-            <Icon name="summarize" size={16} /> Weekly Summary
+        <div className="wl-nav" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="tl-nav-btn" style={navBtnStyle} onClick={() => shift(-1)} aria-label="Previous" title="Previous"><Icon name="chevron_left" size={16} /></button>
+          <button className="btn btn-ghost btn-sm" onClick={goToday}>Today</button>
+          <span className="wl-week-label" style={{ fontWeight: 600, minWidth: 220, textAlign: 'center', fontSize: 13 }}>{label}</span>
+          <button className="tl-nav-btn" style={navBtnStyle} onClick={() => shift(1)} aria-label="Next" title="Next"><Icon name="chevron_right" size={16} /></button>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => setSummaryOpen(true)} title="View AI-generated weekly summary for MIS">
+          <Icon name="summarize" size={16} /> Weekly Summary
+        </button>
+        {/* Daily check-in brief Feature 3 -- not applicable to Interns (they don't
+            participate in the auto-attendance/Alternate-Saturday engine at all). */}
+        {currentUser?.role !== 'Intern' && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setAltSatOpen(true)} title="Choose your Alternate Saturday off-days">
+            <Icon name="event_available" size={16} /> Alternate Saturdays
           </button>
-          {/* Daily check-in brief Feature 3 -- not applicable to Interns (they don't
-              participate in the auto-attendance/Alternate-Saturday engine at all). */}
-          {currentUser?.role !== 'Intern' && (
-            <button className="btn btn-ghost btn-sm" onClick={() => setAltSatOpen(true)} title="Choose your Alternate Saturday off-days">
-              <Icon name="event_available" size={16} /> Alternate Saturdays
-            </button>
-          )}
-          <button className="btn btn-ghost btn-sm" aria-label="Refresh" title="Refresh" onClick={() => void refetch()}><Icon name="refresh" size={16} /></button>
-        </div>
+        )}
+        <button className="btn btn-ghost btn-sm" aria-label="Refresh" title="Refresh" onClick={() => void refetch()}><Icon name="refresh" size={16} /></button>
       </div>
 
       <WeeklySummaryModal open={summaryOpen} onClose={() => setSummaryOpen(false)} weekLabel={label} weekStart={iso(mondayOf(anchor))} />

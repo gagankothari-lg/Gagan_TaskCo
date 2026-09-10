@@ -6,6 +6,7 @@ import { useTeamDirectory, useCompanyDirectory, type DirectoryUser } from '../..
 import { usePresenceMap, type PresenceStatus } from '../../../lib/api/presence';
 import { Icon } from '../../../components/ui/icon';
 import { avatarColor, initials, rolePillClass } from '../../../lib/utils';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 
 const PRES_DOT_CLASS: Record<PresenceStatus, string> = {
   online: 'pres-online',
@@ -118,23 +119,22 @@ export default function DirectoryPage() {
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [list, tab]);
 
+  usePageHeader({
+    title: 'Directory',
+    subtitle: tab === 'team' ? 'Your team colleagues' : 'Everyone across Leveraged Growth',
+  });
+
   return (
     <div>
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">Directory</div>
-          <div className="ph-sub">{tab === 'team' ? 'Your team colleagues' : 'Everyone across Leveraged Growth'}</div>
-        </div>
-        <div className="ph-actions">
-          <input
-            className="fc"
-            style={{ width: 220 }}
-            id="dir-search"
-            placeholder="Search by name, role, team…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
+      <div className="ph-actions ph-actions-solo">
+        <input
+          className="fc"
+          style={{ width: 220 }}
+          id="dir-search"
+          placeholder="Search by name, role, team…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
       </div>
 
       <div style={{ display: 'flex', borderBottom: '2px solid var(--border)', marginBottom: 18, gap: 0 }}>

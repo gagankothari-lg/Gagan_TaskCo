@@ -15,7 +15,9 @@ import { ProjectCard } from './project-card';
 import { CreateProjectModal } from './create-project-modal';
 import { ProjectDetailModal } from './project-detail-modal';
 import { PROJECT_STATUSES } from './create-project-modal.schema';
+import { usePageHeader } from '../../layout/page-header-context';
 import type { Project, User } from '../../../lib/types';
+import type { ReactNode } from 'react';
 
 type OwnershipTab = 'All' | 'To Me' | 'By Me';
 type TeamTab = 'All' | 'To Team' | 'By Team';
@@ -38,9 +40,12 @@ interface ProjectGridViewProps {
   // My Projects (reference view-my-projects) has no status-filter control at
   // all — defaults to true so Team/All Projects keep their existing chip row.
   showStatusFilter?: boolean;
+  // PNAV-HEADER-RELOCATE: mirrors task-list-view.tsx's scopeTabsSlot exactly -- the
+  // parent page (projects/page.tsx) renders ScopeTabs and hands it through here.
+  scopeTabsSlot?: ReactNode;
 }
 
-export function ProjectGridView({ scope, title, subtitle, showTeamTabs, showSearch, showStatusFilter = true }: ProjectGridViewProps) {
+export function ProjectGridView({ scope, title, subtitle, showTeamTabs, showSearch, showStatusFilter = true, scopeTabsSlot }: ProjectGridViewProps) {
   const { currentUser, employees } = useAuth();
   const { data: projects, isLoading, error } = useProjects(scope);
   const [tab, setTab] = useState<OwnershipTab>('All');
@@ -118,49 +123,74 @@ export function ProjectGridView({ scope, title, subtitle, showTeamTabs, showSear
   const topLevel = filtered.filter((p) => !p.parentProjId);
   const subProjectsOf = (projId: string) => filtered.filter((p) => p.parentProjId === projId);
 
+  // PNAV-HEADER-RELOCATE: title always goes to the navbar; subtitle only for the two
+  // branches that had a ph-sub before (All Projects never showed one).
+  usePageHeader({ title, subtitle: isAllScope ? undefined : subtitle, tabs: scopeTabsSlot });
+
   return (
     <div className="p-6">
       {isAllScope ? (
-        // All Projects (reference view-all-projects): title only (no ph-sub, no tabs,
-        // no status filter) — just the org-wide "Scope: [team ▾]" dropdown next to
-        // New Project.
-        <div className="ph">
-          <div className="ph-left">
-            <div className="ph-title">{title}</div>
+        // All Projects (reference view-all-projects): just the org-wide "Scope:
+        // [team ▾]" dropdown next to New Project — no tabs, no status filter.
+        <div className="ph-actions ph-actions-solo">
+          <div className="flex items-center gap-2 rounded-[var(--r)] bg-bg px-2.5 py-1">
+            <span className="whitespace-nowrap text-xs font-semibold text-muted">Scope:</span>
+            <select
+              id="scope-all-prj"
+              value={scopeTeam}
+              onChange={(e) => setScopeTeam(e.target.value)}
+              className="cursor-pointer rounded-[4px] border-none bg-transparent px-1 py-0.5 text-xs font-semibold text-p outline-none"
+            >
+              <option value="">Organization (All Teams)</option>
+              {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
-          <div className="ph-actions">
-            <div className="flex items-center gap-2 rounded-[var(--r)] bg-bg px-2.5 py-1">
-              <span className="whitespace-nowrap text-xs font-semibold text-muted">Scope:</span>
-              <select
-                id="scope-all-prj"
-                value={scopeTeam}
-                onChange={(e) => setScopeTeam(e.target.value)}
-                className="cursor-pointer rounded-[4px] border-none bg-transparent px-1 py-0.5 text-xs font-semibold text-p outline-none"
-              >
-                <option value="">Organization (All Teams)</option>
-                {teams.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            {canCreate && (
-              <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
-                <Icon name="add" size={15} /> New Project
-              </button>
-            )}
-          </div>
+          {canCreate && (
+            <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
+              <Icon name="add" size={15} /> New Project
+            </button>
+          )}
         </div>
       ) : showTeamTabs ? (
-        // Team Projects (reference view-team-projects): title/subtitle on the left, and
-        // ownership tabs + search + status select + New Project button grouped together
-        // in a single .ph-actions row on the right, matching the GAS reference layout.
-        <div className="ph">
-          <div className="ph-left">
-            <div className="ph-title">{title}</div>
-            {subtitle && <div className="ph-sub">{subtitle}</div>}
+        // Team Projects: ownership tabs + search + status select + New Project, all in
+        // one row (title/subtitle now render in the navbar via usePageHeader above).
+        <div className="ph-actions ph-actions-solo">
+          <div className="tl-tabs">
+            {(['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
+              <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
+            ))}
           </div>
-          <div className="ph-actions">
+          {showSearch && (
+            <div className="relative">
+              <Icon name="search" size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                id="tp-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search projects…"
+                className="fc"
+                style={{ paddingLeft: 30, width: 200 }}
+              />
+            </div>
+          )}
+          <select id="tp-status" className="fc" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
+            <option value="All">All Statuses</option>
+            {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {canCreate && (
+            <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
+              <Icon name="add" size={15} /> New Project
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* My Projects: ownership tabs + New Project button in one row (title now in
+              the navbar via usePageHeader above). */}
+          <div className="ph-actions ph-actions-solo">
             <div className="tl-tabs">
-              {(['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
-                <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
+              {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
+                <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
               ))}
             </div>
             {showSearch && (
@@ -176,52 +206,11 @@ export function ProjectGridView({ scope, title, subtitle, showTeamTabs, showSear
                 />
               </div>
             )}
-            <select id="tp-status" className="fc" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
-              <option value="All">All Statuses</option>
-              {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
             {canCreate && (
               <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
                 <Icon name="add" size={15} /> New Project
               </button>
             )}
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Reference view-my-projects (ph-left = title only, no ph-sub) keeps the
-              ownership tabs + New Project button together in one ph-actions row
-              alongside the title — mirrors the showTeamTabs branch above. */}
-          <div className="ph">
-            <div className="ph-left">
-              <div className="ph-title">{title}</div>
-              {subtitle && <div className="ph-sub">{subtitle}</div>}
-            </div>
-            <div className="ph-actions">
-              <div className="tl-tabs">
-                {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
-                  <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
-                ))}
-              </div>
-              {showSearch && (
-                <div className="relative">
-                  <Icon name="search" size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
-                  <input
-                    id="tp-search"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search projects…"
-                    className="fc"
-                    style={{ paddingLeft: 30, width: 200 }}
-                  />
-                </div>
-              )}
-              {canCreate && (
-                <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
-                  <Icon name="add" size={15} /> New Project
-                </button>
-              )}
-            </div>
           </div>
 
           {showStatusFilter && (

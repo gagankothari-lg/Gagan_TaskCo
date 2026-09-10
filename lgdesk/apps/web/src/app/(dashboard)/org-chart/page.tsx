@@ -6,6 +6,7 @@ import { useOrgChart, type DirectoryUser } from '../../../lib/api/directory';
 import { TEAM_HIERARCHY, DIVISIONS } from '../../../components/modules/users/registration-modal.schema';
 import { Icon } from '../../../components/ui/icon';
 import { initials } from '../../../lib/utils';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 
 // Exact `_OC_TEAM_COLORS` from LGDesk_Master_Reference.md Part 22.
 const TEAM_COLORS: Record<string, string> = {
@@ -354,6 +355,8 @@ export default function OrgChartPage() {
     );
   };
 
+  usePageHeader({ title: 'Org Chart', subtitle: 'Leveraged Growth — Company Structure' });
+
   return (
     <div>
       {/* Sibling-row connectors — reproduces reference's `.oc-flat-row`/`::before`
@@ -369,13 +372,10 @@ export default function OrgChartPage() {
         .oc-row>.oc-row-item:last-child::before{right:50%}
         .oc-row>.oc-row-item:only-child::before{display:none}
       `}</style>
-      <div className="ph">
-        <div className="ph-left"><div className="ph-title">Org Chart</div><div className="ph-sub">Leveraged Growth — Company Structure</div></div>
-        <div className="ph-actions">
-          <button className="btn btn-ghost btn-sm" onClick={reloadAndReset}><Icon name="refresh" size={15} /> Reset</button>
-          <button className="btn btn-outline btn-sm" onClick={expandAll}><Icon name="unfold_more" size={15} /> Expand All</button>
-          <button className="btn btn-ghost btn-sm" onClick={collapseAll}><Icon name="unfold_less" size={15} /> Collapse</button>
-        </div>
+      <div className="ph-actions ph-actions-solo">
+        <button className="btn btn-ghost btn-sm" onClick={reloadAndReset}><Icon name="refresh" size={15} /> Reset</button>
+        <button className="btn btn-outline btn-sm" onClick={expandAll}><Icon name="unfold_more" size={15} /> Expand All</button>
+        <button className="btn btn-ghost btn-sm" onClick={collapseAll}><Icon name="unfold_less" size={15} /> Collapse</button>
       </div>
 
       {/* Team legend — square dots (.oc-legend-dot: 10x10, radius 3) + #374151 text */}

@@ -7,6 +7,7 @@ import { apiErrorMessage, ApiError } from '../../../lib/api/client';
 import { toast } from '../../../lib/toast';
 import { Spinner } from '../../../components/ui/spinner';
 import { Badge } from '../../../components/ui/badge';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 
 function mondayOf(d: Date): Date {
   const x = new Date(d); x.setHours(0, 0, 0, 0);
@@ -66,6 +67,8 @@ export default function MisReportPage() {
     toast('MIS report exported', 'success');
   }
 
+  usePageHeader({ title: 'MIS Report', subtitle: 'Weekly summaries across all employees' });
+
   if (forbidden) {
     return (
       <div className="p-6">
@@ -79,25 +82,19 @@ export default function MisReportPage() {
 
   return (
     <div className="p-6">
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">MIS Report</div>
-          <div className="ph-sub">Weekly summaries across all employees</div>
+      <div className="ph-actions ph-actions-solo">
+        <button onClick={() => setAnchor((a) => addDays(a, -7))} aria-label="Previous week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_left" size={16} /></button>
+        <button onClick={() => setAnchor(new Date())} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-p3">This week</button>
+        <button onClick={() => setAnchor((a) => addDays(a, 7))} aria-label="Next week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_right" size={16} /></button>
+        <div className="text-sm font-semibold text-text">
+          {mondayOf(anchor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
         </div>
-        <div className="ph-actions">
-          <button onClick={() => setAnchor((a) => addDays(a, -7))} aria-label="Previous week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_left" size={16} /></button>
-          <button onClick={() => setAnchor(new Date())} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-p3">This week</button>
-          <button onClick={() => setAnchor((a) => addDays(a, 7))} aria-label="Next week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_right" size={16} /></button>
-          <div className="text-sm font-semibold text-text">
-            {mondayOf(anchor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-          {summary && (
-            <span className="text-xs text-muted">{summary.submitted}/{summary.total} submitted ({summary.pct}%)</span>
-          )}
-          <button className="btn btn-ghost btn-sm" disabled={!data} onClick={exportCsv}>
-            <Icon name="download" size={15} /> Export
-          </button>
-        </div>
+        {summary && (
+          <span className="text-xs text-muted">{summary.submitted}/{summary.total} submitted ({summary.pct}%)</span>
+        )}
+        <button className="btn btn-ghost btn-sm" disabled={!data} onClick={exportCsv}>
+          <Icon name="download" size={15} /> Export
+        </button>
       </div>
 
       {isLoading ? (

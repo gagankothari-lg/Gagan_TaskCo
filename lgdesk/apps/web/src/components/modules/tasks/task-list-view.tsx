@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,6 +18,7 @@ import { CompactMultiSelect } from './compact-multi-select';
 import { CreateFunctionModal } from '../functions/create-function-modal';
 import { TaskDetailModal } from './task-detail-modal';
 import { TaskEditModal } from './task-edit-modal';
+import { usePageHeader } from '../../layout/page-header-context';
 import type { Task, WorkFunction, Project, User } from '../../../lib/types';
 
 type OwnershipTab = 'To Me' | 'By Me' | 'All';
@@ -144,9 +145,13 @@ interface TaskListViewProps {
   // instead of My Tasks' "All"/"To Me"/"By Me" — mutually exclusive with
   // showOwnershipTabs.
   showTeamTabs?: boolean;
+  // PNAV-HEADER-RELOCATE: the parent page (tasks/page.tsx) renders the My/Team/All
+  // ScopeTabs and hands it through here so the one usePageHeader() call below can
+  // register it in the shared navbar alongside this view's own title/subtitle.
+  scopeTabsSlot?: ReactNode;
 }
 
-export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTeamSelector, showTeamTabs }: TaskListViewProps) {
+export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTeamSelector, showTeamTabs, scopeTabsSlot }: TaskListViewProps) {
   const { currentUser, employees, functions, projects } = useAuth();
   const { data: tasks, isLoading, error } = useTasks(scope);
   const [filter, setFilter] = useState(DEFAULT_COL_FILTER);
@@ -356,55 +361,59 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
 
   const openCount = (tasks ?? []).filter((t) => !isClosedTaskStatus(t.status)).length;
 
+  usePageHeader({
+    title: (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {title}
+        {openCount > 0 && <Badge variant="secondary">{openCount} open</Badge>}
+      </span>
+    ),
+    subtitle,
+    tabs: scopeTabsSlot,
+  });
+
   return (
     <div>
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {title}
-            {openCount > 0 && <Badge variant="secondary">{openCount} open</Badge>}
-          </div>
-          {subtitle && <div className="ph-sub">{subtitle}</div>}
-        </div>
-        <div className="ph-actions">
-          <div style={{ position: 'relative' }}>
-            <Icon name="search" size={16} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
-            <input className="fc" placeholder="Search tasks…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)} style={{ paddingLeft: 30, width: 200 }} />
-          </div>
+      {/* PNAV-TASKS-ONEROW: ownership/team tabs + search + Group by (+ team selector)
+          now share a single row -- previously the ownership/team tabs were a separate
+          row below with their own margin-bottom. Title/subtitle/ScopeTabs moved to the
+          shared navbar via usePageHeader() above. */}
+      <div className="ph-actions ph-actions-solo">
+        {showOwnershipTabs && (
           <div className="tl-tabs">
-            <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center', marginRight: 4 }}>Group by:</span>
-            {(['function', 'date', 'week'] as GroupMode[]).map((m) => (
-              <button key={m} className={`tl-tab${grp === m ? ' active' : ''}`} onClick={() => setGroup(m)} style={{ textTransform: 'capitalize' }}>{m}</button>
+            {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
+              <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
             ))}
           </div>
-          {showTeamSelector && (
-            <select className="fc" value={team} onChange={(e) => setTeam(e.target.value)} style={{ width: 'auto' }}>
-              <option value="">All teams</option>
-              {teams.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          )}
+        )}
+        {showTeamTabs && (
+          <div className="tl-tabs">
+            {(['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
+              <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
+            ))}
+          </div>
+        )}
+        <div style={{ position: 'relative' }}>
+          <Icon name="search" size={16} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
+          <input className="fc" placeholder="Search tasks…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)} style={{ paddingLeft: 30, width: 200 }} />
         </div>
+        <div className="tl-tabs">
+          <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center', marginRight: 4 }}>Group by:</span>
+          {(['function', 'date', 'week'] as GroupMode[]).map((m) => (
+            <button key={m} className={`tl-tab${grp === m ? ' active' : ''}`} onClick={() => setGroup(m)} style={{ textTransform: 'capitalize' }}>{m}</button>
+          ))}
+        </div>
+        {showTeamSelector && (
+          <select className="fc" value={team} onChange={(e) => setTeam(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">All teams</option>
+            {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
       </div>
-
-      {showOwnershipTabs && (
-        <div className="tl-tabs" style={{ marginBottom: 12 }}>
-          {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
-            <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
-          ))}
-        </div>
-      )}
-
-      {showTeamTabs && (
-        <div className="tl-tabs" style={{ marginBottom: 12 }}>
-          {(['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
-            <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
-          ))}
-        </div>
-      )}
 
       <FilterBar
         value={filter} onChange={setFilter} employees={employees} projects={projects} functions={functions}
-        scope={scope} taskQuery={rawQuery} onTaskQueryChange={setRawQuery}
+        taskQuery={rawQuery} onTaskQueryChange={setRawQuery}
       />
 
       {/* PTASK-ADDROW-RELOCATE: moved out of the function-grouped table's <tbody> (where
@@ -650,6 +659,10 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
     }
     el.focus();
   };
+  // PTASK-DUE-DROPDOWN: which preset (or 'custom') is currently shown selected in each
+  // row's due-date <select>, keyed by field.id -- purely a display concern, the real
+  // value lives in the form's `dueDate` field as before.
+  const [duePresetSel, setDuePresetSel] = useState<Record<string, DuePreset | 'custom' | ''>>({});
 
   const close = () => {
     onOpenChange(false);
@@ -809,47 +822,46 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
                     <select className="fc" style={{ fontSize: 12 }} title="Recurring" {...form.register(`rows.${i}.recurrencePattern` as const)}>
                       {TASK_RECURRENCE_PATTERNS.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ position: 'relative' }}>
+                      {/* PTASK-DUE-DROPDOWN: ONE <select> replaces the old always-visible
+                          date input + row of preset chip buttons. Picking a preset computes
+                          the date via the unchanged computeDuePreset() and shows that preset
+                          selected; picking "Custom Date" is the ONLY option that opens the
+                          native calendar (via the hidden input below), matching the request
+                          that the calendar only appear for the Custom option. */}
+                      <select
+                        className="fc"
+                        style={{ fontSize: 12 }}
+                        value={duePresetSel[field.id] ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value as DuePreset | 'custom' | '';
+                          setDuePresetSel((prev) => ({ ...prev, [field.id]: val }));
+                          if (val === 'custom') {
+                            openCustomDuePicker(field.id);
+                          } else if (val) {
+                            form.setValue(`rows.${i}.dueDate`, computeDuePreset(val as DuePreset));
+                          }
+                        }}
+                      >
+                        <option value="" disabled>Due Date</option>
+                        {DUE_PRESET_OPTIONS.map((p) => (
+                          <option key={p.key} value={p.key} title={p.title}>{p.label}</option>
+                        ))}
+                        <option value="custom">Custom Date</option>
+                      </select>
                       {(() => {
                         const { ref: rhfRef, ...dueDateReg } = form.register(`rows.${i}.dueDate` as const);
                         return (
                           <input
                             type="date"
-                            className="fc"
-                            style={{ fontSize: 12 }}
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
                             ref={(el) => { rhfRef(el); dueInputRefs.current[field.id] = el; }}
                             {...dueDateReg}
                           />
                         );
                       })()}
-                      {/* PTASK-DUE-PRESETS: Today/Tomorrow/This-Week/Next-Week/This-Month/
-                          This-Quarter compute a value via computeDuePreset(); Custom Date
-                          computes nothing and just opens this row's own date picker. Scoped
-                          strictly to this batch row -- does not touch task-edit-modal.tsx,
-                          ddr-modal.tsx, or any other date field. */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                        {DUE_PRESET_OPTIONS.map((p) => (
-                          <button
-                            key={p.key}
-                            type="button"
-                            className="wl-chip"
-                            title={p.title}
-                            style={{ border: 'none', font: 'inherit', cursor: 'pointer' }}
-                            onClick={() => form.setValue(`rows.${i}.dueDate`, computeDuePreset(p.key))}
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          className="wl-chip"
-                          title="Custom Date"
-                          style={{ border: 'none', font: 'inherit', cursor: 'pointer' }}
-                          onClick={() => openCustomDuePicker(field.id)}
-                        >
-                          Custom
-                        </button>
-                      </div>
                     </div>
                     <button
                       type="button" className="wl-save-btn" title="Remove row"

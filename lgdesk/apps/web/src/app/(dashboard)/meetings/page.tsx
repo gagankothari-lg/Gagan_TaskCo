@@ -12,6 +12,7 @@ import { toast } from '../../../lib/toast';
 import { MeetingCard } from '../../../components/modules/meetings/meeting-card';
 import { ScheduleMeetingModal } from '../../../components/modules/meetings/schedule-meeting-modal';
 import { Spinner } from '../../../components/ui/spinner';
+import { usePageHeader } from '../../../components/layout/page-header-context';
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--surface)',
@@ -103,18 +104,14 @@ function MeetingsPageInner() {
     }
   }
 
+  usePageHeader({ title: 'Meetings', subtitle: 'Start, join or schedule Google Meet calls' });
+
   return (
     <div>
-      <div className="ph">
-        <div className="ph-left">
-          <div className="ph-title">Meetings</div>
-          <div className="ph-sub">Start, join or schedule Google Meet calls</div>
-        </div>
-        <div className="ph-actions">
-          <button className="btn btn-ghost btn-sm" onClick={refresh} title="Refresh" aria-label="Refresh">
-            <Icon name="refresh" size={15} />
-          </button>
-        </div>
+      <div className="ph-actions ph-actions-solo">
+        <button className="btn btn-ghost btn-sm" onClick={refresh} title="Refresh" aria-label="Refresh">
+          <Icon name="refresh" size={15} />
+        </button>
       </div>
 
       {/* ── Three action cards ─────────────────────────── */}

@@ -28,9 +28,10 @@ export default function ProjectsPage() {
   const cfg = TAB_CONFIG[activeTab];
 
   return (
-    <div>
-      <ScopeTabs tabs={manager ? ['mine', 'team', 'all'] : ['mine']} active={activeTab} onChange={selectTab} />
-      <ProjectGridView scope={activeTab} {...cfg} />
-    </div>
+    <ProjectGridView
+      scope={activeTab}
+      {...cfg}
+      scopeTabsSlot={<ScopeTabs tabs={manager ? ['mine', 'team', 'all'] : ['mine']} active={activeTab} onChange={selectTab} />}
+    />
   );
 }
