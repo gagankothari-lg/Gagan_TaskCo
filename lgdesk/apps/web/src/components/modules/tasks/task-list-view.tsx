@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useAuth } from '../../../hooks/use-auth';
 import { useTasks, useCreateTasksBulk, type TaskScope, type BulkTaskResult } from '../../../lib/api/tasks';
 import { apiErrorMessage } from '../../../lib/api/client';
+import { computeDuePreset, DUE_PRESET_OPTIONS, type DuePreset } from '../../../lib/due-date-presets';
 import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
 import { Badge } from '../../ui/badge';
@@ -84,56 +85,6 @@ const thStyle: CSSProperties = {
 };
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function mondayOf(d: Date) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const toYMD = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
-// PTASK-DUE-PRESETS: quick-pick presets for the Add-Task batch row's due-date input
-// only. Deliberately its own Sunday-Saturday week convention -- a *different* one from
-// this file's Monday-start `mondayOf` (used for the date/week grouping views above) --
-// so the two must never be merged even though both compute "end of week".
-export type DuePreset = 'today' | 'tomorrow' | 'thisWeek' | 'nextWeek' | 'thisMonth' | 'thisQuarter';
-
-export function computeDuePreset(preset: DuePreset, today: Date = new Date()): string {
-  const base = startOfDay(today);
-  switch (preset) {
-    case 'today':
-      return toYMD(base);
-    case 'tomorrow': {
-      const d = new Date(base);
-      d.setDate(d.getDate() + 1);
-      return toYMD(d);
-    }
-    case 'thisWeek': {
-      const d = new Date(base);
-      d.setDate(d.getDate() + ((6 - base.getDay() + 7) % 7));
-      return toYMD(d);
-    }
-    case 'nextWeek': {
-      const d = new Date(base);
-      d.setDate(d.getDate() + ((6 - base.getDay() + 7) % 7) + 7);
-      return toYMD(d);
-    }
-    case 'thisMonth':
-      return toYMD(new Date(base.getFullYear(), base.getMonth() + 1, 0));
-    case 'thisQuarter': {
-      // Fiscal year April-March: Q1 Apr-Jun -> Jun 30, Q2 Jul-Sep -> Sep 30,
-      // Q3 Oct-Dec -> Dec 31, Q4 Jan-Mar -> Mar 31 of the SAME calendar year.
-      const m = base.getMonth(); // 0-11
-      const endMonth = m >= 3 && m <= 5 ? 5 : m >= 6 && m <= 8 ? 8 : m >= 9 && m <= 11 ? 11 : 2;
-      return toYMD(new Date(base.getFullYear(), endMonth + 1, 0));
-    }
-  }
-}
-
-const DUE_PRESET_OPTIONS: { key: DuePreset; label: string; title: string }[] = [
-  { key: 'today', label: 'Today', title: 'Today' },
-  { key: 'tomorrow', label: 'Tmrw', title: 'Tomorrow' },
-  { key: 'thisWeek', label: 'Wk', title: 'This Week (Sat)' },
-  { key: 'nextWeek', label: 'Nxt Wk', title: 'Next Week (Sat)' },
-  { key: 'thisMonth', label: 'Mo', title: 'This Month' },
-  { key: 'thisQuarter', label: 'Qtr', title: 'This (fiscal) Quarter' },
-];
 
 interface TaskListViewProps {
   scope: TaskScope;
@@ -370,7 +321,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
     ),
     subtitle,
     tabs: scopeTabsSlot,
-  });
+  }, [title, subtitle, openCount, scopeTabsSlot]);
 
   return (
     <div>
@@ -378,37 +329,41 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
           now share a single row -- previously the ownership/team tabs were a separate
           row below with their own margin-bottom. Title/subtitle/ScopeTabs moved to the
           shared navbar via usePageHeader() above. */}
-      <div className="ph-actions ph-actions-solo">
-        {showOwnershipTabs && (
+      <div className="ph-actions ph-actions-solo" style={{ justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {showOwnershipTabs && (
+            <div className="tl-tabs">
+              {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
+                <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+              ))}
+            </div>
+          )}
+          {showTeamTabs && (
+            <div className="tl-tabs">
+              {(['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
+                <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <Icon name="search" size={16} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
+            <input className="fc" placeholder="Search tasks…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)} style={{ paddingLeft: 30, width: 200 }} />
+          </div>
           <div className="tl-tabs">
-            {(['All', 'To Me', 'By Me'] as OwnershipTab[]).map((t) => (
-              <button key={t} className={`tl-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+            <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center', marginRight: 4 }}>Group by:</span>
+            {(['function', 'date', 'week'] as GroupMode[]).map((m) => (
+              <button key={m} className={`tl-tab${grp === m ? ' active' : ''}`} onClick={() => setGroup(m)} style={{ textTransform: 'capitalize' }}>{m}</button>
             ))}
           </div>
-        )}
-        {showTeamTabs && (
-          <div className="tl-tabs">
-            {(['All', 'To Team', 'By Team'] as TeamTab[]).map((t) => (
-              <button key={t} className={`tl-tab${teamTab === t ? ' active' : ''}`} onClick={() => setTeamTab(t)}>{t}</button>
-            ))}
-          </div>
-        )}
-        <div style={{ position: 'relative' }}>
-          <Icon name="search" size={16} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
-          <input className="fc" placeholder="Search tasks…" value={rawQuery} onChange={(e) => setRawQuery(e.target.value)} style={{ paddingLeft: 30, width: 200 }} />
+          {showTeamSelector && (
+            <select className="fc" value={team} onChange={(e) => setTeam(e.target.value)} style={{ width: 'auto' }}>
+              <option value="">All teams</option>
+              {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
         </div>
-        <div className="tl-tabs">
-          <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center', marginRight: 4 }}>Group by:</span>
-          {(['function', 'date', 'week'] as GroupMode[]).map((m) => (
-            <button key={m} className={`tl-tab${grp === m ? ' active' : ''}`} onClick={() => setGroup(m)} style={{ textTransform: 'capitalize' }}>{m}</button>
-          ))}
-        </div>
-        {showTeamSelector && (
-          <select className="fc" value={team} onChange={(e) => setTeam(e.target.value)} style={{ width: 'auto' }}>
-            <option value="">All teams</option>
-            {teams.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        )}
       </div>
 
       <FilterBar

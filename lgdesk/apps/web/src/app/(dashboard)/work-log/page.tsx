@@ -141,7 +141,7 @@ export default function WorkLogPage() {
     ? fmtDateRange(rangeStart, rangeEnd)
     : anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
-  usePageHeader({ title: 'Work Log', subtitle: label });
+  usePageHeader({ title: 'Work Log', subtitle: label }, [label]);
 
   return (
     <div>

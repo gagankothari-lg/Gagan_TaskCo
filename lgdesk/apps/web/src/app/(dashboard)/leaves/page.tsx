@@ -44,7 +44,7 @@ function MyLeavesSection() {
     }
   }
 
-  usePageHeader({ title: 'My Leaves', subtitle: 'Your leave requests and their status' });
+  usePageHeader({ title: 'My Leaves', subtitle: 'Your leave requests and their status' }, []);
 
   return (
     <div>

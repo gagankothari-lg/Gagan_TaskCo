@@ -317,9 +317,23 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
    Status/Dates clusters (Search was removed as a duplicate) -- replaces auto-fit's
    uneven per-row stretching, which was the direct cause of same-count clusters
    rendering at different widths. Groupings/labels themselves are unchanged. */
-.task-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.task-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 900px) { .task-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .task-filter-grid { grid-template-columns: 1fr; } }
+
+/* PFILTER-UNIFORM-FIELDS: matches CompactMultiSelect's own box chrome (24px min-height,
+   4px radius, 1px border, 11px type) so the filter bar's remaining plain <input>/<select>
+   fields -- the Assigned-from/to date range and the Due-by preset dropdown -- read as the
+   same size/shape/design as the CompactMultiSelect-driven fields (Function, Sub-Function,
+   Project, Assigned To/By, Status, Priority, Recurring) instead of the bulkier default
+   `.fc` used everywhere else in the app. */
+.filter-fc {
+  width: 100%; min-height: 24px; padding: 2px 6px;
+  border: 1px solid var(--border); border-radius: 4px;
+  font-family: inherit; font-size: 11px; color: var(--text);
+  background: var(--surface); outline: none;
+}
+.filter-fc:focus { border-color: var(--p2); box-shadow: 0 0 0 2px rgba(57, 73, 171, 0.09); }
 
 /* ── PRESENCE DOTS ───────────────────────────────────── */
 .pres-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; }
@@ -366,11 +380,14 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
    .tl-tabs' individually-pilled look (task-list-view.tsx's own showOwnershipTabs/
    showTeamTabs rows), so a manager on the Team scope tab, who also sees a .tl-tabs
    ownership row underneath, isn't looking at two identical-looking tab bars stacked. */
-.scope-tabs { display: inline-flex; border: 1.5px solid var(--p); border-radius: var(--r); overflow: hidden; margin-bottom: 14px; }
-.scope-tab { padding: 8px 20px; border: none; background: var(--surface); color: var(--p); font-size: 13px; font-weight: 700; cursor: pointer; }
-.scope-tab + .scope-tab { border-left: 1.5px solid var(--p); }
-.scope-tab.active { background: var(--p); color: #fff; }
-.scope-tab:not(.active):hover { background: var(--p3); }
+/* PNAV-SCOPE-TABS-HEADER: ScopeTabs (My/Team/All) now lives only in the dark navy header,
+   beside WeekGlanceWidget/ClockWidget -- restyled to match their translucent-white pill
+   look (same height/radius/background) instead of the old white-box/blue-border card
+   style, which only made sense sitting on a light page background. */
+.scope-tabs { display: inline-flex; align-items: center; height: 46px; border-radius: 14px; background: rgba(255, 255, 255, 0.08); padding: 3px; gap: 2px; }
+.scope-tab { height: 100%; padding: 0 14px; border: none; background: transparent; color: rgba(255, 255, 255, 0.75); font-size: 12.5px; font-weight: 700; cursor: pointer; border-radius: 11px; display: flex; align-items: center; }
+.scope-tab.active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.scope-tab:not(.active):hover { background: rgba(255, 255, 255, 0.12); }
 
 /* ── TLM MEMBER CARDS ────────────────────────────────── */
 .tlm-card { background: var(--surface); border-radius: var(--r); box-shadow: var(--sh); padding: 14px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }

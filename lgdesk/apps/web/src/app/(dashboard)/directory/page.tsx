@@ -122,7 +122,7 @@ export default function DirectoryPage() {
   usePageHeader({
     title: 'Directory',
     subtitle: tab === 'team' ? 'Your team colleagues' : 'Everyone across Leveraged Growth',
-  });
+  }, [tab]);
 
   return (
     <div>

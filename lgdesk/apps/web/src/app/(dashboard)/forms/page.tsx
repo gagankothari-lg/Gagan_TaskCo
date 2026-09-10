@@ -7,7 +7,7 @@ import { usePageHeader } from '../../../components/layout/page-header-context';
 // Manager+ gated (see layout-client.tsx). This phase only wires up the app
 // shell/navigation; the Forms view itself is built in a later phase.
 export default function FormsPage() {
-  usePageHeader({ title: 'Forms', subtitle: 'Create, manage and share forms' });
+  usePageHeader({ title: 'Forms', subtitle: 'Create, manage and share forms' }, []);
 
   return (
     <div className="p-6">

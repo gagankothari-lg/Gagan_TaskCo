@@ -426,16 +426,15 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
             Projects, the My/Team/All ScopeTabs) now render here instead of in the page
             body -- this replaces the old mobile-only hamburger button entirely. */}
         {pageHeader && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, overflow: 'hidden' }}>
-            <div style={{ minWidth: 0 }}>
-              <div className="hdr-page-title">{pageHeader.title}</div>
-              {pageHeader.subtitle && <div className="hdr-page-sub">{pageHeader.subtitle}</div>}
-            </div>
-            {pageHeader.tabs}
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div className="hdr-page-title">{pageHeader.title}</div>
+            {pageHeader.subtitle && <div className="hdr-page-sub">{pageHeader.subtitle}</div>}
           </div>
         )}
 
         <div style={{ flex: 1 }} />
+
+        {pageHeader?.tabs}
 
         <WeekGlanceWidget />
 

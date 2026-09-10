@@ -202,7 +202,7 @@ export default function TeamWorkLogPage() {
       view === 'date'
         ? `${range.label} — ${byDateEntryCount} entr${byDateEntryCount === 1 ? 'y' : 'ies'} across ${byDateGroups.length} day${byDateGroups.length === 1 ? '' : 's'}`
         : `${range.label} — ${activeCount}/${roster.length} members active`,
-  });
+  }, [view, range.label, byDateEntryCount, byDateGroups.length, activeCount, roster.length]);
 
   if (!currentUser) return null;
   if (!isManager(currentUser.role)) {

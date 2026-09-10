@@ -233,7 +233,7 @@ export default function CalendarPage() {
     });
   }, [weeks, barsByDay, active, year, month]);
 
-  usePageHeader({ title: 'Calendar', subtitle: "Tasks, deadlines, leaves & holidays across the team" });
+  usePageHeader({ title: 'Calendar', subtitle: "Tasks, deadlines, leaves & holidays across the team" }, []);
 
   return (
     <div className="p-6">

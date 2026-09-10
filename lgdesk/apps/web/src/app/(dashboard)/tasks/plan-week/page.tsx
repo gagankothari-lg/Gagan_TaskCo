@@ -103,7 +103,7 @@ export default function PlanWeekPage() {
   usePageHeader({
     title: 'Plan My Week',
     subtitle: `${fmtDayMonth(weekStart)} – ${fmtDayMonth(addDays(weekStart, 6))} ${addDays(weekStart, 6).getFullYear()}`,
-  });
+  }, [weekStart.getTime()]);
 
   return (
     <div className="flex flex-col gap-4">

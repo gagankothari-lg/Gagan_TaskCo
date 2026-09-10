@@ -125,7 +125,7 @@ export function ProjectGridView({ scope, title, subtitle, showTeamTabs, showSear
 
   // PNAV-HEADER-RELOCATE: title always goes to the navbar; subtitle only for the two
   // branches that had a ph-sub before (All Projects never showed one).
-  usePageHeader({ title, subtitle: isAllScope ? undefined : subtitle, tabs: scopeTabsSlot });
+  usePageHeader({ title, subtitle: isAllScope ? undefined : subtitle, tabs: scopeTabsSlot }, [title, subtitle, isAllScope, scopeTabsSlot]);
 
   return (
     <div className="p-6">

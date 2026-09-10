@@ -221,7 +221,7 @@ export default function DashboardPage() {
   usePageHeader({
     title: <span id="dash-greeting">{greeting()}, {currentUser?.firstName}!</span>,
     subtitle: <span id="dash-date">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>,
-  });
+  }, [currentUser?.firstName]);
 
   return (
     <div className="flex flex-col gap-5">

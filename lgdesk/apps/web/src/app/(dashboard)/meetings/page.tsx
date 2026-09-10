@@ -104,7 +104,7 @@ function MeetingsPageInner() {
     }
   }
 
-  usePageHeader({ title: 'Meetings', subtitle: 'Start, join or schedule Google Meet calls' });
+  usePageHeader({ title: 'Meetings', subtitle: 'Start, join or schedule Google Meet calls' }, []);
 
   return (
     <div>

@@ -149,7 +149,7 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
     return [...scoped].sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
   }, [employees, scope, currentUser]);
 
-  usePageHeader({ title, subtitle });
+  usePageHeader({ title, subtitle }, [title, subtitle]);
 
   return (
     <div>

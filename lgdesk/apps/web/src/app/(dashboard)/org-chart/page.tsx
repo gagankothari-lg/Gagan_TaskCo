@@ -355,7 +355,7 @@ export default function OrgChartPage() {
     );
   };
 
-  usePageHeader({ title: 'Org Chart', subtitle: 'Leveraged Growth — Company Structure' });
+  usePageHeader({ title: 'Org Chart', subtitle: 'Leveraged Growth — Company Structure' }, []);
 
   return (
     <div>

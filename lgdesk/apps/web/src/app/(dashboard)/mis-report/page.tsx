@@ -67,7 +67,7 @@ export default function MisReportPage() {
     toast('MIS report exported', 'success');
   }
 
-  usePageHeader({ title: 'MIS Report', subtitle: 'Weekly summaries across all employees' });
+  usePageHeader({ title: 'MIS Report', subtitle: 'Weekly summaries across all employees' }, []);
 
   if (forbidden) {
     return (

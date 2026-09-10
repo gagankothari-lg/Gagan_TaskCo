@@ -19,10 +19,11 @@
 // grouped into labeled clusters (Classification/People/Status/Dates/Search) inside one
 // bordered card. Purely visual; `ColFilter`/`applyColFilters`/the cascade logic below are
 // unchanged.
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../../ui/icon';
 import { CompactMultiSelect } from './compact-multi-select';
 import { TASK_STATUSES, TASK_PRIORITIES as PRIORITIES } from './create-task-modal.schema';
+import { computeDuePreset, DUE_PRESET_OPTIONS, type DuePreset } from '../../../lib/due-date-presets';
 import type { Task, User, Project, WorkFunction } from '../../../lib/types';
 
 export interface Opt { value: string; label: string }
@@ -71,9 +72,9 @@ const RECURRING_OPTS = [
 // into labeled clusters inside a bordered card instead of two unlabeled flex-wrap rows.
 function FilterCluster({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
       <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>{label}</span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{children}</div>
     </div>
   );
 }
@@ -82,7 +83,66 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <span style={{ fontSize: 10, color: 'var(--muted2)' }}>{label}</span>
-      <input type="date" className="fc" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input type="date" className="filter-fc" value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+// PFILTER-DUE-PRESETS: mirrors the Add-Tasks batch row's due-date dropdown (P7) -- picking
+// a preset computes the cutoff date immediately via the shared computeDuePreset(); picking
+// "Custom Date" is the only option that opens the native calendar. `preset` is a local
+// display-only choice (same approach as the batch row) and resets to blank whenever the
+// filter's actual `value` is cleared from outside (e.g. the Filters card's "Clear" button).
+function DueByField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [preset, setPreset] = useState<DuePreset | 'custom' | ''>('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!value) setPreset('');
+  }, [value]);
+
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 10, color: 'var(--muted2)' }}>Due by</span>
+      <div style={{ position: 'relative' }}>
+        <select
+          className="filter-fc"
+          value={preset}
+          onChange={(e) => {
+            const val = e.target.value as DuePreset | 'custom' | '';
+            setPreset(val);
+            if (val === 'custom') {
+              const el = inputRef.current;
+              if (el) {
+                if (typeof el.showPicker === 'function') {
+                  try { el.showPicker(); } catch { el.focus(); }
+                } else {
+                  el.focus();
+                }
+              }
+            } else if (val) {
+              onChange(computeDuePreset(val as DuePreset));
+            } else {
+              onChange('');
+            }
+          }}
+        >
+          <option value="">Any date</option>
+          {DUE_PRESET_OPTIONS.map((p) => (
+            <option key={p.key} value={p.key} title={p.title}>{p.label}</option>
+          ))}
+          <option value="custom">Custom Date</option>
+        </select>
+        <input
+          ref={inputRef}
+          type="date"
+          aria-hidden="true"
+          tabIndex={-1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+        />
+      </div>
     </label>
   );
 }
@@ -161,8 +221,8 @@ export function FilterBar({ value, onChange, employees, projects, functions, tas
   const clearAll = () => { onChange(DEFAULT_COL_FILTER); onTaskQueryChange(''); };
 
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--surface)', padding: '10px 14px', marginBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--surface)', padding: '8px 12px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>Filters</span>
         {isFiltering ? (
           <button className="btn btn-ghost btn-sm" onClick={clearAll}><Icon name="close" size={14} /> Clear</button>
@@ -174,15 +234,21 @@ export function FilterBar({ value, onChange, employees, projects, functions, tas
             Sub-Function pruning as before (`setProject`/`setFunction` above); Project is
             available ONLY here, never as a table column (FIX A). */}
         <FilterCluster label="Classification">
-          <select className="fc" value={value.functions[0] ?? ''} onChange={(e) => setFunction(e.target.value)}>
-            <option value="">All Functions</option>
-            {fnOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <CompactMultiSelect
+            placeholder="All Functions"
+            options={fnOpts.map((o) => ({ id: o.value, label: o.label }))}
+            selectedIds={value.functions}
+            onChange={(v) => setFunction(v[0] ?? '')}
+            single
+          />
           <CompactMultiSelect placeholder="Sub-Function" options={subFnOpts} selectedIds={value.subFunctions} onChange={(v) => set({ subFunctions: v })} />
-          <select className="fc" value={value.projects[0] ?? ''} onChange={(e) => setProject(e.target.value)}>
-            <option value="">All Projects</option>
-            {projOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <CompactMultiSelect
+            placeholder="All Projects"
+            options={projOpts.map((o) => ({ id: o.value, label: o.label }))}
+            selectedIds={value.projects}
+            onChange={(v) => setProject(v[0] ?? '')}
+            single
+          />
         </FilterCluster>
 
         <FilterCluster label="People">
@@ -199,7 +265,7 @@ export function FilterBar({ value, onChange, employees, projects, functions, tas
         <FilterCluster label="Dates">
           <DateField label="Assigned from" value={value.adateFrom} onChange={(v) => set({ adateFrom: v })} />
           <DateField label="Assigned to" value={value.adateTo} onChange={(v) => set({ adateTo: v })} />
-          <DateField label="Due by" value={value.due} onChange={(v) => set({ due: v })} />
+          <DueByField value={value.due} onChange={(v) => set({ due: v })} />
         </FilterCluster>
 
       </div>
