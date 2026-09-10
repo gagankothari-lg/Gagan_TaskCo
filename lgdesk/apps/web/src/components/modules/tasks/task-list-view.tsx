@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { Icon } from '../../ui/icon';
 import { Badge } from '../../ui/badge';
 import { pillClass, badgeClass, fmtDate, isClosedTaskStatus } from '../../../lib/utils';
 import { TaskRow, isTaskOverdue, COL_HIDE, actionsCellStyle } from './task-row';
-import { FilterBar, DEFAULT_COL_FILTER, applyColFilters } from './filter-bar';
+import { FilterBar, DEFAULT_COL_FILTER, applyColFilters, type ColFilter } from './filter-bar';
 import { createTaskSchema, TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCE_PATTERNS } from './create-task-modal.schema';
 import { CompactMultiSelect } from './compact-multi-select';
 import { CreateFunctionModal } from '../functions/create-function-modal';
@@ -83,6 +83,56 @@ const thStyle: CSSProperties = {
 };
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function mondayOf(d: Date) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toYMD = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// PTASK-DUE-PRESETS: quick-pick presets for the Add-Task batch row's due-date input
+// only. Deliberately its own Sunday-Saturday week convention -- a *different* one from
+// this file's Monday-start `mondayOf` (used for the date/week grouping views above) --
+// so the two must never be merged even though both compute "end of week".
+export type DuePreset = 'today' | 'tomorrow' | 'thisWeek' | 'nextWeek' | 'thisMonth' | 'thisQuarter';
+
+export function computeDuePreset(preset: DuePreset, today: Date = new Date()): string {
+  const base = startOfDay(today);
+  switch (preset) {
+    case 'today':
+      return toYMD(base);
+    case 'tomorrow': {
+      const d = new Date(base);
+      d.setDate(d.getDate() + 1);
+      return toYMD(d);
+    }
+    case 'thisWeek': {
+      const d = new Date(base);
+      d.setDate(d.getDate() + ((6 - base.getDay() + 7) % 7));
+      return toYMD(d);
+    }
+    case 'nextWeek': {
+      const d = new Date(base);
+      d.setDate(d.getDate() + ((6 - base.getDay() + 7) % 7) + 7);
+      return toYMD(d);
+    }
+    case 'thisMonth':
+      return toYMD(new Date(base.getFullYear(), base.getMonth() + 1, 0));
+    case 'thisQuarter': {
+      // Fiscal year April-March: Q1 Apr-Jun -> Jun 30, Q2 Jul-Sep -> Sep 30,
+      // Q3 Oct-Dec -> Dec 31, Q4 Jan-Mar -> Mar 31 of the SAME calendar year.
+      const m = base.getMonth(); // 0-11
+      const endMonth = m >= 3 && m <= 5 ? 5 : m >= 6 && m <= 8 ? 8 : m >= 9 && m <= 11 ? 11 : 2;
+      return toYMD(new Date(base.getFullYear(), endMonth + 1, 0));
+    }
+  }
+}
+
+const DUE_PRESET_OPTIONS: { key: DuePreset; label: string; title: string }[] = [
+  { key: 'today', label: 'Today', title: 'Today' },
+  { key: 'tomorrow', label: 'Tmrw', title: 'Tomorrow' },
+  { key: 'thisWeek', label: 'Wk', title: 'This Week (Sat)' },
+  { key: 'nextWeek', label: 'Nxt Wk', title: 'Next Week (Sat)' },
+  { key: 'thisMonth', label: 'Mo', title: 'This Month' },
+  { key: 'thisQuarter', label: 'Qtr', title: 'This (fiscal) Quarter' },
+];
 
 interface TaskListViewProps {
   scope: TaskScope;
@@ -357,6 +407,21 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
         scope={scope} taskQuery={rawQuery} onTaskQueryChange={setRawQuery}
       />
 
+      {/* PTASK-ADDROW-RELOCATE: moved out of the function-grouped table's <tbody> (where
+          it only ever appeared when grp === 'function') to a standalone block here, so
+          "+ Add Tasks" shows in every grouping mode, not just Group by Function. */}
+      <TaskBatchAddRow
+        open={batchOpen}
+        onOpenChange={setBatchOpen}
+        functions={functions}
+        projects={projects}
+        employees={employees}
+        teams={teams}
+        currentUserName={currentUser?.name ?? ''}
+        currentUserEmpId={currentUser?.empId ?? ''}
+        filter={filter}
+      />
+
       {isLoading ? (
         <div className="empty-state"><Icon name="hourglass_empty" size={40} className="ei" /><p>Loading…</p></div>
       ) : error ? (
@@ -391,21 +456,6 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
                   />
                 ))
               )}
-              {/* Inline batch "Add Tasks" row pinned at the bottom of the table
-                  (reference: tr.ts-foot-trig / tr.ts-add-row) — wired to the bulk
-                  useCreateTasksBulk mutation (one POST /tasks/bulk call for every row,
-                  not one call per row) + the local batchRowSchema superset of
-                  createTaskSchema. */}
-              <TaskBatchAddRow
-                open={batchOpen}
-                onOpenChange={setBatchOpen}
-                functions={functions}
-                projects={projects}
-                employees={employees}
-                teams={teams}
-                currentUserName={currentUser?.name ?? ''}
-                currentUserEmpId={currentUser?.empId ?? ''}
-              />
             </tbody>
           </table>
         </div>
@@ -546,7 +596,7 @@ function isRowUntouched(row: BatchRowValues, defaults: BatchRowValues): boolean 
   );
 }
 
-function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, teams, currentUserName, currentUserEmpId }: {
+function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, teams, currentUserName, currentUserEmpId, filter }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   functions: WorkFunction[];
@@ -555,12 +605,31 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
   teams: string[];
   currentUserName: string;
   currentUserEmpId: string;
+  // PTASK-ADDROW-FILTER-DEFAULTS: the FilterBar's currently active value, read only at
+  // the moment a new row is appended (see newBatchRow below) -- never retroactively
+  // applied to rows already open when the filter changes.
+  filter: ColFilter;
 }) {
   const { refresh } = useAuth();
   const bulkCreate = useCreateTasksBulk();
+  // Picks up single-value filter selections as this row's initial defaults (Change 3) --
+  // a multi-value or empty selection for a field leaves that field at its ordinary
+  // default, exactly as if no filter were applied.
+  const newBatchRow = (): BatchRowValues => {
+    const base = defaultBatchRow(currentUserEmpId);
+    return {
+      ...base,
+      functionId: filter.functions.length === 1 ? filter.functions[0] : base.functionId,
+      subFnId: filter.subFunctions.length === 1 ? filter.subFunctions[0] : base.subFnId,
+      projId: filter.projects.length === 1 ? filter.projects[0] : base.projId,
+      status: filter.status.length === 1 ? (filter.status[0] as BatchRowValues['status']) : base.status,
+      priority: filter.priority.length === 1 ? (filter.priority[0] as BatchRowValues['priority']) : base.priority,
+      assigneeIds: filter.assignee.length === 1 ? [filter.assignee[0]] : base.assigneeIds,
+    };
+  };
   const form = useForm<{ rows: BatchRowValues[] }>({
     resolver: zodResolver(z.object({ rows: z.array(batchRowSchema).min(1) })),
-    defaultValues: { rows: [defaultBatchRow(currentUserEmpId)] },
+    defaultValues: { rows: [newBatchRow()] },
   });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'rows' });
   // Per-row error text, keyed by the field array's own stable `field.id` (NOT array
@@ -570,15 +639,26 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
   // Row index whose Function/Sub-Function "+" quick-add modal is currently open.
   const [fnModalRow, setFnModalRow] = useState<number | null>(null);
   const [subFnModalRow, setSubFnModalRow] = useState<number | null>(null);
+  // Due-date <input> per row, keyed by field.id -- lets the "Custom Date" preset open
+  // that row's own native date picker without computing a value itself.
+  const dueInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const openCustomDuePicker = (fieldId: string) => {
+    const el = dueInputRefs.current[fieldId];
+    if (!el) return;
+    if (typeof el.showPicker === 'function') {
+      try { el.showPicker(); return; } catch { /* unsupported/blocked -- fall through to focus */ }
+    }
+    el.focus();
+  };
 
   const close = () => {
     onOpenChange(false);
-    form.reset({ rows: [defaultBatchRow(currentUserEmpId)] });
+    form.reset({ rows: [newBatchRow()] });
     setRowErrors({});
   };
 
   const handleCancel = () => {
-    const defaults = defaultBatchRow(currentUserEmpId);
+    const defaults = newBatchRow();
     const untouched = form.getValues('rows').every((row) => isRowUntouched(row, defaults));
     if (!untouched && !window.confirm('Discard these unsaved tasks?')) return;
     close();
@@ -629,30 +709,30 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
   });
 
   if (!open) {
+    // PTASK-ADDROW-RELOCATE: was a <tr><td colSpan={TOTAL_COLS}> (living inside the
+    // function-grouped table's <tbody>) -- now a standalone block above the list, so a
+    // plain <div> replaces that table-row wrapper. Reset to a fresh single row here (not
+    // just on close()) so this "opening" click always picks up whatever filter selections
+    // are active right now, not whatever was active last time the panel was closed.
     return (
-      <tr>
-        <td colSpan={TOTAL_COLS} style={{ padding: 0 }}>
-          <div
-            onClick={() => onOpenChange(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 14px', cursor: 'pointer', color: 'var(--p)', fontSize: 12, fontWeight: 600 }}
-          >
-            <Icon name="add" size={15} /> Add Tasks
-          </div>
-        </td>
-      </tr>
+      <div
+        onClick={() => { form.reset({ rows: [newBatchRow()] }); onOpenChange(true); }}
+        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 14px', cursor: 'pointer', color: 'var(--p)', fontSize: 12, fontWeight: 600, marginBottom: 14 }}
+      >
+        <Icon name="add" size={15} /> Add Tasks
+      </div>
     );
   }
 
   return (
-    <tr>
-      <td colSpan={TOTAL_COLS} style={{ padding: 0 }}>
-        <div style={{ background: 'var(--bg)', borderTop: '2px solid var(--p)', padding: '8px 12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--p)', flex: 1 }}>Add Tasks</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => append(defaultBatchRow(currentUserEmpId))}>
-              <Icon name="add" size={13} /> Row
-            </button>
-          </div>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ background: 'var(--bg)', borderTop: '2px solid var(--p)', padding: '8px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--p)', flex: 1 }}>Add Tasks</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => append(newBatchRow())}>
+            <Icon name="add" size={13} /> Row
+          </button>
+        </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {fields.map((field, i) => {
               const rowFunctionId = form.watch(`rows.${i}.functionId`);
@@ -729,7 +809,48 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
                     <select className="fc" style={{ fontSize: 12 }} title="Recurring" {...form.register(`rows.${i}.recurrencePattern` as const)}>
                       {TASK_RECURRENCE_PATTERNS.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
-                    <input type="date" className="fc" style={{ fontSize: 12 }} {...form.register(`rows.${i}.dueDate` as const)} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {(() => {
+                        const { ref: rhfRef, ...dueDateReg } = form.register(`rows.${i}.dueDate` as const);
+                        return (
+                          <input
+                            type="date"
+                            className="fc"
+                            style={{ fontSize: 12 }}
+                            ref={(el) => { rhfRef(el); dueInputRefs.current[field.id] = el; }}
+                            {...dueDateReg}
+                          />
+                        );
+                      })()}
+                      {/* PTASK-DUE-PRESETS: Today/Tomorrow/This-Week/Next-Week/This-Month/
+                          This-Quarter compute a value via computeDuePreset(); Custom Date
+                          computes nothing and just opens this row's own date picker. Scoped
+                          strictly to this batch row -- does not touch task-edit-modal.tsx,
+                          ddr-modal.tsx, or any other date field. */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                        {DUE_PRESET_OPTIONS.map((p) => (
+                          <button
+                            key={p.key}
+                            type="button"
+                            className="wl-chip"
+                            title={p.title}
+                            style={{ border: 'none', font: 'inherit', cursor: 'pointer' }}
+                            onClick={() => form.setValue(`rows.${i}.dueDate`, computeDuePreset(p.key))}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="wl-chip"
+                          title="Custom Date"
+                          style={{ border: 'none', font: 'inherit', cursor: 'pointer' }}
+                          onClick={() => openCustomDuePicker(field.id)}
+                        >
+                          Custom
+                        </button>
+                      </div>
+                    </div>
                     <button
                       type="button" className="wl-save-btn" title="Remove row"
                       onClick={() => fields.length > 1 && remove(i)} disabled={fields.length <= 1}
@@ -781,8 +902,7 @@ function TaskBatchAddRow({ open, onOpenChange, functions, projects, employees, t
             setSubFnModalRow(null);
           }}
         />
-      </td>
-    </tr>
+      </div>
   );
 }
 
