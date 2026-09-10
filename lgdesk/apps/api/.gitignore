@@ -1,0 +1,6 @@
+# Compiled output of prisma/seed.ts (the "seed" npm script runs it directly via ts-node and never
+# touches these) and any other compiled prisma/*.ts helper script — these are build byproducts, not
+# source. Scoped to prisma/'s top level only, so prisma/migrations/**/*.sql stays tracked.
+prisma/*.js
+prisma/*.js.map
+prisma/*.d.ts

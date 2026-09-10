@@ -28,8 +28,10 @@ yarn-error.log*
 # local env files
 .env*.local
 
-# vercel
+# vercel — the trailing * catches renamed/backup link folders (e.g. `.vercel.lgdesk-web.bak/`,
+# which slipped past the literal `.vercel` pattern below and got committed once already)
 .vercel
+.vercel*
 
 # typescript
 *.tsbuildinfo

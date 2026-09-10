@@ -2,6 +2,64 @@
 
 All notable changes to LG Desk are documented in this file, newest first.
 
+## 2026-09-11 — PFEAT-TASKS-NAVBAR-REWORK
+
+Tasks-page UI rework plus a navbar-relocation refactor across ~14 pages, shipped as commits `330242e`
+and `ddca704` on the same day, both pushed to **both** `develop` and `main`.
+
+**Tasks page — due-date presets consolidated**: the Add-Tasks batch row's due-date field and the Tasks
+filter bar's "Due by" field now share one preset dropdown (Today/Tomorrow/This Week/Next Week/This
+Month/This Quarter/Custom Date) instead of separate always-visible date inputs — picking a preset
+computes the date immediately, and the native calendar only opens for "Custom Date". The preset math
+(`computeDuePreset`/`DUE_PRESET_OPTIONS`) was pulled into a new shared `apps/web/src/lib/due-date-
+presets.ts` module so `task-list-view.tsx` and `filter-bar.tsx` can both use it without a circular
+import (they already reference each other in the opposite direction).
+
+**Tasks page — filter bar rebuilt**: Function and Project now use the same `CompactMultiSelect` (single
+mode) as every other filter field (Sub-Function, Assigned To/By, Status, Priority, Recurring), making
+every field in the Classification/People/Status clusters pixel-identical instead of a mix of native
+`<select>`s and the custom widget. The two Assigned-date-range inputs and the new Due-by dropdown got a
+new `.filter-fc` CSS class matching that same ~24px control chrome as closely as native inputs allow.
+Card padding and cluster spacing tightened. The ownership/team tabs and the search/Group-by/team-
+selector controls were split into a left group and a right group on the same row
+(`justify-content: space-between`) instead of one long left-aligned row.
+
+**Navbar — page headings relocated out of the page body**: every page's title, subtitle, and (for
+Tasks/Projects) the My/Team/All ScopeTabs now render in the shared dashboard header instead of in each
+page's own body, via a new `PageHeaderProvider`/`usePageHeader()` context
+(`components/layout/page-header-context.tsx`) — applied across ~14 pages/components. The header's old
+mobile-only hamburger button (which only ever opened the sidebar) was removed in favor of always
+showing the current page's identity there. ScopeTabs itself moved to sit immediately left of the Week
+Glance widget in the header and was restyled to match its/ClockWidget's translucent-white pill look
+(46px height, `rgba(255,255,255,.08)` background) instead of the old white-box/blue-border card style,
+which only made sense on a light page background.
+
+**Bug found and fixed — navigation silently stopped working**: the initial `usePageHeader()` effect had
+no dependency array, so it re-registered on every render of any page that both provided and consumed
+the header context. Since every call site constructed a fresh `content` object literal each render,
+this pushed a new value into the provider's state every time, which re-rendered every context consumer
+— including the calling page itself — which re-ran the effect again, forever. This never tripped
+React's "Maximum update depth exceeded" guard and printed nothing to the console (each individual
+render was cheap; nothing recursed synchronously within one call stack), but it did continuously
+preempt Next.js App Router's `startTransition`-wrapped client-side navigation: `<Link>`/`router.push()`
+calls kept getting interrupted by the next same/higher-priority `usePageHeader` update before they
+could ever commit, so clicking a sidebar item or any navigation button silently did nothing — no error,
+no frozen tab, normal frame timing. Root-caused via testing against a real production build
+(`next build && next start`, matching what Vercel actually serves, not `next dev`), frame-timing
+analysis via `requestAnimationFrame` (ruling out a hard render-loop/freeze), and bisection against the
+pre-rework commit (`addaeae`) to confirm the regression was real and isolated to this change. Fixed by
+giving `usePageHeader` a real second `DependencyList` argument, exactly like `useEffect`, threaded
+correctly through all 14 call sites with dependencies scoped to what each page's header actually
+depends on (e.g. `[tab]` for Directory, `[view, range.label, ...]` for Team Work Logs, `[]` for pages
+with a fully static heading). See `CLAUDE.md`'s Verification Status section for the permanent gotcha
+this earned in the project's own hard-won-lessons list.
+
+Live-verified against a disposable Postgres + built API + `next build && next start` (production mode):
+a full sidebar navigation sweep plus a `router.push()`-based button all navigate correctly with normal
+frame timing; the header still reacts live to real changes (ScopeTabs clicks, route changes); the
+action-row split, filter-field uniformity/heights, due-by presets, and ScopeTabs' header position/style
+all checked out.
+
 ## 2026-09-08 — PFIX-ROUND6-PRESENCE-BACKEND
 
 Closes Round 6 checklist item `#12` — a minimal, real live-presence backend, deliberately built

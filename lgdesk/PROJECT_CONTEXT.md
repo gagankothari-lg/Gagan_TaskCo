@@ -86,17 +86,21 @@ Decision." Condensed:
 10. **`Task`→`Project`/`Function` `onDelete`** — no explicit policy; add `onDelete: SetNull` or confirm
     the deployed constraint.
 11. **`nightlyArchive` Postgres strategy** — archive table vs. `isArchived`/`archivedAt` columns; undecided.
-12. **Presence system** — no backend at all; full rebuild, out of scope so far.
-13. **Per-employee Google Calendar sync** — single-shared-calendar gap vs. per-employee-ACL spec; blocked
-    on Google credentials.
+12. ~~**Presence system** — no backend at all; full rebuild, out of scope so far.~~ **RESOLVED**
+    2026-09-08 (`PFIX-ROUND6-PRESENCE-BACKEND`) — real Postgres-native presence backend built and
+    live-verified (two seeded users, two real Playwright sessions; staleness-overrides-explicit-status
+    confirmed).
+13. ~~**Per-employee Google Calendar sync** — single-shared-calendar gap vs. per-employee-ACL spec;
+    blocked on Google credentials.~~ **CODE-COMPLETE, LIVE-VERIFICATION-PENDING** 2026-09-08
+    (`PFIX-ROUND6-CALENDAR-PER-EMPLOYEE-ACL`) — per-employee-Calendar + read-only-ACL model rebuilt,
+    verified by hand-trace and a clean build; still blocked on Google credentials (none exist in any
+    environment) to confirm against the real Calendar API.
 14. **`projects.service.ts` `canDelete()` team-match branch** — a real over-grant with no basis in
     `auth.gs`; deliberately left pending a keep-or-remove decision.
 15. **Work-duration cross-midnight edit — residual edge case** (disclosed): a same-day typo is now rolled
     forward to "next day" rather than rejected. Low-severity trade-off vs. the old (worse) bug.
 16. **Team-Captain-scoped RBAC** — verified at source-code level only, not via a live non-admin session
     (no second test credential). Verification-depth caveat, not a known gap.
-17. **16 round-2 commits ahead of `origin/main`** — not yet pushed; deliberate pause. Deploying is a
-    separate decision.
 
 Additional audit-flagged open items (outside the curated checklist) are catalogued at the end of Part C:
 standalone Registrations/Profile-Updates nav pages, the self-service Profile-Update field-set divergence,

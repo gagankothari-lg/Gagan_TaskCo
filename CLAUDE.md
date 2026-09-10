@@ -7,7 +7,7 @@ This is a from-scratch NestJS/Next.js rebuild (npm workspaces, no pnpm, no Googl
 carry over GAS-specific gotchas from any older version of this file — everything below reflects the
 current codebase.
 
-## Verification Status (updated 2026-07-31)
+## Verification Status (updated 2026-09-11)
 
 **Authoritative source for full audit/fix history: `lgdesk/AUDIT_REPORT.md`'s Part C** (at the end of
 that file — it absorbed the former standalone `PART_C_CONSOLIDATED_REPORT.md` on 2026-07-31). Read it
@@ -34,12 +34,29 @@ contributors should also read `lgdesk/PROJECT_CONTEXT.md` for a cold-start orien
   for detail), zero regressions on anything previously confirmed.
 - **Infra migration (2026-07-30):** the API moved off Railway (free trial expired) to **Render**
   (`gagan-taskco.onrender.com`), and the web app moved to a fresh Vercel project (**`lgdesk-frontend`**,
-  not the old `lgdesk-web`). See `DEPLOY.md` for the current runbook and two real gotchas this migration
-  surfaced: `FRONTEND_URL`/CORS mismatches fail silently as browser-side errors (not 5xx), and the new
-  Vercel project has no Git integration — pushing to GitHub does not redeploy it.
+  not the old `lgdesk-web`). This single-environment framing is now itself superseded — see the next
+  bullet.
 - **Registration role bug fixed (2026-07-30, `PFIX-REGISTRATION-ROLE-AND-PASSWORD-TOGGLE`):** the
   registration form used to always save role as "Team Member" regardless of selection (GAP-002, now
   closed) — fixed and independently confirmed holding in production by the Round 3 E2E pass above.
+- **Development/Production environment split is now live (completed 2026-09-10/11):** the single
+  Vercel project + single Render service described above have been replaced by two full environments —
+  `develop` → Development (Vercel `dev_taskco`, Render `gagan-taskco.onrender.com`) and `main` →
+  Production (Vercel `prod_taskco`, Render `prod-taskco.onrender.com`), each with its own Neon database.
+  Both Vercel projects are now Git-connected (a real change — the old single project was not). See the
+  now-corrected `DEPLOY.md` for the full current runbook; do not trust the single-environment framing
+  above for anything deploy-related.
+- **Tasks page / navbar rework (2026-09, P7-P9):** the Add-Tasks due-date field and the Tasks filter
+  bar's "Due by" field were consolidated onto one shared preset dropdown (`lib/due-date-presets.ts`;
+  the calendar only opens on "Custom"); the filter bar was rebuilt into compact, uniformly-sized
+  clusters; and every page's title/subtitle/scope-tabs moved out of the page body into the shared
+  dashboard header via a new `PageHeaderProvider`/`usePageHeader` context. That last change shipped a
+  real, hard-to-spot bug worth remembering as a permanent gotcha: **`usePageHeader(content, deps)` must
+  always be called with a correct second `deps` argument, exactly like `useEffect`** — omitting it (or
+  getting the deps wrong) makes the effect re-fire on every render, which silently starves Next.js App
+  Router's `startTransition`-wrapped client-side navigation (no console error, no frozen tab, `<Link>`/
+  `router.push()` just never commits). Root-caused via production-build testing, frame-timing analysis,
+  and bisection against a known-good commit — see `CHANGELOG.md`'s entry for the fix.
 
 ## Tech Stack
 

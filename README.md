@@ -2,8 +2,8 @@
 
 Internal task/project/work-log/leave management system for LG. NestJS API + Next.js web app, npm workspaces monorepo.
 
-- **Web (live):** https://testtaskco.vercel.app
-- **API (live):** https://gagan-taskco.onrender.com
+- **Production:** web [https://prodtaskco.vercel.app](https://prodtaskco.vercel.app) · api [https://prod-taskco.onrender.com](https://prod-taskco.onrender.com) (`main` branch)
+- **Development:** web [https://testtaskco.vercel.app](https://testtaskco.vercel.app) · api [https://gagan-taskco.onrender.com](https://gagan-taskco.onrender.com) (`develop` branch)
 - Full deploy runbook: [`DEPLOY.md`](./DEPLOY.md)
 - Session rules / architecture reference for AI coding agents: [`CLAUDE.md`](./CLAUDE.md)
 - Parity audit + fix-status + security checklist: [`AUDIT_REPORT.md`](./AUDIT_REPORT.md)
@@ -27,7 +27,7 @@ Internal task/project/work-log/leave management system for LG. NestJS API + Next
 | UI | Tailwind CSS v3 + shadcn/ui (hand-adapted primitives) + Lucide React icons |
 | Data fetching | TanStack Query v5 |
 | Forms | React Hook Form v7 + Zod v3 |
-| Deployment | Vercel (web, standalone deploy, Root Directory = `apps/web`, project `lgdesk-frontend` — **not Git-connected, deploy with `vercel --prod`**) + Render (api, Docker, auto-deploys from GitHub `main`) |
+| Deployment | Two full environments, each Vercel (web, Root Directory = `apps/web`) + Render (api, Docker). Vercel is **Git-connected** on both projects (confirmed via each project's `-git-<branch>-` deployment alias) — `develop` → project `dev_taskco` → https://testtaskco.vercel.app, `main` → project `prod_taskco` → https://prodtaskco.vercel.app. Render backs each with its own service — `gagan-taskco.onrender.com` (dev) and `prod-taskco.onrender.com` (prod) <!-- TODO: confirm each Render service's branch-trigger setting in the Render dashboard --> |
 
 Google integrations — Drive attachments, Chat Spaces, Forms, Google Tasks sync — are **planned but blocked**: no Google service account / OAuth2 client exists yet. See "Known TODOs" below.
 
@@ -115,7 +115,7 @@ npm run build:web
 
 ## Deploy
 
-Production topology is **Vercel (web) + Render (api) + Neon (Postgres)**. Full step-by-step runbook, troubleshooting table, and CORS/env wiring: see [`DEPLOY.md`](./DEPLOY.md) — note that the Vercel project has no Git integration connected, so pushing to GitHub alone does **not** redeploy the web app (see DEPLOY.md §5).
+Two full environments — Development (`develop` branch) and Production (`main` branch) — each **Vercel (web) + Render (api) + Neon (Postgres)**. Full step-by-step runbook, troubleshooting table, and CORS/env wiring: see [`DEPLOY.md`](./DEPLOY.md). Both Vercel projects are Git-connected, so a push to `develop`/`main` alone redeploys the matching web app — this replaces an earlier setup where the single Vercel project had no Git integration and needed a manual `vercel --prod`.
 
 ## Known TODOs
 
