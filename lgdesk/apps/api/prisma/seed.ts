@@ -8,7 +8,7 @@ async function main() {
 
   // Check if already seeded
   const existing = await prisma.user.findUnique({
-    where: { email: 'admin@leveragedgrowth.co' },
+    where: { email: 'info@aswinibajaj.com' },
   });
 
   if (existing) {
@@ -25,11 +25,11 @@ async function main() {
       empId:        'EMP-00001',
       firstName:    'Super',
       lastName:     'Admin',
-      email:        'admin@leveragedgrowth.co',
+      email:        'info@aswinibajaj.com',
       passwordHash,
       role:         'Super Admin',
       designation:  'System Administrator',
-      team:         '1. Management',
+      team:         '',
       isActive:     true,
     },
   });
