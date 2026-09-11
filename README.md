@@ -25,6 +25,7 @@ Internal task/project/work-log/leave management system for LG. NestJS API + Next
 | AI | Gemini 2.5 Flash via raw `fetch` (weekly summaries only — no `@google/generative-ai` SDK) |
 | Frontend | Next.js 14 App Router, TypeScript strict mode |
 | UI | Tailwind CSS v3 + shadcn/ui (hand-adapted primitives) + Lucide React icons |
+| Theming | `next-themes` — light-indigo default + a full dark palette, user-toggleable (added 2026-09-11, P11) |
 | Data fetching | TanStack Query v5 |
 | Forms | React Hook Form v7 + Zod v3 |
 | Deployment | Two full environments, each Vercel (web, Root Directory = `apps/web`) + Render (api, Docker). Vercel is **Git-connected** on both projects (confirmed via each project's `-git-<branch>-` deployment alias) — `develop` → project `dev_taskco` → https://testtaskco.vercel.app, `main` → project `prod_taskco` → https://prodtaskco.vercel.app. Render backs each with its own service — `gagan-taskco.onrender.com` (dev) and `prod-taskco.onrender.com` (prod) <!-- TODO: confirm each Render service's branch-trigger setting in the Render dashboard --> |
@@ -82,7 +83,7 @@ cp apps/web/.env.local.example apps/web/.env.local
 | `RESEND_API_KEY` | No | Password-reset OTP email; email send silently no-ops (logs a warning) if unset |
 | `FROM_EMAIL` | No | From-address for all outbound email; read via `ConfigService.get('FROM_EMAIL')` in `email/email.service.ts`, defaults to `LG Desk <noreply@leveragedgrowth.co>` if unset |
 | `GEMINI_API_KEY` | No | Weekly-summary generation; `/weekly-summary/generate` throws 400 if unset |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` | No | Read by both `calendar/calendar.service.ts` (task/project/leave/holiday → Google Calendar sync) and `meetings/google-calendar.service.ts` (meeting invite + Meet-link via `conferenceData.createRequest`). Not configured anywhere yet — both features no-op / return `null` without them |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` | No | Read by both `calendar/calendar.service.ts` (per-employee Task/Project/Leave Calendar sync, code-complete since 2026-09-08 — Holidays stay on one shared calendar) and `meetings/google-calendar.service.ts` (meeting invite + Meet-link via `conferenceData.createRequest`). Not configured anywhere yet — both features no-op / return `null` without them |
 | `GOOGLE_DRIVE_FOLDER_ID` | No | Documented for parity only — the attachments backend module (Drive upload) doesn't exist yet; not read by any code |
 
 **`apps/web/.env.local`**:
