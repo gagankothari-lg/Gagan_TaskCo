@@ -32,6 +32,10 @@ export function useTeamWorkLogs(start?: string, end?: string) {
   return useQuery({
     queryKey: ['work-logs', 'team', start, end],
     queryFn: () => apiFetch<{ logs: WorkLogEntry[]; holidays: Holiday[] }>('/work-logs/team', { params: { start, end } }),
+    // P12 hotfix: team-visible view — a teammate's own entry should show up while
+    // a manager is sat on this screen. (useMyWorkLogs is deliberately left alone —
+    // it's a single user's own screen, so there's no other-person staleness case.)
+    refetchInterval: 60_000,
   });
 }
 
@@ -39,6 +43,7 @@ export function useTeamOverview(month: string) {
   return useQuery({
     queryKey: ['work-logs', 'team-overview', month],
     queryFn: () => apiFetch<TeamOverviewRow[]>('/work-logs/team/overview', { params: { month } }),
+    refetchInterval: 60_000,
   });
 }
 

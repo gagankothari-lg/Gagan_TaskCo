@@ -14,6 +14,9 @@ export function useTasks(scope?: TaskScope) {
     queryKey: ['tasks', scope ?? 'default'],
     queryFn: () => apiFetch<Task[]>(scopePath(scope)),
     staleTime: 15_000,
+    // P12 hotfix: a teammate's task change should show up while you're sitting on
+    // the same list, not just on next mount/refetchOnWindowFocus.
+    refetchInterval: 60_000,
   });
 }
 

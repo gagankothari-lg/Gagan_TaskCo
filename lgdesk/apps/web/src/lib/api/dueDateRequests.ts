@@ -21,6 +21,8 @@ export function useDdrs(status?: string) {
     queryKey: ['ddr', status ?? 'all'],
     queryFn: () => apiFetch<DueDateRequest[]>('/ddr', { params: status ? { status } : undefined }),
     staleTime: 15_000,
+    // P12 hotfix: an assigner watching for new due-date requests to review.
+    refetchInterval: 60_000,
   });
 }
 

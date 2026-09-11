@@ -46,6 +46,8 @@ export function useRegistrations(enabled = true) {
     queryKey: ['registrations'],
     queryFn: () => apiFetch<RegistrationRequest[]>('/users/registrations'),
     enabled,
+    // P12 hotfix: approval queue — a manager watching for new registration requests.
+    refetchInterval: 60_000,
   });
 }
 
@@ -54,6 +56,8 @@ export function useProfileRequests(enabled = true) {
     queryKey: ['profile-requests'],
     queryFn: () => apiFetch<ProfileUpdateRequest[]>('/users/profile-requests'),
     enabled,
+    // P12 hotfix: approval queue — a manager watching for new profile-update requests.
+    refetchInterval: 60_000,
   });
 }
 

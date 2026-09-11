@@ -9,6 +9,8 @@ export function useDashboard() {
     queryKey: ['dashboard'],
     queryFn: () => apiFetch<DashboardData>('/dashboard'),
     staleTime: 30_000,
+    // P12 hotfix: scoreboard/counts reflect everyone's activity, not just your own.
+    refetchInterval: 60_000,
   });
 }
 

@@ -16,7 +16,13 @@ export function useMyLeaves() {
 }
 
 export function usePendingLeaves() {
-  return useQuery({ queryKey: ['leaves', 'pending'], queryFn: () => apiFetch<Leave[]>('/leaves/pending') });
+  return useQuery({
+    queryKey: ['leaves', 'pending'],
+    queryFn: () => apiFetch<Leave[]>('/leaves/pending'),
+    // P12 hotfix: Leave Approvals — a manager watching for new requests to appear
+    // without having to switch tabs or manually refresh.
+    refetchInterval: 60_000,
+  });
 }
 
 export function useHolidays() {

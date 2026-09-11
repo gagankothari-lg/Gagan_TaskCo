@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
-        defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
+        defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true } },
       }),
   );
 

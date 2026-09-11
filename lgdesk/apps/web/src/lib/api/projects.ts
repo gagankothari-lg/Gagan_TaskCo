@@ -33,6 +33,8 @@ export function useProjects(scope?: ProjectScope) {
     queryKey: ['projects', scope ?? 'default'],
     queryFn: () => apiFetch<Project[]>(path(scope)),
     staleTime: 15_000,
+    // P12 hotfix: see tasks.ts's useTasks for the same rationale.
+    refetchInterval: 60_000,
   });
 }
 
