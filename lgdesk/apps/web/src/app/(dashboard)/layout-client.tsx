@@ -443,9 +443,24 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           gap: 16, padding: '0 16px', color: '#fff', transition: 'left 0.15s ease',
         }}
       >
+        <button
+          onClick={() => setMobNavOpen(true)}
+          aria-label="Open menu"
+          title="Open menu"
+          className="flex md:hidden"
+          style={{
+            alignItems: 'center', justifyContent: 'center', width: 40, height: 40,
+            background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 12,
+            cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          <Icon name="menu" size={20} />
+        </button>
+
         {/* PNAV-HEADER-RELOCATE: the current page's title/subtitle (and, on Tasks/
             Projects, the My/Team/All ScopeTabs) now render here instead of in the page
-            body -- this replaces the old mobile-only hamburger button entirely. */}
+            body. (This moved the page *title* into the header; it did not remove the
+            mobile hamburger above, which still opens the sidebar drawer separately.) */}
         {pageHeader && (
           <div style={{ minWidth: 0, overflow: 'hidden' }}>
             <div className="hdr-page-title">{pageHeader.title}</div>
