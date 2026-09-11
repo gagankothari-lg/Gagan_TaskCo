@@ -36,7 +36,7 @@ function Node({ node, depth, onSelect, selectedId }: { node: TreeNode; depth: nu
       <div
         className={[
           'flex items-center gap-1.5 rounded-[8px] border px-2 py-1.5 transition-colors',
-          selectedId === node.functionId ? 'border-[var(--p)] bg-[var(--p3)]' : 'border-transparent hover:bg-[var(--p3)]',
+          selectedId === node.functionId ? 'border-[var(--p)] bg-[var(--hover-tint)]' : 'border-transparent hover:bg-[var(--hover-tint)]',
         ].join(' ')}
         style={{ marginLeft: depth * 16 }}
       >
@@ -52,7 +52,7 @@ function Node({ node, depth, onSelect, selectedId }: { node: TreeNode; depth: nu
           <span className="font-mono text-xs text-[var(--muted)]">{node.functionId}</span>
           <span className="truncate text-sm text-[var(--text)]">{node.name}</span>
           {hasChildren && (
-            <span className="ml-auto rounded-[9999px] bg-[var(--p3)] px-1.5 text-[10px] text-[var(--muted)]">{node.children.length}</span>
+            <span className="ml-auto rounded-[9999px] bg-[var(--p3)] px-1.5 text-[10px] text-[var(--p)]">{node.children.length}</span>
           )}
           {node.deadline && (
             <span className="shrink-0 text-xs text-[var(--muted)]">{new Date(node.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>

@@ -33,8 +33,8 @@ function TypeBar({ meetType, team }: { meetType: 'company' | 'team' | 'custom'; 
   if (meetType === 'custom') return null;
   const style =
     meetType === 'company'
-      ? { background: '#e3f2fd', color: '#1565c0' }
-      : { background: '#e8f5e9', color: '#2e7d32' };
+      ? { background: 'var(--info-bg)', color: 'var(--info-text)' }
+      : { background: 'var(--alert-ok-bg)', color: 'var(--ok)' };
   const icon = meetType === 'company' ? 'corporate_fare' : 'groups';
   const text =
     meetType === 'company'
@@ -109,7 +109,7 @@ export function ScheduleMeetingModal({
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
       {created ? (
         // Inline success banner — reference `.meet-banner` / `.meet-banner-link`.
-        <div style={{ padding: '16px 20px', borderRadius: 10, background: '#e8f5e9', border: '1px solid #a5d6a7' }}>
+        <div style={{ padding: '16px 20px', borderRadius: 10, background: 'var(--alert-ok-bg)', border: '1px solid var(--alert-ok-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: 'var(--ok)' }}>
             <Icon name="check_circle" size={18} /> Meeting scheduled successfully.
           </div>
@@ -226,7 +226,7 @@ export function ScheduleMeetingModal({
                 )}
               </div>
 
-              {error && <div className="mt-3 rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
+              {error && <div className="mt-3 rounded-[8px] border border-danger/40 bg-[var(--alert-danger-bg)] px-3 py-2 text-sm text-danger">{error}</div>}
 
               <div className="mt-4 flex justify-end gap-2">
                 <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>

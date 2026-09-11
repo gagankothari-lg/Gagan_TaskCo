@@ -41,7 +41,7 @@ export function EmployeeMultiSelect({ selected, onChange }: { selected: string[]
           <p className="px-2 py-2 text-xs text-muted">No matches</p>
         ) : (
           filtered.map((e) => (
-            <label key={e.empId} className="flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-sm text-text hover:bg-p3">
+            <label key={e.empId} className="flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-sm text-text hover:bg-[var(--hover-tint)]">
               <input type="checkbox" checked={selected.includes(e.empId)} onChange={() => toggle(e.empId)} className="accent-p" />
               <span className="truncate">{e.firstName} {e.lastName}</span>
               {e.team && <span className="ml-auto truncate text-xs text-muted">{e.team}</span>}

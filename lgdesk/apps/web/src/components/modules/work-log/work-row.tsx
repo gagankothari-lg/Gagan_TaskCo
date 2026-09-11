@@ -502,7 +502,7 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
           {isManager ? (
             <select
               id={`wl-st-${dateIso}`} className="wl-inp wl-status-sel"
-              style={{ borderColor: '#fed7aa', background: '#fffbeb' }}
+              style={{ borderColor: 'var(--admin-field-border)', background: 'var(--admin-field-bg)' }}
               value={status ?? ''} onChange={(e) => onStatusChange(e.target.value)}
             >
               {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s || '—'}</option>)}
@@ -523,7 +523,7 @@ export const WorkRow = forwardRef<WorkRowHandle, WorkRowProps>(function WorkRow(
                   <FormControl>
                     <input
                       id={`wl-ac-${dateIso}`} className="wl-inp wl-admin-inp"
-                      style={{ borderColor: '#fed7aa', background: '#fffbeb' }}
+                      style={{ borderColor: 'var(--admin-field-border)', background: 'var(--admin-field-bg)' }}
                       placeholder="Admin notes…" {...field}
                       onBlur={(e) => { field.onBlur(); onCommentsBlur(e.target.value); }}
                     />

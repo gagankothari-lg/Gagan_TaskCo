@@ -105,7 +105,7 @@ function MyLeavesSection() {
       )}
 
       <div className="mt-6">
-        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-text"><Icon name="calendar_month" size={15} className="text-p" /> Upcoming holidays</h2>
+        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-text"><Icon name="calendar_month" size={15} className="text-[var(--p-fg)]" /> Upcoming holidays</h2>
         {upcoming.length === 0 ? (
           <p className="text-sm text-muted">No upcoming holidays.</p>
         ) : (
@@ -113,7 +113,7 @@ function MyLeavesSection() {
             {upcoming.map((h) => (
               <div key={h.id} className="mb-2 flex items-center justify-between gap-2.5 rounded-[8px] bg-p3 px-3.5 py-2.5">
                 <span className="min-w-[80px] text-[11px] font-bold text-p">{fmtLong(h.date)}</span>
-                <span className="flex-1 text-[13px] font-semibold text-text">{h.name}</span>
+                <span className="flex-1 text-[13px] font-semibold text-[var(--p)]">{h.name}</span>
               </div>
             ))}
           </div>

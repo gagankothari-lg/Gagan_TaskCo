@@ -205,7 +205,7 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
                       {m.managerId ? nameFor(m.managerId, employees) : '—'}
                     </TableCell>
                     <TableCell>
-                      <span className={open > 0 ? 'font-bold text-p' : 'text-muted'}>{open}</span>
+                      <span className={open > 0 ? 'font-bold text-[var(--p-fg)]' : 'text-muted'}>{open}</span>
                     </TableCell>
                     <TableCell>
                       {showChangeRole ? (

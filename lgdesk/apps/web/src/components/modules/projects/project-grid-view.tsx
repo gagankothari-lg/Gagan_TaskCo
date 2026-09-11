@@ -139,7 +139,7 @@ export function ProjectGridView({ scope, title, subtitle, showTeamTabs, showSear
               id="scope-all-prj"
               value={scopeTeam}
               onChange={(e) => setScopeTeam(e.target.value)}
-              className="cursor-pointer rounded-[4px] border-none bg-transparent px-1 py-0.5 text-xs font-semibold text-p outline-none"
+              className="cursor-pointer rounded-[4px] border-none bg-transparent px-1 py-0.5 text-xs font-semibold text-[var(--p-fg)] outline-none"
             >
               <option value="">Organization (All Teams)</option>
               {teams.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -287,7 +287,7 @@ function ProjectGroupBlock({ parent, subProjects, onEdit }: { parent: Project; s
         <Icon name="folder_open" size={20} className="mt-0.5 shrink-0 text-p2" />
         <div className="min-w-0 flex-1">
           <div className="mb-0.5 flex flex-wrap items-center gap-1.5">
-            <span className="truncate text-[15px] font-bold text-p">{parent.name}</span>
+            <span className="truncate text-[15px] font-bold text-[var(--p-fg)]">{parent.name}</span>
             <span className="rounded-[9999px] bg-p3 px-2 py-0.5 text-[10px] font-semibold text-p">{subProjects.length} sub-project{subProjects.length === 1 ? '' : 's'}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-muted">
@@ -297,7 +297,7 @@ function ProjectGroupBlock({ parent, subProjects, onEdit }: { parent: Project; s
             <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${completion}%`, background: barColor }} />
           </div>
         </div>
-        <button type="button" onClick={() => onEdit(parent.projId)} className="flex shrink-0 items-center gap-1 rounded-[6px] px-2 py-1 text-xs text-muted hover:bg-surface hover:text-p">
+        <button type="button" onClick={() => onEdit(parent.projId)} className="flex shrink-0 items-center gap-1 rounded-[6px] px-2 py-1 text-xs text-muted hover:bg-surface hover:text-[var(--p-fg)]">
           <Icon name="edit" size={13} /> Edit parent
         </button>
       </div>
@@ -354,7 +354,7 @@ function ProjectSubCard({ project, onEdit }: { project: Project; onEdit: () => v
         {(canEdit || canDelete) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button type="button" className="shrink-0 rounded-[6px] p-0.5 text-muted2 hover:bg-bg hover:text-p" title="More actions" aria-label="More actions">
+              <button type="button" className="shrink-0 rounded-[6px] p-0.5 text-muted2 hover:bg-bg hover:text-[var(--p-fg)]" title="More actions" aria-label="More actions">
                 <Icon name="more_vert" size={14} />
               </button>
             </DropdownMenuTrigger>

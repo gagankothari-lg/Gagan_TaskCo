@@ -124,7 +124,7 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
             )}
             <div className="flex shrink-0 items-center gap-1">
               {!isLoading && task && canEdit && (
-                <button type="button" onClick={() => setEditOpen(true)} aria-label="Edit task" className="rounded-[6px] p-1.5 text-muted hover:bg-bg hover:text-p">
+                <button type="button" onClick={() => setEditOpen(true)} aria-label="Edit task" className="rounded-[6px] p-1.5 text-muted hover:bg-bg hover:text-[var(--p-fg)]">
                   <Icon name="edit" size={16} />
                 </button>
               )}
@@ -140,7 +140,7 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
           </DialogHeader>
 
           {isLoading || !task ? (
-            <div className="flex items-center justify-center px-5 py-10 text-p"><Spinner size={24} /></div>
+            <div className="flex items-center justify-center px-5 py-10 text-[var(--p-fg)]"><Spinner size={24} /></div>
           ) : (
             <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
               {/* Info strip */}
@@ -174,14 +174,14 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                   {fn && (
                     <div className="rounded-[8px] border border-border bg-bg p-2.5">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Function</p>
-                      <button type="button" onClick={() => setOpenFunctionId(fn.functionId)} className="block w-full truncate text-left text-sm font-semibold text-p hover:underline">{fn.name}</button>
+                      <button type="button" onClick={() => setOpenFunctionId(fn.functionId)} className="block w-full truncate text-left text-sm font-semibold text-[var(--p-fg)] hover:underline">{fn.name}</button>
                       {fn.description && <p className="mt-0.5 text-xs text-muted">{truncate(fn.description, 120)}</p>}
                     </div>
                   )}
                   {subFn && (
                     <div className="rounded-[8px] border border-border bg-bg p-2.5">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Sub-Function</p>
-                      <button type="button" onClick={() => setOpenFunctionId(subFn.functionId)} className="block w-full truncate text-left text-sm font-semibold text-p hover:underline">{subFn.name}</button>
+                      <button type="button" onClick={() => setOpenFunctionId(subFn.functionId)} className="block w-full truncate text-left text-sm font-semibold text-[var(--p-fg)] hover:underline">{subFn.name}</button>
                       {subFn.description && <p className="mt-0.5 text-xs text-muted">{truncate(subFn.description, 120)}</p>}
                     </div>
                   )}
@@ -243,7 +243,7 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                 ) : (
                   <div className="flex flex-col gap-1">
                     {links.map((l) => (
-                      <a key={l} href={l} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 truncate text-sm text-p hover:underline">
+                      <a key={l} href={l} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 truncate text-sm text-[var(--p-fg)] hover:underline">
                         <Icon name="link" size={13} /> {l}
                       </a>
                     ))}
@@ -343,10 +343,10 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs uppercase tracking-wide text-muted">Attachments {attCount > 0 && `(${attCount})`}</p>
                   <div className="flex gap-1">
-                    <button type="button" onClick={() => toast('Attachments require Google Drive credentials (coming soon).', 'info')} className="rounded-[6px] p-1.5 text-muted hover:bg-bg hover:text-p" title="Attach file">
+                    <button type="button" onClick={() => toast('Attachments require Google Drive credentials (coming soon).', 'info')} className="rounded-[6px] p-1.5 text-muted hover:bg-bg hover:text-[var(--p-fg)]" title="Attach file">
                       <Icon name="attach_file" size={15} />
                     </button>
-                    <button type="button" onClick={() => toast('Voice notes are not yet available.', 'info')} className="rounded-[6px] p-1.5 text-muted hover:bg-bg hover:text-p" title="Record audio">
+                    <button type="button" onClick={() => toast('Voice notes are not yet available.', 'info')} className="rounded-[6px] p-1.5 text-muted hover:bg-bg hover:text-[var(--p-fg)]" title="Record audio">
                       <Icon name="videocam" size={15} />
                     </button>
                   </div>

@@ -83,9 +83,9 @@ export default function MisReportPage() {
   return (
     <div className="p-6">
       <div className="ph-actions ph-actions-solo">
-        <button onClick={() => setAnchor((a) => addDays(a, -7))} aria-label="Previous week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_left" size={16} /></button>
-        <button onClick={() => setAnchor(new Date())} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-p3">This week</button>
-        <button onClick={() => setAnchor((a) => addDays(a, 7))} aria-label="Next week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_right" size={16} /></button>
+        <button onClick={() => setAnchor((a) => addDays(a, -7))} aria-label="Previous week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-[var(--hover-tint)]"><Icon name="chevron_left" size={16} /></button>
+        <button onClick={() => setAnchor(new Date())} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-[var(--hover-tint)]">This week</button>
+        <button onClick={() => setAnchor((a) => addDays(a, 7))} aria-label="Next week" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-[var(--hover-tint)]"><Icon name="chevron_right" size={16} /></button>
         <div className="text-sm font-semibold text-text">
           {mondayOf(anchor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
         </div>

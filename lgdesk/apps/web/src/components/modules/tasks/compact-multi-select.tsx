@@ -143,7 +143,7 @@ export function CompactMultiSelect({ options, selectedIds, onChange, placeholder
                   <div
                     key={o.id}
                     onClick={() => toggleId(o.id)}
-                    className="flex cursor-pointer select-none items-center gap-[7px] px-[10px] py-[5px] text-[12px] transition-colors duration-75 hover:bg-p3"
+                    className="flex cursor-pointer select-none items-center gap-[7px] px-[10px] py-[5px] text-[12px] transition-colors duration-75 hover:bg-[var(--hover-tint)]"
                   >
                     {/* .ts-ims-opt-dot */}
                     <span

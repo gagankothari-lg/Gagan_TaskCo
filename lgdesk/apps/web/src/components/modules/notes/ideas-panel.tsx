@@ -172,7 +172,7 @@ export function IdeasPanel() {
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-text">{idea.title || 'Untitled'}</span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button type="button" className="rounded-[6px] p-1 text-muted hover:bg-bg hover:text-p" aria-label="More actions">
+                          <button type="button" className="rounded-[6px] p-1 text-muted hover:bg-bg hover:text-[var(--p-fg)]" aria-label="More actions">
                             <Icon name="more_vert" size={16} />
                           </button>
                         </DropdownMenuTrigger>

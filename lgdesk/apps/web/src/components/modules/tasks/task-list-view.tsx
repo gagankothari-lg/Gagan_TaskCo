@@ -79,7 +79,7 @@ function sortValue(t: Task, field: SortField, functions: WorkFunction[], employe
 // attached to the dead <thead> the JS deletes at runtime; the live per-group table CSS,
 // `_tskGrpInjectCss`, app.js.html:5046-5101, has zero `position:sticky` rules).
 const thStyle: CSSProperties = {
-  background: '#f7f8fb', color: 'var(--muted)',
+  background: 'var(--bg)', color: 'var(--muted)',
   textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 10.5, fontWeight: 700,
   padding: '7px 8px', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)',
 };
@@ -430,7 +430,7 @@ export function TaskListView({ scope, title, subtitle, showOwnershipTabs, showTe
           <div>
             <Bucket icon="warning" color="var(--danger)" label="Overdue" list={buckets.overdue} />
             <Bucket icon="today" color="var(--warn)" label="Today" list={buckets.today} />
-            <Bucket icon="date_range" color="#1565c0" label="This week" list={buckets.thisWeek} />
+            <Bucket icon="date_range" color="var(--info-text)" label="This week" list={buckets.thisWeek} />
             <Bucket icon="calendar_month" color="var(--muted)" label="Next week" list={buckets.nextWeek} />
             <Bucket icon="schedule" color="var(--muted)" label="Later" list={buckets.later} />
             <Bucket icon="calendar_off" color="var(--muted2)" label="No due date" list={buckets.noDue} />
@@ -490,9 +490,9 @@ function FunctionGroup({ name, list, mountCount, sort, onSort, onOpen, onEdit }:
   return (
     <>
       <tr>
-        <td colSpan={TOTAL_COLS} style={{ background: '#f0f2f5', borderLeft: '4px solid #1a237e', padding: '10px 14px' }}>
+        <td colSpan={TOTAL_COLS} style={{ background: 'var(--bg)', borderLeft: '4px solid var(--p)', padding: '10px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 9, color: '#9e9e9e', textTransform: 'uppercase', letterSpacing: 0.5 }}>Function</span>
+            <span style={{ fontSize: 9, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Function</span>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{name}</span>
             <span style={{ marginLeft: 'auto', background: '#e8eaf6', color: '#1a237e', fontSize: 11, padding: '2px 8px', borderRadius: 3 }}>{list.length}</span>
           </div>
@@ -513,7 +513,7 @@ function FunctionGroup({ name, list, mountCount, sort, onSort, onOpen, onEdit }:
             )}
           </th>
         ))}
-        <th style={{ ...thStyle, ...actionsCellStyle('#f7f8fb'), width: 34 }} />
+        <th style={{ ...thStyle, ...actionsCellStyle('var(--bg)'), width: 34 }} />
       </tr>
       {visible.map((t) => <TaskRow key={t.taskId} task={t} onOpen={onOpen} onEdit={onEdit} />)}
     </>

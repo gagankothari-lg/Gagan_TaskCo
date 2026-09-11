@@ -113,7 +113,7 @@ export function WeeklySummaryModal({ open, onClose, weekLabel, weekStart }: { op
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <button className="btn btn-sm" style={{ background: 'var(--p)', color: '#fff' }} onClick={() => confirm(i)} title="Save"><Icon name="check" size={15} /></button>
                         <button className="btn btn-ghost btn-sm" onClick={() => cancel(i)} title="Cancel"><Icon name="undo" size={15} /></button>
-                        <button className="btn btn-sm" style={{ background: 'transparent', color: '#dc2626', border: '1px solid #fca5a5' }} onClick={() => remove(i)} title="Delete"><Icon name="delete" size={15} /></button>
+                        <button className="btn btn-sm" style={{ background: 'transparent', color: 'var(--danger)', border: '1px solid var(--danger)' }} onClick={() => remove(i)} title="Delete"><Icon name="delete" size={15} /></button>
                       </div>
                     </div>
                   ) : (

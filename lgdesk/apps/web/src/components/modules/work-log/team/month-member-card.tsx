@@ -40,7 +40,7 @@ export function MonthMemberCard({ row, team, periodDays, onClick }: MonthMemberC
   const workDays = Math.max(0, periodDays - offDays);
   const submitted = row.P + row.EF + row.EH + row.LF + row.LH;
   const pct = workDays > 0 ? Math.round((submitted / workDays) * 100) : 0;
-  const barColor = pct >= 80 ? '#2e7d32' : pct >= 50 ? '#e65100' : '#c62828';
+  const barColor = pct >= 80 ? 'var(--ok)' : pct >= 50 ? 'var(--warn)' : 'var(--danger)';
 
   return (
     <div className="tlm-card" onClick={onClick}>

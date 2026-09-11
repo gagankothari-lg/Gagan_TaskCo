@@ -147,7 +147,7 @@ export function SubmitLeaveModal({ open, onClose }: { open: boolean; onClose: ()
                   )}
                 />
               </div>
-              <p className="text-xs font-semibold text-p">Days: {days} {days === 1 ? 'day' : 'days'}</p>
+              <p className="text-xs font-semibold text-[var(--p-fg)]">Days: {days} {days === 1 ? 'day' : 'days'}</p>
               {endBeforeStart && (
                 <p className="text-sm text-danger">⚠ End date must be on or after start date</p>
               )}

@@ -274,13 +274,13 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
             {tab === 'sheet' ? (
               <Form {...sheetForm}>
                 <form onSubmit={sheetForm.handleSubmit(onPreviewSheet)}>
-                  <div style={{ background: '#e3f2fd', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#1565c0', marginBottom: 16, lineHeight: 1.5 }}>
+                  <div style={{ background: 'var(--info-bg)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--info-text)', marginBottom: 16, lineHeight: 1.5 }}>
                     Make sure the sheet is set to
                     &ldquo;anyone with the link (Viewer)&rdquo;. If you can&apos;t share it, use the{' '}
                     <button
                       type="button"
                       onClick={() => setTab('csv')}
-                      style={{ background: 'none', border: 'none', padding: 0, color: '#3949ab', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                      style={{ background: 'none', border: 'none', padding: 0, color: 'var(--p2)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
                     >
                       Upload CSV
                     </button>{' '}
@@ -336,7 +336,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                   </div>
 
                   {error && (
-                    <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
+                    <div style={{ background: 'var(--alert-danger-bg)', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
                   )}
 
                   <button type="submit" className="btn btn-primary btn-full" disabled={previewing}>
@@ -347,7 +347,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
             ) : (
               <Form {...csvForm}>
                 <form onSubmit={csvForm.handleSubmit(onPreviewCsv)}>
-                  <div style={{ background: '#e3f2fd', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#1565c0', marginBottom: 16, lineHeight: 1.5 }}>
+                  <div style={{ background: 'var(--info-bg)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--info-text)', marginBottom: 16, lineHeight: 1.5 }}>
                     Download your sheet as CSV: <strong>File → Download → Comma-separated values (.csv)</strong>, then upload it here.
                   </div>
 
@@ -418,7 +418,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                   />
 
                   {error && (
-                    <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
+                    <div style={{ background: 'var(--alert-danger-bg)', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
                   )}
 
                   <button type="submit" className="btn btn-primary btn-full" disabled={previewing}>
@@ -442,11 +442,11 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               </div>
 
               {error && (
-                <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
+                <div style={{ background: 'var(--alert-danger-bg)', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>
               )}
 
               {(unmatchedAssigners.length > 0 || unmatchedAssignees.length > 0) && (
-                <div style={{ background: '#fff3e0', color: '#e65100', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>
+                <div style={{ background: 'var(--alert-warn-bg)', color: 'var(--warn)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 4 }}>
                     <Icon name="warning" size={15} />
                     Some names in this file didn&apos;t match an active employee
@@ -464,7 +464,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               <div style={{ maxHeight: 420, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                   <thead>
-                    <tr style={{ background: '#3949ab', color: '#fff', position: 'sticky', top: 0 }}>
+                    <tr style={{ background: 'var(--p2)', color: '#fff', position: 'sticky', top: 0 }}>
                       <th style={{ padding: '8px 10px', textAlign: 'left' }}></th>
                       <th style={{ padding: '8px 10px', textAlign: 'left' }}>TYPE</th>
                       <th style={{ padding: '8px 10px', textAlign: 'left' }}>FUNCTION</th>
@@ -483,7 +483,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                       const pStyle = statusPillStyle(row.status ?? '');
                       const priorityColor = row.priority ? (PRIORITY_COLOR[row.priority] ?? '#757575') : '#757575';
                       return (
-                        <tr key={i} style={{ borderTop: '1px solid var(--border)', background: row.selected ? 'transparent' : 'rgba(0,0,0,0.02)' }}>
+                        <tr key={i} style={{ borderTop: '1px solid var(--border)', background: row.selected ? 'transparent' : 'var(--row-dim-tint)' }}>
                           <td style={{ padding: '8px 10px' }}>
                             <input type="checkbox" checked={row.selected} onChange={() => toggleRow(i)} style={{ accentColor: 'var(--p)' }} />
                           </td>
@@ -558,7 +558,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)', textTransform: 'uppercase', letterSpacing: '.03em', marginBottom: 6 }}>
                     {execResult.errors.length} row{execResult.errors.length === 1 ? '' : 's'} failed
                   </div>
-                  <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--danger)', borderRadius: 8, background: '#fce8e8' }}>
+                  <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--danger)', borderRadius: 8, background: 'var(--alert-danger-bg)' }}>
                     <ul style={{ margin: 0, padding: '8px 12px 8px 28px', listStyle: 'disc' }}>
                       {execResult.errors.map((e, i) => (
                         <li key={i} style={{ fontSize: 12.5, color: 'var(--danger)', padding: '2px 0' }}>{e}</li>
@@ -573,7 +573,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--warn)', textTransform: 'uppercase', letterSpacing: '.03em', marginBottom: 6 }}>
                     {execResult.warnings.length} warning{execResult.warnings.length === 1 ? '' : 's'}
                   </div>
-                  <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--warn)', borderRadius: 8, background: '#fff3e0' }}>
+                  <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--warn)', borderRadius: 8, background: 'var(--alert-warn-bg)' }}>
                     <ul style={{ margin: 0, padding: '8px 12px 8px 28px', listStyle: 'disc' }}>
                       {execResult.warnings.map((w, i) => (
                         <li key={i} style={{ fontSize: 12.5, color: 'var(--warn)', padding: '2px 0' }}>{w}</li>

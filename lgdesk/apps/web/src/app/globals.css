@@ -14,6 +14,15 @@
   --p:       #1a237e;   /* header bg, active nav, primary buttons, stat-card border */
   --p2:      #3949ab;   /* focus rings, project-card border, progress bars */
   --p3:      #e8eaf6;   /* active nav bg, hover bg, chips */
+
+  /* PDARKMODE: --p and --p3 each do two jobs that need to diverge in dark mode --
+     an opaque background (buttons, table headers, pill/chip/badge fills) that's fine
+     unchanged, and a text-color-on-surface / hover-tint-on-surface job that isn't. These
+     two new tokens exist ONLY for that second job; --p/--p3 themselves are untouched so
+     the fixed GAS-parity pill/badge palette (status-styles.ts, .pill- and .badge- classes) and
+     avatar-colors.ts never move between themes, per that file's own header comments. */
+  --p-fg:       var(--p);    /* "primary as foreground" — text/border sitting on --surface/--bg */
+  --hover-tint: var(--p3);   /* subtle indigo hover/active wash — NOT the pill/badge --p3 job */
   --accent:  #00897b;   /* avatar bg, accent buttons, Team Member role pill */
   --danger:  #c62828;
   --warn:    #e65100;
@@ -25,6 +34,56 @@
   --muted:   #757575;   /* secondary / label / subtitle text */
   --muted2:  #9e9e9e;   /* tertiary text — IDs, faint labels */
   --muted-foreground: var(--muted); /* shadcn alias so text-muted-foreground resolves (was a no-op) */
+
+  /* PDARKMODE: one-off coordinated color trio for the sidebar's "Import Tasks" CTA
+     button (layout-client.tsx) — a decorative peach/rust highlight with no other
+     reuse in the codebase, so it gets its own small token set rather than being
+     folded into --p/--p3's job (it isn't a hover/pill/text-on-surface case). */
+  --import-btn-bg:   #faece7;
+  --import-btn-text: #28384a;
+  --import-btn-icon: #993c1d;
+
+  /* PDARKMODE: meetings/page.tsx's two admin/manager "meeting template" CTA cards
+     (Company Meeting = blue, Team Meeting = green) — one-off pastel card branding,
+     unrelated to status-styles.ts despite superficially similar hues. Only the pale
+     card bg/border/icon/title need a dark counterpart; the small solid-color "Admin
+     & Founders only"/"Managers & above" badges keep working unchanged in both themes
+     (solid saturated bg + white text needs no inversion) so aren't tokenized here. */
+  --mtg-co-bg:     #e3f2fd;
+  --mtg-co-border: #90caf9;
+  --mtg-co-icon:   #1565c0;
+  --mtg-co-title:  #0d47a1;
+  --mtg-team-bg:     #e8f5e9;
+  --mtg-team-border: #a5d6a7;
+  --mtg-team-title:  #1b5e20;
+
+  /* PDARKMODE: org-chart/page.tsx's root "Leveraged Growth" company card — a fixed
+     teal-accent one-off (`.oc-root-card`), not the per-team TEAM_COLORS palette
+     (which is genuinely parity-mandated and untouched). Only the pale bg/border
+     need a dark counterpart; the solid teal left-border stays as-is in both themes. */
+  --oc-root-bg:     #f0fdfc;
+  --oc-root-border: #b2dfdb;
+
+  /* PDARKMODE: generic info/alert banner washes — reused across import-modal.tsx,
+     schedule-meeting-modal.tsx and similar "tip"/error/warning/success banners.
+     Distinct from status-styles.ts's protected pill palette even where the light-
+     mode hex coincides: these are alert-banner treatments meant to adapt with the
+     theme, not fixed per-status pill colors. */
+  --info-bg:         #e3f2fd;
+  --info-text:       #1565c0;
+  --alert-danger-bg: #fce8e8;
+  --alert-warn-bg:   #fff3e0;
+  --alert-ok-bg:     #e8f5e9;
+  --alert-ok-border: #a5d6a7;
+  --row-dim-tint:    rgba(0,0,0,0.02);
+
+  /* PDARKMODE: work-row.tsx's amber "this is a manager-only field" highlight
+     (wl-status-sel / wl-admin-inp) — a UI affordance, not GAS-parity attendance
+     data (unlike WL_ATTENDANCE_STYLES/CHIP_STYLE in that same file, which stay
+     fixed). Needs a dark counterpart so the light amber fill doesn't look like a
+     stray highlighted rectangle on a dark row. */
+  --admin-field-bg:     #fffbeb;
+  --admin-field-border: #fed7aa;
 
   --sidebar-width:     230px; /* default sidebar width (drag-resize 180-400px deferred to a later phase) */
   --sidebar-collapsed: 54px;  /* collapsed sidebar width */
@@ -53,6 +112,61 @@
   --ring:                     var(--p2);
   --radius:                   var(--r);
 }
+
+/* PDARKMODE: sidebar + main-content-area dark palette, toggled via the `.dark` class
+   next-themes applies to <html>. Deliberately does NOT override --p/--p2/--p3/--accent/
+   --danger/--warn/--ok — those stay identical in both themes (GAS-parity pill/badge
+   colors, avatar colors, and the dark-navy header bar are all fixed regardless of theme
+   per this feature's own scope). Only the neutral surface/text/border scale and the two
+   new --p-fg/--hover-tint tokens actually change. */
+.dark {
+  --bg:      #10131c;
+  --surface: #1b1f2d;
+  --border:  #2d3348;
+  --text:    #e8eaf0;
+  --muted:   #9aa0b8;
+  --muted2:  #6d7390;
+  --muted-foreground: var(--muted);
+
+  --p-fg:       #8c9eff;                    /* lighter indigo — readable on the dark surface above */
+  --hover-tint: rgba(140, 158, 255, 0.14);  /* same lighter indigo, low-alpha wash */
+
+  --import-btn-bg:   rgba(153, 60, 29, 0.18);
+  --import-btn-text: #f4c9b0;
+  --import-btn-icon: #e2895f;
+
+  --mtg-co-bg:     rgba(21, 101, 192, 0.15);
+  --mtg-co-border: rgba(144, 202, 249, 0.35);
+  --mtg-co-icon:   #64b5f6;
+  --mtg-co-title:  #90caf9;
+  --mtg-team-bg:     rgba(46, 125, 50, 0.15);
+  --mtg-team-border: rgba(165, 214, 167, 0.35);
+  --mtg-team-title:  #81c784;
+
+  --oc-root-bg:     rgba(38, 166, 154, 0.12);
+  --oc-root-border: rgba(178, 223, 219, 0.3);
+
+  --info-bg:         rgba(21, 101, 192, 0.15);
+  --info-text:       #64b5f6;
+  --alert-danger-bg: rgba(198, 40, 40, 0.18);
+  --alert-warn-bg:   rgba(230, 81, 0, 0.18);
+  --alert-ok-bg:     rgba(46, 125, 50, 0.18);
+  --alert-ok-border: rgba(165, 214, 167, 0.35);
+  --row-dim-tint:    rgba(255, 255, 255, 0.03);
+
+  --admin-field-bg:     rgba(217, 119, 6, 0.12);
+  --admin-field-border: rgba(253, 186, 116, 0.4);
+}
+
+/* One-off decorative literals below aren't reused elsewhere, so they get a direct .dark
+   override instead of a new token. .wl-row-future's opacity-based dimming and the toast
+   colors (already dark, floats over content) are theme-agnostic and left untouched. */
+.dark .sk-row, .dark .sk-card {
+  background: linear-gradient(90deg, #262b3d 25%, #323850 50%, #262b3d 75%);
+  background-size: 200% 100%;
+}
+.dark .wl-row-wknd  { background: #1a1e2c; }
+.dark .wl-row-leave { background: #2a1d24; }
 
 * { box-sizing: border-box; }
 
@@ -83,7 +197,7 @@ body {
 .btn:hover { filter: brightness(0.92); }
 .btn-primary { background: var(--p); color: #fff; }
 .btn-accent  { background: var(--accent); color: #fff; }
-.btn-outline { background: transparent; color: var(--p); border: 1.5px solid var(--p); }
+.btn-outline { background: transparent; color: var(--p-fg); border: 1.5px solid var(--p-fg); }
 .btn-danger  { background: var(--danger); color: #fff; }
 .btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
 .btn-sm      { padding: 5px 12px; font-size: 12px; }
@@ -133,7 +247,7 @@ body {
   padding: 20px;
 }
 .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
-.stat-val   { font-size: 30px; font-weight: 700; color: var(--p); line-height: 1.2; }
+.stat-val   { font-size: 30px; font-weight: 700; color: var(--p-fg); line-height: 1.2; }
 .stat-sub   { font-size: 12px; color: var(--muted2); margin-top: 4px; }
 
 .task-card  { background: var(--surface); border-radius: var(--r); box-shadow: var(--sh); padding: 14px 16px; border-left: 3px solid var(--border); }
@@ -239,7 +353,7 @@ thead th {
 }
 tbody tr { border-bottom: 1px solid var(--border); }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: var(--p3); }
+tbody tr:hover { background: var(--hover-tint); }
 tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 
 /* ── NAV SECTION ─────────────────────────────────────── */
@@ -258,10 +372,10 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
   cursor: pointer; border-left: 3px solid transparent;
   transition: background 0.1s;
 }
-.nav-item:hover { background: var(--p3); }
+.nav-item:hover { background: var(--hover-tint); }
 .nav-item.active {
-  background: var(--p3); border-left-color: var(--p);
-  color: var(--p); font-weight: 600;
+  background: var(--hover-tint); border-left-color: var(--p);
+  color: var(--p-fg); font-weight: 600;
 }
 .nav-icon { display: flex; align-items: center; color: inherit; opacity: 0.7; }
 .nav-item.active .nav-icon { opacity: 1; }
@@ -346,7 +460,7 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 .wl-week-table { width: 100%; border-collapse: collapse; }
 .wl-week-table th { background: var(--p); color: #fff; font-size: 12px; font-weight: 600; padding: 8px 10px; white-space: nowrap; }
 .wl-week-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
-.wl-row-today { background: #e8eaf6 !important; }
+.wl-row-today { background: var(--hover-tint) !important; }
 .wl-row-wknd  { background: #fafafa; }
 .wl-row-leave { background: #fff3f3; }
 .wl-row-future { opacity: 0.6; }
@@ -373,7 +487,7 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 .tl-tabs { display: flex; gap: 4px; }
 .tl-tab { padding: 6px 14px; border-radius: var(--r); border: 1px solid var(--border); font-size: 12px; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted); }
 .tl-tab.active { background: var(--p); color: #fff; border-color: var(--p); }
-.tl-tab:not(.active):hover { background: var(--p3); color: var(--p); border-color: var(--p2); }
+.tl-tab:not(.active):hover { background: var(--hover-tint); color: var(--p-fg); border-color: var(--p2); }
 
 /* ── SCOPE TABS (My/Team/All, e.g. Tasks/Projects) ──────
    Deliberately a bolder, single-bordered segmented control -- visually distinct from
@@ -396,14 +510,14 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 .tlm-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; }
 .tlm-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .tlm-team { font-size: 11px; color: var(--muted); }
-.tlm-hours { font-size: 22px; font-weight: 700; color: var(--p); }
+.tlm-hours { font-size: 22px; font-weight: 700; color: var(--p-fg); }
 .tlm-month-bar { height: 6px; background: var(--border); border-radius: 3px; margin: 8px 0 4px; }
 .tlm-month-bar-fill { height: 100%; border-radius: 3px; background: var(--p); }
 
 /* ── DIR CARD ────────────────────────────────────────── */
 .dir-card { background: var(--surface); border-radius: var(--r); box-shadow: var(--sh); padding: 16px; display: flex; flex-direction: column; gap: 6px; }
 .dir-card-name { font-size: 14px; font-weight: 600; color: var(--text); }
-.dir-card-email { font-size: 12px; color: var(--p); }
+.dir-card-email { font-size: 12px; color: var(--p-fg); }
 .dir-card-mgr { font-size: 11px; color: var(--muted); }
 .dir-card-actions { display: flex; gap: 8px; margin-top: 4px; }
 
@@ -412,4 +526,4 @@ tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); }
 
 /* ── WEEKLY SUMMARY BULLET ROW ────────────────────────── */
 /* Part 37 Weekly Summary Checklist: "hovering highlights the row". */
-.ws-bullet-row:hover { background: var(--p3); }
+.ws-bullet-row:hover { background: var(--hover-tint); }

@@ -130,7 +130,7 @@ export default function PlanWeekPage() {
           const isWeekend = i >= 5;
           const list = byDay[i];
           return (
-            <Card key={d.toISOString()} className={isToday ? 'border-p bg-p3' : isWeekend ? 'opacity-70' : undefined}>
+            <Card key={d.toISOString()} className={isToday ? 'border-p bg-[var(--hover-tint)]' : isWeekend ? 'opacity-70' : undefined}>
               <CardContent className="pt-3 pb-3">
                 <div className="mb-2 flex items-center justify-between gap-1">
                   <div>

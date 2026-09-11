@@ -43,7 +43,7 @@ export function DailyCheckinModal({ open, onClose }: { open: boolean; onClose: (
               <button
                 onClick={() => submit(false)}
                 disabled={setDailyStatus.isPending}
-                className="flex-1 rounded-[8px] border px-4 py-2.5 text-sm font-semibold hover:bg-[var(--p3)] disabled:opacity-60"
+                className="flex-1 rounded-[8px] border px-4 py-2.5 text-sm font-semibold hover:bg-[var(--hover-tint)] disabled:opacity-60"
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
               >
                 {setDailyStatus.isPending && <Spinner size={14} />} No

@@ -362,7 +362,7 @@ export function RegistrationModal({ open, onClose }: RegistrationModalProps) {
                 )}
               />
 
-              {error && <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+              {error && <div style={{ background: 'var(--alert-danger-bg)', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
               <Button
                 type="submit"

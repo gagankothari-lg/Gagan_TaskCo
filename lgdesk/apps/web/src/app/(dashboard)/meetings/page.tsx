@@ -165,10 +165,10 @@ function MeetingsPageInner() {
             {admin && (
               <button
                 onClick={() => setModalType('company')}
-                style={{ textAlign: 'left', background: '#e3f2fd', border: '2px solid #90caf9', borderRadius: 12, padding: 20, cursor: 'pointer' }}
+                style={{ textAlign: 'left', background: 'var(--mtg-co-bg)', border: '2px solid var(--mtg-co-border)', borderRadius: 12, padding: 20, cursor: 'pointer' }}
               >
-                <Icon name="corporate_fare" size={28} style={{ color: '#1565c0' }} />
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#0d47a1', marginTop: 8 }}>Company Meeting</div>
+                <Icon name="corporate_fare" size={28} style={{ color: 'var(--mtg-co-icon)' }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--mtg-co-title)', marginTop: 8 }}>Company Meeting</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                   Invite the entire company — all active employees are auto-added.
                 </div>
@@ -181,10 +181,10 @@ function MeetingsPageInner() {
             {manager && (
               <button
                 onClick={() => setModalType('team')}
-                style={{ textAlign: 'left', background: '#e8f5e9', border: '2px solid #a5d6a7', borderRadius: 12, padding: 20, cursor: 'pointer' }}
+                style={{ textAlign: 'left', background: 'var(--mtg-team-bg)', border: '2px solid var(--mtg-team-border)', borderRadius: 12, padding: 20, cursor: 'pointer' }}
               >
                 <Icon name="groups" size={28} style={{ color: 'var(--ok)' }} />
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#1b5e20', marginTop: 8 }}>Team Meeting</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--mtg-team-title)', marginTop: 8 }}>Team Meeting</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                   Invite your team members — select a team and all its members are auto-added.
                 </div>

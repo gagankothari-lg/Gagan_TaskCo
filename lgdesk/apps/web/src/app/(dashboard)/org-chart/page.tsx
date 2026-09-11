@@ -303,9 +303,9 @@ export default function OrgChartPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div
-          style={{ minWidth: 200, maxWidth: 230, background: 'var(--surface)', borderRadius: 10, border: '1.5px solid #e2e5ea', borderLeft: `4px solid ${group.color}`, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,.06)', transition: 'box-shadow .15s, border-color .15s' }}
-          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,.1)'; e.currentTarget.style.borderColor = '#b8bec8'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,.06)'; e.currentTarget.style.borderColor = '#e2e5ea'; }}
+          style={{ minWidth: 200, maxWidth: 230, background: 'var(--surface)', borderRadius: 10, border: '1.5px solid var(--border)', borderLeft: `4px solid ${group.color}`, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,.06)', transition: 'box-shadow .15s, border-color .15s' }}
+          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,.1)'; e.currentTarget.style.borderColor = 'var(--muted2)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,.06)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
         >
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p)', marginBottom: 10 }}>{group.name}</div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
@@ -317,20 +317,20 @@ export default function OrgChartPage() {
           </div>
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--muted2)', fontWeight: 500, marginBottom: 2 }}>Employees</div>
-            <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>{group.members.length}</div>
+            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>{group.members.length}</div>
           </div>
           {hasSubDepts && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 11, color: 'var(--muted2)', fontWeight: 500, marginBottom: 5 }}>Sub-departments</div>
               {group.subDepts.map((sd) => (
                 <div key={sd.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f3f5', border: '1px solid #e2e5ea', color: '#6b7280', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(sd.name)}</div>
-                  <div style={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sd.name}</div>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(sd.name)}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sd.name}</div>
                 </div>
               ))}
             </div>
           )}
-          <button onClick={() => toggle(key)} style={{ width: '100%', fontSize: 12, fontWeight: 500, color: 'var(--p)', background: 'none', border: 'none', borderTop: '1px solid #f0f0f0', padding: '8px 4px 10px', margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+          <button onClick={() => toggle(key)} style={{ width: '100%', fontSize: 12, fontWeight: 500, color: 'var(--p)', background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '8px 4px 10px', margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
             {hasSubDepts ? `${group.subDepts.length} sub-department${group.subDepts.length === 1 ? '' : 's'}` : 'View members'}
             <Icon name={isOpen ? 'expand_less' : 'expand_more'} size={14} />
           </button>
@@ -381,7 +381,7 @@ export default function OrgChartPage() {
       {/* Team legend — square dots (.oc-legend-dot: 10x10, radius 3) + #374151 text */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
         {teamGroups.map((g) => (
-          <span key={g.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: '#374151' }}>
+          <span key={g.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>
             <span style={{ width: 10, height: 10, borderRadius: 3, background: g.color, flexShrink: 0 }} /> {g.name}
           </span>
         ))}
@@ -400,7 +400,7 @@ export default function OrgChartPage() {
             <div ref={contentRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0', padding: 40, display: 'inline-flex', gap: 40, alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 {/* ROOT company card — `.oc-root-card` teal accent (border/left-border/bg) */}
-                <div style={{ width: 200, background: '#f0fdfc', borderRadius: 8, border: '1.5px solid #b2dfdb', borderLeft: '4px solid #26a69a', padding: 14, textAlign: 'center', boxShadow: 'var(--sh)' }}>
+                <div style={{ width: 200, background: 'var(--oc-root-bg)', borderRadius: 8, border: '1.5px solid var(--oc-root-border)', borderLeft: '4px solid #26a69a', padding: 14, textAlign: 'center', boxShadow: 'var(--sh)' }}>
                   <Icon name="corporate_fare" size={28} style={{ color: 'var(--p)' }} />
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginTop: 4 }}>Leveraged Growth</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{allUsers.length} employee{allUsers.length === 1 ? '' : 's'}</div>
@@ -418,32 +418,32 @@ export default function OrgChartPage() {
 
             {/* Floating zoom/action bar — confined inside the chart wrapper
                 (`#org-chart-wrap{position:relative}` + `.oc-zoom-bar{position:absolute}`) */}
-            <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 2, zIndex: 10, background: '#fff', borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,.12)', padding: '4px 6px' }}>
+            <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 2, zIndex: 10, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,.12)', padding: '4px 6px' }}>
               <button
                 onClick={findMe} title="Center on my team"
-                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover-tint)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
               ><Icon name="my_location" size={18} /> Find me</button>
-              <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 2px' }} />
+              <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />
               <button
                 onClick={() => stepZoom(-0.15)} title="Zoom out"
-                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover-tint)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
               ><Icon name="remove" size={18} /></button>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', minWidth: 42, textAlign: 'center' }}>{Math.round(zoom * 100)} %</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', minWidth: 42, textAlign: 'center' }}>{Math.round(zoom * 100)} %</span>
               <button
                 onClick={() => stepZoom(0.15)} title="Zoom in"
-                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover-tint)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
               ><Icon name="add" size={18} /></button>
-              <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 2px' }} />
+              <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />
               <button
                 onClick={fitScreen} title="Reset view"
-                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                style={{ background: 'none', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover-tint)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
               ><Icon name="fit_screen" size={18} /></button>
             </div>

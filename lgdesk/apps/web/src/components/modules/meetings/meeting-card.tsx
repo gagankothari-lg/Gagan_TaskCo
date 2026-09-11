@@ -39,7 +39,7 @@ export const MeetingCard = forwardRef<HTMLDivElement, { meeting: Meeting; canCan
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {meeting.meetLink && (
-            <a href={meeting.meetLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-xs text-p hover:bg-p3">
+            <a href={meeting.meetLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-xs text-[var(--p-fg)] hover:bg-[var(--hover-tint)]">
               <Icon name="video_call" size={12} /> Join
             </a>
           )}
@@ -49,7 +49,7 @@ export const MeetingCard = forwardRef<HTMLDivElement, { meeting: Meeting; canCan
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Open calendar"
-              className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-xs text-muted hover:bg-p3"
+              className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-xs text-muted hover:bg-[var(--hover-tint)]"
             >
               <Icon name="calendar_month" size={12} />
             </a>

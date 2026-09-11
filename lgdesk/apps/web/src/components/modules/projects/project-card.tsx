@@ -124,7 +124,7 @@ export function ProjectCard({ project, onEdit }: { project: Project; onEdit: () 
           <button
             type="button"
             onClick={() => toast(attCount > 0 ? `${attCount} attachment(s) — viewer coming soon.` : 'Attachments require Google Drive credentials (coming soon).', 'info')}
-            className="flex items-center gap-1 rounded-[6px] p-1 hover:bg-bg hover:text-p"
+            className="flex items-center gap-1 rounded-[6px] p-1 hover:bg-bg hover:text-[var(--p-fg)]"
             title="Attachments"
           >
             <Icon name="attach_file" size={15} />
@@ -133,7 +133,7 @@ export function ProjectCard({ project, onEdit }: { project: Project; onEdit: () 
           {(canEdit || canDelete) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="rounded-[6px] p-1 hover:bg-bg hover:text-p" title="More actions" aria-label="More actions">
+                <button type="button" className="rounded-[6px] p-1 hover:bg-bg hover:text-[var(--p-fg)]" title="More actions" aria-label="More actions">
                   <Icon name="more_vert" size={16} />
                 </button>
               </DropdownMenuTrigger>

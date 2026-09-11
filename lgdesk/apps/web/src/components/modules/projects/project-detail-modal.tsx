@@ -106,7 +106,7 @@ export function ProjectDetailModal({ projId, onClose }: { projId: string | null;
         </DialogHeader>
 
         {isLoading || !project ? (
-          <div className="flex items-center justify-center px-5 py-10 text-p"><Spinner size={24} /></div>
+          <div className="flex items-center justify-center px-5 py-10 text-[var(--p-fg)]"><Spinner size={24} /></div>
         ) : (
           <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
             <Form {...form}>

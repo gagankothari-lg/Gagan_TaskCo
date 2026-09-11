@@ -115,7 +115,7 @@ export function TaskEditModal({ taskId, onClose }: { taskId: string | null; onCl
             <DialogTitle>Edit task</DialogTitle>
           </DialogHeader>
           {!task ? (
-            <div className="flex items-center justify-center px-5 py-10 text-p"><Spinner size={24} /></div>
+            <div className="flex items-center justify-center px-5 py-10 text-[var(--p-fg)]"><Spinner size={24} /></div>
           ) : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)}>

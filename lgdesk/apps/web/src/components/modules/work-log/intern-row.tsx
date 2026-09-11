@@ -35,7 +35,7 @@ export function InternRow({ date, entry, save, durationHms }: { date: Date; entr
   return (
     <tr className="border-b border-[var(--border)] bg-[var(--surface)] align-top">
       <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className={['text-sm', isToday ? 'font-semibold text-[var(--p)]' : 'text-[var(--text)]'].join(' ')}>{date.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+        <span className={['text-sm', isToday ? 'font-semibold text-[var(--p-fg)]' : 'text-[var(--text)]'].join(' ')}>{date.toLocaleDateString(undefined, { weekday: 'short' })}</span>
         <span className="ml-1 text-xs text-[var(--muted)]">{date.getDate()}</span>
       </td>
       <td className="px-3 py-2.5">

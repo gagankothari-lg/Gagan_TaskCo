@@ -176,7 +176,7 @@ export function ClockWidget() {
           onClick={doClockOutNow}
           disabled={clockOut.isPending}
           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold hover:opacity-90 disabled:opacity-60"
-          style={{ background: '#00897b', color: '#fff' }}
+          style={{ background: 'var(--accent)', color: '#fff' }}
         >
           <Icon name="logout" size={14} /> Clock out
         </button>
@@ -184,7 +184,7 @@ export function ClockWidget() {
           onClick={() => setMenuOpen((o) => !o)}
           aria-label="Clock out options"
           className="border-l px-1.5 hover:opacity-90"
-          style={{ background: '#00897b', color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
+          style={{ background: 'var(--accent)', color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
         >
           <Icon name="expand_more" size={14} />
         </button>
@@ -193,10 +193,10 @@ export function ClockWidget() {
             className="absolute right-0 top-full z-10 mt-1 w-52 rounded-[8px] p-1 shadow-lg"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
           >
-            <button onClick={() => { setMenuOpen(false); setCustomOpen(true); }} className="w-full rounded-[4px] px-2 py-1.5 text-left text-xs hover:bg-[var(--p3)]" style={{ color: 'var(--text)' }}>
+            <button onClick={() => { setMenuOpen(false); setCustomOpen(true); }} className="w-full rounded-[4px] px-2 py-1.5 text-left text-xs hover:bg-[var(--hover-tint)]" style={{ color: 'var(--text)' }}>
               Change clock-out time
             </button>
-            <button onClick={() => { setMenuOpen(false); setEditOpen(true); }} className="w-full rounded-[4px] px-2 py-1.5 text-left text-xs hover:bg-[var(--p3)]" style={{ color: 'var(--text)' }}>
+            <button onClick={() => { setMenuOpen(false); setEditOpen(true); }} className="w-full rounded-[4px] px-2 py-1.5 text-left text-xs hover:bg-[var(--hover-tint)]" style={{ color: 'var(--text)' }}>
               Edit today&apos;s times
             </button>
           </div>
@@ -249,13 +249,13 @@ export function ClockWidget() {
               {status !== 'IDLE' && (
                 <>
                   <span style={{ color: 'var(--border)', fontWeight: 300, fontSize: 18 }}>|</span>
-                  <span className="font-mono text-[22px] font-bold tracking-tight" style={{ color: 'var(--p)' }}>
+                  <span className="font-mono text-[22px] font-bold tracking-tight" style={{ color: 'var(--p-fg)' }}>
                     {status === 'ON_BREAK' ? frozenNetAtBreakStart : status === 'ACTIVE' ? netElapsed : hmsFromMin(session?.netMinutes ?? 0)}
                   </span>
                 </>
               )}
               {(status === 'ACTIVE' || status === 'ON_BREAK') && (
-                <button onClick={() => setEditOpen(true)} title="Edit clock-in time" className="text-[var(--muted)] hover:text-[var(--p)]">
+                <button onClick={() => setEditOpen(true)} title="Edit clock-in time" className="text-[var(--muted)] hover:text-[var(--p-fg)]">
                   <Icon name="edit" size={14} />
                 </button>
               )}
@@ -266,14 +266,14 @@ export function ClockWidget() {
               <div className="mb-3 flex gap-4 px-0.5 text-[13px]" style={{ color: 'var(--muted)' }}>
                 <span>
                   In: <strong style={{ color: 'var(--text)' }}>{istHHMM(session.clockIn)}</strong>{' '}
-                  <button onClick={() => setEditOpen(true)} title="Edit clock-in time" className="align-middle hover:text-[var(--p)]" style={{ color: 'var(--muted)' }}>
+                  <button onClick={() => setEditOpen(true)} title="Edit clock-in time" className="align-middle hover:text-[var(--p-fg)]" style={{ color: 'var(--muted)' }}>
                     <Icon name="edit" size={12} />
                   </button>
                 </span>
                 {session.clockOut && (
                   <span>
                     Out: <strong style={{ color: 'var(--text)' }}>{istHHMM(session.clockOut)}</strong>{' '}
-                    <button onClick={() => setEditOpen(true)} title="Edit clock-out time" className="align-middle hover:text-[var(--p)]" style={{ color: 'var(--muted)' }}>
+                    <button onClick={() => setEditOpen(true)} title="Edit clock-out time" className="align-middle hover:text-[var(--p-fg)]" style={{ color: 'var(--muted)' }}>
                       <Icon name="edit" size={12} />
                     </button>
                   </span>
@@ -289,7 +289,7 @@ export function ClockWidget() {
                 {status === 'ON_BREAK' ? breakTotal : hmsFromMin(session?.totalBreakMins ?? 0)}
               </span>
               {status !== 'IDLE' && (
-                <button onClick={() => setEditOpen(true)} title="Edit break duration" className="ml-auto hover:text-[var(--p)]" style={{ color: 'var(--muted)' }}>
+                <button onClick={() => setEditOpen(true)} title="Edit break duration" className="ml-auto hover:text-[var(--p-fg)]" style={{ color: 'var(--muted)' }}>
                   <Icon name="edit" size={14} />
                 </button>
               )}
@@ -312,7 +312,7 @@ export function ClockWidget() {
                   <button
                     onClick={doStartBreak}
                     disabled={startBreak.isPending}
-                    className="inline-flex items-center gap-1.5 rounded-[8px] px-4 py-2.5 text-sm font-semibold hover:bg-[var(--p3)] disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 rounded-[8px] px-4 py-2.5 text-sm font-semibold hover:bg-[var(--hover-tint)] disabled:opacity-60"
                     style={{ border: '1.5px solid var(--border)', color: 'var(--text)' }}
                   >
                     <Icon name="pause" size={16} /> Pause

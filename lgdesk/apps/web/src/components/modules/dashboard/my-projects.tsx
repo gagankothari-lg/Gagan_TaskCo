@@ -29,7 +29,7 @@ function TaskLine({ t }: { t: Task }) {
       <Icon name="task_alt" size={12} style={{ color: 'var(--muted)' }} />
       <span style={{ flex: 1, fontSize: 13 }}>{t.title}</span>
       <Badge variant="outline" style={{ background: sp.bg, color: sp.color, borderColor: 'transparent' }}>{t.status}</Badge>
-      {t.dueDate && <span style={{ fontSize: 11, color: od ? '#c62828' : 'var(--muted2)', whiteSpace: 'nowrap' }}>{fmtDate(t.dueDate)}</span>}
+      {t.dueDate && <span style={{ fontSize: 11, color: od ? 'var(--danger)' : 'var(--muted2)', whiteSpace: 'nowrap' }}>{fmtDate(t.dueDate)}</span>}
     </div>
   );
 }
@@ -59,14 +59,14 @@ export function MyProjects() {
   }, [selected, functions, tasks]);
 
   const FnRow = ({ f }: { f: WorkFunction }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: '#f5f5f5', borderRadius: 4, marginBottom: 2 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'var(--bg)', borderRadius: 4, marginBottom: 2 }}>
       <Icon name="folder" size={16} style={{ color: 'var(--muted)' }} />
       <span style={{ flex: 1, fontSize: 13 }}>{f.name}</span>
       <span style={{ fontSize: 11, color: 'var(--muted2)', fontFamily: 'monospace' }}>{f.functionId}</span>
     </div>
   );
   const SubRow = ({ f }: { f: WorkFunction }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: '#fafafa', borderRadius: 4, marginBottom: 2, marginLeft: 16 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: 'var(--bg)', borderRadius: 4, marginBottom: 2, marginLeft: 16 }}>
       <Icon name="subdirectory_arrow_right" size={14} style={{ color: 'var(--muted)' }} />
       <span style={{ flex: 1, fontSize: 13 }}>{f.name}</span>
       <span style={{ fontSize: 11, color: 'var(--muted2)', fontFamily: 'monospace' }}>{f.functionId}</span>
@@ -76,7 +76,7 @@ export function MyProjects() {
   if (projects.length === 0) {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ background: '#fafafa', borderRight: '1px solid var(--border)', padding: 12, fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>No projects assigned yet.</div>
+        <div style={{ background: 'var(--bg)', borderRight: '1px solid var(--border)', padding: 12, fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>No projects assigned yet.</div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, color: 'var(--muted)' }}>
           <Icon name="account_tree" size={40} style={{ opacity: 0.3 }} />
           <div style={{ fontSize: 13, marginTop: 8 }}>Select a project</div>
@@ -89,7 +89,7 @@ export function MyProjects() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
       {/* Left: project list (capped at 10) */}
-      <div style={{ background: '#fafafa', borderRight: '1px solid var(--border)', padding: 8, maxHeight: 380, overflowY: 'auto' }}>
+      <div style={{ background: 'var(--bg)', borderRight: '1px solid var(--border)', padding: 8, maxHeight: 380, overflowY: 'auto' }}>
         {shownProjects.map((p) => {
           const c = taskCount(p);
           const active = p.projId === selId;
@@ -97,7 +97,7 @@ export function MyProjects() {
           const sp = statusPillStyle(p.status);
           const parent = parentName(p);
           return (
-            <div key={p.projId} onClick={() => setSelId(p.projId)} style={{ background: active ? '#e8eaf6' : '#fff', border: `1px solid ${active ? '#1a237e' : 'var(--border)'}`, borderRadius: 6, padding: '8px 10px', marginBottom: 6, cursor: 'pointer' }}>
+            <div key={p.projId} onClick={() => setSelId(p.projId)} style={{ background: active ? 'var(--hover-tint)' : 'var(--surface)', border: `1px solid ${active ? 'var(--p)' : 'var(--border)'}`, borderRadius: 6, padding: '8px 10px', marginBottom: 6, cursor: 'pointer' }}>
               {parent && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>
                   <Icon name="subdirectory_arrow_right" size={12} />
@@ -113,7 +113,7 @@ export function MyProjects() {
                 {p.deadline && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted2)' }}>{fmtDate(p.deadline)}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                <div style={{ flex: 1, height: 4, background: '#e0e0e0', borderRadius: 2 }}>
+                <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2 }}>
                   <div style={{ width: `${c.pct}%`, height: '100%', background: 'var(--p2)', borderRadius: 2 }} />
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{c.total === 0 ? 'No tasks' : `${c.done}/${c.total} done`}</span>
@@ -124,7 +124,7 @@ export function MyProjects() {
       </div>
 
       {/* Right: tree */}
-      <div style={{ background: '#fff', padding: 12, maxHeight: 380, overflowY: 'auto' }}>
+      <div style={{ background: 'var(--surface)', padding: 12, maxHeight: 380, overflowY: 'auto' }}>
         {selected && tree ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Montserrat } from 'next/font/google';
+import { ThemeProvider } from 'next-themes';
 import './globals.css';
 import { AuthProvider } from '../contexts/auth-context';
 import { cn } from '../lib/utils';
@@ -22,12 +23,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={cn(montserrat.variable, 'font-sans')}>
+    <html lang="en" className={cn(montserrat.variable, 'font-sans')} suppressHydrationWarning>
       <body>
-        <KeepAlivePing />
-        <AuthProvider>{children}</AuthProvider>
-        {/* Global toast mount — bottom-right stack (see lib/toast). */}
-        <div id="toasts" />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <KeepAlivePing />
+          <AuthProvider>{children}</AuthProvider>
+          {/* Global toast mount — bottom-right stack (see lib/toast). */}
+          <div id="toasts" />
+        </ThemeProvider>
       </body>
     </html>
   );

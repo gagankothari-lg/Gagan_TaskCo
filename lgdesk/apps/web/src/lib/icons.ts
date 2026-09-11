@@ -126,6 +126,8 @@ import {
   Pin,
   Palette,
   Presentation,
+  Sun,
+  Moon,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -161,6 +163,8 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   arrow_forward: ArrowRight,
   refresh: RefreshCw,
   sync: RefreshCw, // Work Log row save-state "Saving…" glyph (was falling back to the ? default)
+  light_mode: Sun,
+  dark_mode: Moon,
   menu: Menu,
   add: Plus,
   edit: Pencil,

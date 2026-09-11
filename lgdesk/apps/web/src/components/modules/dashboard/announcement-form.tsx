@@ -98,7 +98,7 @@ export function AnnouncementForm({ onPosted, onCancel }: { onPosted?: () => void
             key={t.label}
             type="button"
             onClick={() => applyTemplate(t)}
-            className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text hover:bg-[var(--p3)]"
+            className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text hover:bg-[var(--hover-tint)]"
           >
             {t.label}
           </button>

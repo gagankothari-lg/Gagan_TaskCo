@@ -247,11 +247,11 @@ export default function CalendarPage() {
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
-          <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_left" size={16} /></button>
-          <button onClick={() => { const n = new Date(); setCursor(new Date(n.getFullYear(), n.getMonth(), 1)); }} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-p3">Today</button>
-          <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-p3"><Icon name="chevron_right" size={16} /></button>
+          <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-[var(--hover-tint)]"><Icon name="chevron_left" size={16} /></button>
+          <button onClick={() => { const n = new Date(); setCursor(new Date(n.getFullYear(), n.getMonth(), 1)); }} className="rounded-[8px] border border-border px-3 py-1.5 text-sm text-text hover:bg-[var(--hover-tint)]">Today</button>
+          <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="rounded-[8px] border border-border p-1.5 text-muted hover:bg-[var(--hover-tint)]"><Icon name="chevron_right" size={16} /></button>
         </div>
-        <div style={{ fontSize: 18, fontWeight: 700 }} className="text-p">
+        <div style={{ fontSize: 18, fontWeight: 700 }} className="text-[var(--p-fg)]">
           {cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
         </div>
 
@@ -335,14 +335,14 @@ export default function CalendarPage() {
                     <PopoverTrigger asChild>
                       <div
                         style={{ gridColumn: ci + 1, gridRow: '1 / span 6' }}
-                        className={cn('cursor-pointer border-b border-r border-border p-1.5 align-top hover:bg-p3/40', isToday ? 'bg-p3' : 'bg-surface')}
+                        className={cn('cursor-pointer border-b border-r border-border p-1.5 align-top hover:bg-[var(--hover-tint)]', isToday ? 'bg-[var(--hover-tint)]' : 'bg-surface')}
                       >
                         <span className={cn('inline-flex h-6 w-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-p font-semibold text-white' : 'text-text')}>{d}</span>
                       </div>
                     </PopoverTrigger>
                     <PopoverContent onClick={(e) => e.stopPropagation()}>
                       <div className="mb-2 flex items-center justify-between">
-                        <p className="text-sm font-bold text-p">{new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                        <p className="text-sm font-bold text-[var(--p-fg)]">{new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
                       </div>
                       {bars.length === 0 ? (
                         <p className="text-sm text-muted">No events this day.</p>
@@ -352,11 +352,11 @@ export default function CalendarPage() {
                             <div key={c}>
                               <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{CAT[c].label}</p>
                               {groupedForDay(key).get(c)!.map((b, bi) => (
-                                <div key={bi} className="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 text-xs hover:bg-p3">
+                                <div key={bi} className="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 text-xs hover:bg-[var(--hover-tint)]">
                                   <button
                                     type="button"
                                     onClick={() => onBarClick(b)}
-                                    className={cn('truncate text-left', (b.cat === 'task' || b.cat === 'meeting') && 'cursor-pointer text-p underline-offset-2 hover:underline')}
+                                    className={cn('truncate text-left', (b.cat === 'task' || b.cat === 'meeting') && 'cursor-pointer text-[var(--p-fg)] underline-offset-2 hover:underline')}
                                     style={{ color: b.cat === 'task' || b.cat === 'meeting' ? 'var(--p)' : 'var(--text)' }}
                                   >
                                     {b.label}

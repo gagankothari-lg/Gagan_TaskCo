@@ -74,7 +74,7 @@ function MultiSelectDropdown({
             <p className="px-2 py-2 text-xs text-muted">No options</p>
           ) : (
             options.map((o) => (
-              <label key={o.value} className="flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-sm text-text hover:bg-p3">
+              <label key={o.value} className="flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-sm text-text hover:bg-[var(--hover-tint)]">
                 <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggleValue(o.value)} className="accent-p" />
                 <span className="truncate">{o.label}</span>
                 {o.sublabel && <span className="ml-auto truncate text-xs text-muted">{o.sublabel}</span>}

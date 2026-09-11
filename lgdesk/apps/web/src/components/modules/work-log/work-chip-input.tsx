@@ -23,7 +23,7 @@ export function WorkChipInput({ value, onChange, placeholder }: { value: string;
   return (
     <div className="flex flex-wrap items-center gap-1 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5">
       {chips.map((c, i) => (
-        <span key={`${c}-${i}`} className="inline-flex items-center gap-1 rounded-[8px] bg-[var(--p3)] px-1.5 py-0.5 text-xs text-[var(--text)]">
+        <span key={`${c}-${i}`} className="inline-flex items-center gap-1 rounded-[8px] bg-[var(--p3)] px-1.5 py-0.5 text-xs text-[var(--p)]">
           {c}
           <button type="button" onClick={() => setChips(chips.filter((_, j) => j !== i))} aria-label={`Remove ${c}`} className="text-[var(--muted)] hover:text-[var(--danger)]">
             <Icon name="close" size={11} />

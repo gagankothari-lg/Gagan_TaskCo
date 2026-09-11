@@ -283,9 +283,9 @@ export default function DashboardPage() {
                       <button
                         key={n.key}
                         onClick={() => router.push('/meetings')}
-                        className="flex items-center gap-2 rounded-[8px] border border-border p-2.5 text-left text-sm hover:bg-[var(--p3)]"
+                        className="flex items-center gap-2 rounded-[8px] border border-border p-2.5 text-left text-sm hover:bg-[var(--hover-tint)]"
                       >
-                        <Icon name="video_call" size={16} style={{ color: 'var(--p)' }} />
+                        <Icon name="video_call" size={16} style={{ color: 'var(--p-fg)' }} />
                         <span className="flex-1">{n.title}</span>
                         <span className="text-xs text-muted">{fmtDate(n.startTime, { month: 'short', day: 'numeric' })}</span>
                       </button>
@@ -376,8 +376,8 @@ export default function DashboardPage() {
           title="My Upcoming Tasks"
           action={(
             <div className="flex items-center gap-3 text-xs">
-              <a onClick={() => router.push('/tasks/plan-week')} className="cursor-pointer text-p">View all</a>
-              <a onClick={() => router.push('/tasks/plan-week')} className="cursor-pointer text-p">Open weekly plan</a>
+              <a onClick={() => router.push('/tasks/plan-week')} className="cursor-pointer text-[var(--p-fg)]">View all</a>
+              <a onClick={() => router.push('/tasks/plan-week')} className="cursor-pointer text-[var(--p-fg)]">Open weekly plan</a>
             </div>
           )}
         />
@@ -442,7 +442,7 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-6">
               <div>
                 <div className="stat-label">Score</div>
-                <div className="text-3xl font-bold text-p">{myScore?.score ?? 0}</div>
+                <div className="text-3xl font-bold text-[var(--p-fg)]">{myScore?.score ?? 0}</div>
               </div>
               <div>
                 <div className="stat-label">Tasks Done</div>
@@ -476,15 +476,15 @@ export default function DashboardPage() {
                     </td>
                     <td style={{ color: 'var(--muted)' }}>{employees.find((e) => e.empId === r.empId)?.team ?? '—'}</td>
                     <td style={{ fontSize: 18, fontWeight: 700, color: 'var(--p)' }}>{r.score}</td>
-                    <td style={{ fontSize: 14, color: '#2e7d32', fontWeight: 600 }}>{r.done}</td>
-                    <td style={{ fontSize: 14, color: r.overdue ? '#c62828' : '#9e9e9e', fontWeight: 600 }}>{r.overdue}</td>
+                    <td style={{ fontSize: 14, color: 'var(--ok)', fontWeight: 600 }}>{r.done}</td>
+                    <td style={{ fontSize: 14, color: r.overdue ? 'var(--danger)' : 'var(--muted2)', fontWeight: 600 }}>{r.overdue}</td>
                     <td style={{ color: 'var(--muted)', fontSize: 14 }}>0</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {data.scoreboard.length > 10 && (
-              <div onClick={() => setShowAllScores((s) => !s)} style={{ color: 'var(--p)', fontSize: 12, textAlign: 'center', padding: '10px 0', borderTop: '1px solid #f0f0f0', cursor: 'pointer' }}>{showAllScores ? 'Show Top 10' : `Show All ${data.scoreboard.length} Members`}</div>
+              <div onClick={() => setShowAllScores((s) => !s)} style={{ color: 'var(--p)', fontSize: 12, textAlign: 'center', padding: '10px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>{showAllScores ? 'Show Top 10' : `Show All ${data.scoreboard.length} Members`}</div>
             )}
           </div>
         )}
