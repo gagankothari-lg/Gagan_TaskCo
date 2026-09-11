@@ -67,7 +67,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isLoading, logout, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
+  const { user, isLoading, logout, refresh, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
   const managerLoaded = !!user && isManager(user.role);
   // Round5 add'l-1: Registrations/Profile Updates no longer have their own nav items —
   // both are embedded-only now (members-view.tsx), matching the reference (Part 10's
@@ -85,6 +85,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [presOpen, setPresOpen] = useState(false);
   const [pres, setPres] = useState<PresKey>('online');
+  const [refreshing, setRefreshing] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const presWrap = useRef<HTMLDivElement>(null);
@@ -229,6 +230,18 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const manager = isManager(user.role);
   const avatarLetter = (user.name?.[0] ?? 'U').toUpperCase();
   const sidebarVar = collapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)';
+
+  async function globalRefresh() {
+    setRefreshing(true);
+    try {
+      await refresh();
+      toast('Refreshed', 'success');
+    } catch {
+      toast('Refresh failed', 'error');
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const renderItem = (it: NavItem) => {
     const active = activeHref === it.href;
@@ -384,10 +397,27 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
               </div>
               <div className={`pres-dot ${PRES[pres].cls}`} style={{ position: 'absolute', bottom: -1, right: -1 }} />
             </div>
-            <div className="sb-label" style={{ minWidth: 0, flex: 1 }}>
+            <div className="sb-label" style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
               <div style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
               <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10, color: 'var(--p-fg)', background: 'var(--hover-tint)' }}>{user.role}</span>
             </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // critical -- the parent chip's onClick opens the presence picker;
+                                      // without this, toggling the theme would also pop that open.
+                setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+              }}
+              aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="sb-label"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
+                borderRadius: '50%', background: 'var(--hover-tint)', border: 'none', color: 'var(--p-fg)',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <Icon name={resolvedTheme === 'dark' ? 'light_mode' : 'dark_mode'} size={14} />
+            </button>
           </div>
         </div>
       </nav>
@@ -434,15 +464,16 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         </div>
 
         <button
-          onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-          aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={globalRefresh}
+          disabled={refreshing}
+          aria-label="Refresh"
+          title="Refresh"
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', width: 46, height: 46,
             background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 14, cursor: 'pointer',
           }}
         >
-          <Icon name={resolvedTheme === 'dark' ? 'light_mode' : 'dark_mode'} size={18} />
+          <Icon name="refresh" size={18} style={refreshing ? { animation: 'spin 0.8s linear infinite' } : undefined} />
         </button>
       </header>
 
