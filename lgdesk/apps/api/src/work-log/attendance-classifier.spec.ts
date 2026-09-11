@@ -41,13 +41,13 @@ describe('computeAttendance', () => {
     ['WorkingDay', 3.9, 'WFO', 'Leave Full Day', 3.9],
     ['WorkingDay', 5, 'WFO', 'Leave Half Day', 0],
     ['WorkingDay', 6, 'WFH', 'Leave Half Day', 2],
-    ['WorkingDay', 9, 'WFO', 'Present-WFO', 0],
+    ['WorkingDay', 8, 'WFO', 'Present-WFO', 0],
     ['WorkingDay', 10, 'WFO', 'Present-WFO', 0],
     ['WorkingDay', 12, 'WFH', 'Present-WFH', 3],
     ['WeekOff', 3, 'WFO', 'Week Off', 0],
     ['WeekOff', 4, 'WFO', 'Extra Half Day-WFO', 0],
     ['WeekOff', 6, 'WFH', 'Extra Half Day-WFH', 2],
-    ['AlternateWeekOff', 9, 'WFO', 'Extra Full Day-WFO', 0],
+    ['AlternateWeekOff', 8, 'WFO', 'Extra Full Day-WFO', 0],
     ['AlternateWeekOff', 11, 'WFH', 'Extra Full Day-WFH', 2],
     ['Holiday', 1, 'WFO', 'Holiday', 0],
     ['Holiday', 3, 'WFH', 'Holiday', 3],
@@ -66,26 +66,26 @@ describe('computeAttendance', () => {
     it('Working Day: exactly 4h crosses into Leave Half Day', () => {
       expect(computeAttendance('WorkingDay', 4, 'WFO')).toEqual({ attendance: 'Leave Half Day', extraHours: 0 });
     });
-    it('Working Day: exactly 9h crosses into Present', () => {
-      expect(computeAttendance('WorkingDay', 9, 'WFH')).toEqual({ attendance: 'Present-WFH', extraHours: 0 });
+    it('Working Day: exactly 8h crosses into Present', () => {
+      expect(computeAttendance('WorkingDay', 8, 'WFH')).toEqual({ attendance: 'Present-WFH', extraHours: 0 });
     });
     it('Week Off: exactly 4h crosses into Extra Half Day', () => {
       expect(computeAttendance('WeekOff', 4, 'WFO')).toEqual({ attendance: 'Extra Half Day-WFO', extraHours: 0 });
     });
-    it('Week Off: exactly 9h crosses into Extra Full Day', () => {
-      expect(computeAttendance('WeekOff', 9, 'WFO')).toEqual({ attendance: 'Extra Full Day-WFO', extraHours: 0 });
+    it('Week Off: exactly 8h crosses into Extra Full Day', () => {
+      expect(computeAttendance('WeekOff', 8, 'WFO')).toEqual({ attendance: 'Extra Full Day-WFO', extraHours: 0 });
     });
-    it('Alternate Week Off: just under 4h stays unworked', () => {
-      expect(computeAttendance('AlternateWeekOff', 3.5, 'WFH')).toEqual({ attendance: 'Alternate Week Off', extraHours: 0 });
+    it('Alternate Week Off: just under 4h stays Alternate Week Off', () => {
+      expect(computeAttendance('AlternateWeekOff', 3.5, 'WFH')).toEqual({ attendance: 'Alternate Week Off', extraHours: 3.5 });
     });
   });
 
   describe('ambiguous/missing work mode defaults to WFO', () => {
     it('null workMode on a Present day', () => {
-      expect(computeAttendance('WorkingDay', 9, null)).toEqual({ attendance: 'Present-WFO', extraHours: 0 });
+      expect(computeAttendance('WorkingDay', 8, null)).toEqual({ attendance: 'Present-WFO', extraHours: 0 });
     });
     it('undefined workMode on an Extra Full Day', () => {
-      expect(computeAttendance('WeekOff', 9, undefined)).toEqual({ attendance: 'Extra Full Day-WFO', extraHours: 0 });
+      expect(computeAttendance('WeekOff', 8, undefined)).toEqual({ attendance: 'Extra Full Day-WFH', extraHours: 0 });
     });
   });
 
