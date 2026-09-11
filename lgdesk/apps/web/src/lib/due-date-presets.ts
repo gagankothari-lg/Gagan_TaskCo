@@ -46,9 +46,9 @@ export function computeDuePreset(preset: DuePreset, today: Date = new Date()): s
 
 export const DUE_PRESET_OPTIONS: { key: DuePreset; label: string; title: string }[] = [
   { key: 'today', label: 'Today', title: 'Today' },
-  { key: 'tomorrow', label: 'Tmrw', title: 'Tomorrow' },
-  { key: 'thisWeek', label: 'Wk', title: 'This Week (Sat)' },
-  { key: 'nextWeek', label: 'Nxt Wk', title: 'Next Week (Sat)' },
-  { key: 'thisMonth', label: 'Mo', title: 'This Month' },
-  { key: 'thisQuarter', label: 'Qtr', title: 'This (fiscal) Quarter' },
+  { key: 'tomorrow', label: 'Tomorrow', title: 'Tomorrow' },
+  { key: 'thisWeek', label: 'This Week', title: 'This Week (Sat)' },
+  { key: 'nextWeek', label: 'Next Week', title: 'Next Week (Sat)' },
+  { key: 'thisMonth', label: 'This Month', title: 'This Month' },
+  { key: 'thisQuarter', label: 'This Quarter', title: 'This (fiscal) Quarter' },
 ];
