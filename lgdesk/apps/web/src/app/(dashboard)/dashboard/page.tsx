@@ -36,9 +36,9 @@ function addDays(d: Date, n: number): Date {
   return x;
 }
 const PRIORITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
-const priBorder = (p: string) => (p === 'Critical' ? '#c62828' : p === 'High' ? '#e65100' : p === 'Medium' ? '#1a237e' : '#9e9e9e');
+const priBorder = (p: string) => (p === 'Critical' ? '#A35B24' : p === 'High' ? '#9C6C10' : p === 'Medium' ? '#5C6773' : '#3E7A34');
 const priBadgeStyle = (p: string) =>
-  p === 'Critical' ? { bg: '#fce8e8', c: '#c62828' } : p === 'High' ? { bg: '#fff3e0', c: '#e65100' } : p === 'Medium' ? { bg: '#e8eaf6', c: '#1a237e' } : { bg: '#f5f5f5', c: '#757575' };
+  p === 'Critical' ? { bg: 'rgba(163, 91, 36, 0.12)', c: '#A35B24' } : p === 'High' ? { bg: 'rgba(156, 108, 16, 0.12)', c: '#9C6C10' } : p === 'Medium' ? { bg: 'rgba(92, 103, 115, 0.12)', c: '#5C6773' } : { bg: 'rgba(62, 122, 52, 0.12)', c: '#3E7A34' };
 
 // Reference `.stat-card` (globals.css) already provides surface bg, shadow and the
 // indigo `border-top:3px solid var(--p)` accent — just use it directly instead of

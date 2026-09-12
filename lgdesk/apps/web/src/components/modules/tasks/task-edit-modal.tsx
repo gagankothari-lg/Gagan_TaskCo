@@ -290,7 +290,7 @@ export function TaskEditModal({ taskId, onClose }: { taskId: string | null; onCl
                       </FormItem>
                     )}
                   />
-                  {error && <div className="rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
+                  {error && <div className="rounded-[8px] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
                 </div>
                 <DialogFooter>
                   <button type="submit" disabled={update.isPending} className="btn btn-primary disabled:opacity-60">

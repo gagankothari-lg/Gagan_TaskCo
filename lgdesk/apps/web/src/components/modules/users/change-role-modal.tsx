@@ -106,7 +106,7 @@ export function ChangeRoleModal({ member, actorRole, onClose }: ChangeRoleModalP
                     </FormItem>
                   )}
                 />
-                {error && <div className="rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
+                {error && <div className="rounded-[8px] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
               </div>
               <DialogFooter>
                 <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>

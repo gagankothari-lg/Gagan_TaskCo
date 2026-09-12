@@ -46,10 +46,10 @@ const TYPE_PILL: Record<ImportRow['type'], { bg: string; color: string }> = {
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
-  High: '#e65100',
-  Medium: '#3949ab',
-  Critical: '#c62828',
-  Low: '#757575',
+  High: '#9C6C10',
+  Medium: '#5C6773',
+  Critical: '#A35B24',
+  Low: '#3E7A34',
 };
 
 function typePillStyle(type: ImportRow['type']): React.CSSProperties {
@@ -481,7 +481,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                     {rows.map((row, i) => {
                       const isStructure = row.type !== 'Task';
                       const pStyle = statusPillStyle(row.status ?? '');
-                      const priorityColor = row.priority ? (PRIORITY_COLOR[row.priority] ?? '#757575') : '#757575';
+                      const priorityColor = row.priority ? (PRIORITY_COLOR[row.priority] ?? '#5C6773') : '#5C6773';
                       return (
                         <tr key={i} style={{ borderTop: '1px solid var(--border)', background: row.selected ? 'transparent' : 'var(--row-dim-tint)' }}>
                           <td style={{ padding: '8px 10px' }}>

@@ -12,10 +12,10 @@ const MAX_PROJECT_CARDS = 10;
 
 function priorityStyle(p: string) {
   const map: Record<string, { bg: string; color: string }> = {
-    Critical: { bg: '#fce8e8', color: '#c62828' }, High: { bg: '#fce8e8', color: '#c62828' },
-    Medium: { bg: '#e8eaf6', color: '#3949ab' }, Low: { bg: '#f5f5f5', color: '#757575' },
+    Critical: { bg: 'rgba(163, 91, 36, 0.12)', color: '#A35B24' }, High: { bg: 'rgba(156, 108, 16, 0.12)', color: '#9C6C10' },
+    Medium: { bg: 'rgba(92, 103, 115, 0.12)', color: '#5C6773' }, Low: { bg: 'rgba(62, 122, 52, 0.12)', color: '#3E7A34' },
   };
-  return map[p] ?? { bg: '#f5f5f5', color: '#757575' };
+  return map[p] ?? { bg: 'rgba(92, 103, 115, 0.12)', color: '#5C6773' };
 }
 // Round4 F1: UTC-day comparison (was comparing against browser-local midnight via
 // toDateString()) — now agrees with the Scoreboard/task-row's overdue determination.

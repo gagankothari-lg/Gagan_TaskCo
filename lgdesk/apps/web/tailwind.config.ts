@@ -56,7 +56,7 @@ const config: Config = {
         ring: 'var(--ring)',
       },
       fontFamily: {
-        sans: ['var(--font-montserrat)', 'Montserrat', 'sans-serif'],
+        sans: ['var(--font-inter)', 'Inter', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: 'var(--r)',
