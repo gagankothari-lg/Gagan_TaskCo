@@ -6,7 +6,7 @@ export const setToken = (t: string) => typeof window !== 'undefined' && localSto
 export const clearToken = () => typeof window !== 'undefined' && localStorage.removeItem(TOKEN_KEY);
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(message: string, public status: number, public code?: string) {
     super(message);
   }
 }
@@ -23,7 +23,7 @@ export async function apiFetch<T>(path: string, opts: { method?: string; body?: 
   });
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.ok) {
-    throw new ApiError(json?.error ?? `Request failed (${res.status})`, res.status);
+    throw new ApiError(json?.error ?? `Request failed (${res.status})`, res.status, json?.code);
   }
   return json.data as T;
 }
