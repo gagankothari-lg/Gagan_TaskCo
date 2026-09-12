@@ -2,9 +2,9 @@ import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { GoogleVerifyService } from './google-verify.service';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -32,11 +32,10 @@ export interface LoginResponse {
 
 @Injectable()
 export class AuthService {
-  private readonly googleClient = new OAuth2Client();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly googleVerify: GoogleVerifyService,
   ) {}
 
   // ─────────────────────────────────────────────── LOGIN
@@ -59,22 +58,7 @@ export class AuthService {
 
   // ─────────────────────────────────────────────── GOOGLE SIGN-IN
   async googleLogin(idToken: string): Promise<LoginResponse> {
-    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-    if (!clientId) throw new UnauthorizedException('Google sign-in is not configured');
-
-    const ticket = await this.googleClient.verifyIdToken({ idToken, audience: clientId });
-    const payload = ticket.getPayload();
-    if (!payload) throw new UnauthorizedException('Invalid Google token');
-    if (!payload.email_verified) throw new UnauthorizedException('Google email not verified');
-
-    const allowedDomains = (process.env.ALLOWED_GOOGLE_HOSTED_DOMAINS ?? '')
-      .split(',')
-      .map((d) => d.trim().toLowerCase())
-      .filter(Boolean);
-    const hd = (payload.hd ?? '').trim().toLowerCase();
-    if (!hd || !allowedDomains.includes(hd)) {
-      throw new UnauthorizedException('This Google account is not on an allowed domain');
-    }
+    const payload = await this.googleVerify.verify(idToken);
 
     let user = await this.prisma.user.findUnique({ where: { googleSub: payload.sub } });
 

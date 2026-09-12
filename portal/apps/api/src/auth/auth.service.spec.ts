@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { AuthService } from './auth.service';
+import { GoogleVerifyService } from './google-verify.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 // Unit-level coverage for googleLogin()'s rejection paths that don't need a real Google
@@ -19,7 +20,7 @@ describe('AuthService.googleLogin', () => {
     jest.clearAllMocks();
     process.env.GOOGLE_OAUTH_CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
     process.env.ALLOWED_GOOGLE_HOSTED_DOMAINS = 'uxl.club, other.org';
-    service = new AuthService(prisma, jwt);
+    service = new AuthService(prisma, jwt, new GoogleVerifyService());
     verifyIdTokenSpy = jest.spyOn(OAuth2Client.prototype, 'verifyIdToken');
   });
 

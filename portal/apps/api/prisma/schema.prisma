@@ -55,6 +55,50 @@ model RevokedToken {
   @@schema("public")
 }
 
+// ─── ID COUNTER (LGDesk-owned; Portal reads/writes this table but never migrates it) ──
+// Shared sequential-ID generator (REG-XXXXX etc.) — Portal must keep using this same
+// counter for regId so it continues LGDesk's exact existing sequence, never restarting
+// or colliding with it.
+model IdCounter {
+  prefix    String @id
+  nextValue Int    @default(1)
+
+  @@map("id_counters")
+  @@schema("public")
+}
+
+// ─── REGISTRATION REQUEST (Portal-owned as of P18 Part 0 — moved from LGDesk) ──
+// Field-for-field mirror of LGDesk's current RegistrationRequest, re-read fresh 2026-09-12,
+// plus googleSub/googleEmail (Part 1's Google-assisted registration path). LGDesk's own
+// schema.prisma keeps declaring this model too (read/write, no migrations) against its new
+// physical location; Portal is the sole migration owner going forward.
+model RegistrationRequest {
+  id            String    @id @default(cuid())
+  regId         String    @unique
+  firstName     String
+  lastName      String
+  email         String
+  passwordHash  String
+  designation   String?
+  team          String?
+  subDepartment String?
+  managerId     String?
+  role          String    @default("Team Member")
+  status        String    @default("Pending")
+  reviewedBy    String?
+  notes         String?
+  dob           DateTime?
+  // Google-assisted registration (P18 Part 1): populated only when the applicant submitted
+  // a verified googleIdToken alongside manual fields. A password is still always required.
+  googleSub     String?   @unique
+  googleEmail   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("registration_requests")
+  @@schema("portal")
+}
+
 // ─── SOFTWARE TILE ─────────────────────────────────────────────
 // Portal-owned. The tile-grid launcher (Phase 6) reads this to know which pillars to show.
 model SoftwareTile {
