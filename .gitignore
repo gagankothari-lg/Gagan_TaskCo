@@ -1,1 +1,8 @@
 .claude/worktrees/
+
+# portal/ also has its own .gitignore scoping these within itself; listed here too per
+# explicit repo-root check (each top-level app's own .gitignore is the primary mechanism).
+portal/**/node_modules/
+portal/**/.next/
+portal/**/dist/
+

@@ -1,0 +1,25 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "portal"]
+}
+
+// ─── SOFTWARE TILE ─────────────────────────────────────────────
+// Portal-owned. The tile-grid launcher (Phase 6) reads this to know which pillars to show.
+model SoftwareTile {
+  id        String   @id @default(cuid())
+  key       String   @unique // e.g. "lgdesk"
+  label     String
+  url       String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@schema("portal")
+}
