@@ -9,6 +9,52 @@ datasource db {
   schemas  = ["public", "portal"]
 }
 
+// ─── USER (LGDesk-owned; Portal reads/writes this table but never migrates it) ──
+// Field-for-field mirror of LGDesk's apps/api/prisma/schema.prisma `User` model, re-read
+// fresh 2026-09-12 (Phase 3). Deliberately omits every relation to a domain model Portal
+// doesn't declare (WorkLog, Leave, Task, etc. — those live only in LGDesk's own schema) and
+// the self-referential manager/reports relation — Portal only needs identity, not the org
+// graph. Prisma would refuse to validate a relation to an undeclared model anyway. Scalar
+// columns (including managerId as a plain string) match the real table exactly.
+model User {
+  id                 String    @id @default(cuid())
+  empId              String    @unique
+  firstName          String
+  lastName           String
+  email              String    @unique
+  passwordHash       String
+  role               String
+  designation        String?
+  managerId          String?
+  team               String?
+  subDepartment      String?
+  isActive           Boolean   @default(true)
+  dob                DateTime?
+  presenceStatus     String    @default("online")
+  presenceUpdatedAt  DateTime?
+  personalCalendarId String?
+  googleSub          String?   @unique
+  googleEmail        String?
+  googleLinkedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("users")
+  @@schema("public")
+}
+
+model RevokedToken {
+  id        String   @id @default(cuid())
+  jti       String   @unique
+  empId     String
+  expiresAt DateTime
+  revokedAt DateTime @default(now())
+
+  @@index([jti])
+  @@map("revoked_tokens")
+  @@schema("public")
+}
+
 // ─── SOFTWARE TILE ─────────────────────────────────────────────
 // Portal-owned. The tile-grid launcher (Phase 6) reads this to know which pillars to show.
 model SoftwareTile {
