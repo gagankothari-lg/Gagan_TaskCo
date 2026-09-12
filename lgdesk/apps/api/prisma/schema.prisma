@@ -37,6 +37,12 @@ model User {
   // never cleared on deactivation -- the reference has no cleanup step either (confirmed:
   // no ACL-remove/calendar-delete call exists anywhere in calendar.gs/auth.gs).
   personalCalendarId String?
+  // Portal Phase 1: Google-linked sign-in support. Populated by Portal once it exists
+  // (Portal owns all login/Google-verification logic per SSO_Portal_Architecture_Decisions.md) --
+  // these columns just need to exist on LGDesk's side first since LGDesk owns this table's migrations.
+  googleSub          String?   @unique
+  googleEmail        String?
+  googleLinkedAt     DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
