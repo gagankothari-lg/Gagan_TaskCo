@@ -2,6 +2,7 @@ import { RegistrationService } from './registration.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
 import { GoogleVerifyService } from '../auth/google-verify.service';
+import { EmailService } from '../email/email.service';
 
 // The real end-to-end Google-assisted registration check is pending a real
 // GOOGLE_OAUTH_CLIENT_ID (same as Phase 3) -- stub GoogleVerifyService.verify() here to
@@ -15,12 +16,13 @@ describe('RegistrationService.submitRegistration — Google-assisted path', () =
   } as unknown as PrismaService;
   const idUtils = new IdUtilsService(prisma);
   const googleVerify = { verify: jest.fn() } as unknown as GoogleVerifyService;
+  const email = { sendRegistrationApproved: jest.fn(), sendRegistrationRejected: jest.fn() } as unknown as EmailService;
 
   let service: RegistrationService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new RegistrationService(prisma, idUtils, googleVerify);
+    service = new RegistrationService(prisma, idUtils, googleVerify, email);
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null); // no existing user/manual-manager
     (prisma.registrationRequest.findFirst as jest.Mock).mockResolvedValue(null); // no pending dup
     (prisma.idCounter.upsert as jest.Mock).mockResolvedValue({ prefix: 'REG', nextValue: 2 });
