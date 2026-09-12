@@ -42,7 +42,7 @@ type Tab = 'sheet' | 'csv';
 const TYPE_PILL: Record<ImportRow['type'], { bg: string; color: string }> = {
   Function: { bg: '#e3f2fd', color: '#1565c0' },
   'Sub-Fn': { bg: '#e0f2f1', color: '#00695c' },
-  Task: { bg: '#f5f5f5', color: '#757575' },
+  Task: { bg: '#f5f5f5', color: '#5C6773' },
 };
 
 const PRIORITY_COLOR: Record<string, string> = {

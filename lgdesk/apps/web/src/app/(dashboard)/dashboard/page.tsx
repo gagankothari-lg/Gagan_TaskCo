@@ -175,12 +175,12 @@ export default function DashboardPage() {
     [overdue, todayList, thisWeek, nextWeek, later].forEach((l) => l.sort(byDueThenPriority));
 
     return [
-      { key: 'overdue', label: 'Overdue', color: '#c62828', bg: '#fce8e8', list: overdue, empty: 'No overdue tasks — all clear', defaultCollapsed: false },
-      { key: 'today', label: 'Today', color: '#2e7d32', bg: '#e8f5e9', list: todayList, empty: 'All clear for today', defaultCollapsed: false },
+      { key: 'overdue', label: 'Overdue', color: '#A35B24', bg: 'rgba(163, 91, 36, 0.12)', list: overdue, empty: 'No overdue tasks — all clear', defaultCollapsed: false },
+      { key: 'today', label: 'Today', color: '#3E7A34', bg: 'rgba(62, 122, 52, 0.12)', list: todayList, empty: 'All clear for today', defaultCollapsed: false },
       { key: 'thisWeek', label: 'This week', color: '#455a64', bg: '#eceff1', list: thisWeek, empty: 'No tasks in this period', defaultCollapsed: false },
       { key: 'nextWeek', label: 'Next week', color: '#455a64', bg: '#eceff1', list: nextWeek, empty: 'No tasks in this period', defaultCollapsed: false },
       { key: 'later', label: 'Later', color: '#616161', bg: '#f5f5f5', list: later, empty: 'No tasks in this period', defaultCollapsed: true },
-      { key: 'noDue', label: 'No due date', color: '#9e9e9e', bg: '#fafafa', list: noDue, empty: 'No tasks without a due date', defaultCollapsed: true },
+      { key: 'noDue', label: 'No due date', color: '#96A0A8', bg: '#fafafa', list: noDue, empty: 'No tasks without a due date', defaultCollapsed: true },
     ];
   }, [tasks, currentUser]);
 
