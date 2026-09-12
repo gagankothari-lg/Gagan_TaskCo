@@ -28,9 +28,9 @@ export type ForgotPasswordRequestFormValues = z.infer<typeof forgotPasswordReque
 
 // Kept at min-6 (Master Reference Part 11 password-security rule) — this is the ONLY
 // forgot-password flow in the app (the previously-orphaned apps/web/src/app/(auth)/
-// forgot-password/page.tsx duplicate was removed in the shadcn/ui pass). Still distinct
-// from profile-modal's change-password form, which is min-8 per its backend DTO
-// (@MinLength(8)); do not unify these, see migration report.
+// forgot-password/page.tsx duplicate was removed in the shadcn/ui pass). LGDesk's own
+// change-password form (profile-modal.tsx) was retired in P21 -- Portal's own version is
+// min-6 too, matching this.
 export const forgotPasswordResetSchema = z
   .object({
     otp: z

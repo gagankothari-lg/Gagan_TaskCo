@@ -10,10 +10,8 @@ import { Icon } from '../../components/ui/icon';
 import { toast } from '../../lib/toast';
 import { AuthRefreshPing } from '../../components/auth-refresh-ping';
 import { ImportModal } from '../../components/modules/import/import-modal';
-import { ProfileModal } from '../../components/modules/users/profile-modal';
 import { ClockWidget } from '../../components/modules/work-duration/clock-widget';
 import { WeekGlanceWidget } from '../../components/modules/work-log/week-glance-widget';
-import { useProfileRequests } from '../../lib/api/teamMembers';
 import { useSetPresence, HEARTBEAT_MS, IDLE_MS } from '../../lib/api/presence';
 import { PageHeaderProvider, usePageHeaderSlot } from '../../components/layout/page-header-context';
 
@@ -68,16 +66,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, isLoading, logout, refresh, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
-  const managerLoaded = !!user && isManager(user.role);
-  // Round5 add'l-1: Profile Updates has no own nav item — embedded-only (members-view.tsx),
-  // matching the reference (Part 10's full nav table has no standalone entry for it). Its
-  // pending count folds into Team Members'/Organisation's own badge instead of
-  // disappearing. Registrations used to fold into this same badge too (Round5 add'l-1);
-  // P19 moved registration to Portal, so this badge now combines only Profile Updates and
-  // Due-Date Requests.
-  const { data: profileRequests } = useProfileRequests(managerLoaded);
-  const pendingProfileCount = useMemo(() => (profileRequests ?? []).filter((r) => r.status === 'Pending').length, [profileRequests]);
-  const pendingTeamMgmtCount = pendingDdrCount + pendingProfileCount;
+  // Round5 add'l-1: this badge originally combined Registrations + Profile Updates + DDRs.
+  // P19 moved registration to Portal, P21 moved profile updates to Portal too -- Due-Date
+  // Requests is the only queue left in LGDesk's own Team Members/Organisation badge now.
+  const pendingTeamMgmtCount = pendingDdrCount;
 
   const [mobNavOpen, setMobNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -85,7 +77,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const [pres, setPres] = useState<PresKey>('online');
   const [refreshing, setRefreshing] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const presWrap = useRef<HTMLDivElement>(null);
   const setPresence = useSetPresence();
   // Tracks whether the current 'away' state was auto-set by the idle timer (vs. the
@@ -366,14 +357,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
               ))}
               <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
               <div
-                onClick={() => { setPresOpen(false); setProfileOpen(true); }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--p3)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <Icon name="manage_accounts" size={18} /> My Profile
-              </div>
-              <div
                 onClick={() => { setPresOpen(false); logout(); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--danger)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--p3)')}
@@ -503,8 +486,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           manager-gated, only the button's visibility mattered historically. */}
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
 
-      {/* My Profile — slide-over with profile-update + change-password forms. */}
-      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

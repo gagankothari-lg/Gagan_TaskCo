@@ -20,7 +20,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { isAdmin, isManager } from '../common/constants';
 import { LoginDto } from './dto/login.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { EmailService } from '../email/email.service';
 
 const BCRYPT_ROUNDS = 12;
@@ -192,21 +191,14 @@ export class AuthService {
     return { ok: true };
   }
 
-  // ─────────────────────────────────────────────── CHANGE PASSWORD
-  async changePassword(empId: string, dto: ChangePasswordDto) {
-    const user = await this.prisma.user.findUnique({ where: { empId } });
-    if (!user) throw new UnauthorizedException('Current password incorrect');
-    const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Current password incorrect');
+  // Change-password retired from LGDesk in P21 (Phase 5b) -- Portal's POST /auth/
+  // change-password is now the only place this action exists (revoke-all + a fresh token
+  // for the calling session, an intentional improvement over this endpoint's old
+  // force-logout-entirely behavior). revokeAllSessions() below stays -- confirmPasswordReset
+  // still uses it.
 
-    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
-    await this.prisma.user.update({ where: { empId }, data: { passwordHash } });
-    await this.revokeAllSessions(empId); // force re-login (TC-AUTH-019)
-    await this.audit(empId, 'CHANGE_PASSWORD');
-    return { ok: true };
-  }
-
-  // Registration moved to UsersService (P03). POST /auth/register/request delegates there.
+  // Registration moved to UsersService (P03), then to Portal (P19). POST /auth/register/
+  // request no longer exists here.
 
   // ─────────────────────────────────────────────── CRON: nightly cleanup
   @Cron('0 3 * * *')

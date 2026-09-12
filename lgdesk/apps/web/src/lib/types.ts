@@ -131,34 +131,11 @@ export interface LoginResponse {
 }
 
 // ─── Users module (P03/P04) ────────────────────────
-// RegistrationRequest moved out in P19 -- registration (submission + approval) is now
-// Portal's own concern, with its own type definitions there.
-export interface ProfileUpdateRequest {
-  id: string;
-  reqId: string;
-  empId: string;
-  changes: string; // JSON string of the requested field changes
-  status: string;
-  reviewedBy?: string | null;
-  notes?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+// RegistrationRequest moved out in P19, ProfileUpdateRequest/ProfileUpdateInput moved out
+// in P21 -- both are Portal's own concern now, with their own type definitions there.
 
 // Org-tree node: a user plus their (recursive) direct reports.
 export type OrgNode = User & { reports: OrgNode[] };
-
-// Fields a user may submit for a profile update.
-export interface ProfileUpdateInput {
-  firstName?: string;
-  lastName?: string;
-  designation?: string;
-  team?: string;
-  subDepartment?: string;
-  dob?: string;
-  // Round5 add'l-2: manager-change request, resolved by email at approve time.
-  newManagerEmail?: string;
-}
 
 // ─── Tasks / DDR (P05/P06) ─────────────────────────
 export interface ProgressUpdate {

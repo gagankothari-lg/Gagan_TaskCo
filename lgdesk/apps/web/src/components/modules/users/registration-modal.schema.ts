@@ -1,9 +1,11 @@
 // Shared team/sub-department taxonomy -- NOT registration-specific despite the filename
-// (kept here rather than moved, per P19: org-chart/page.tsx and profile-modal.schema.ts
-// both import TEAM_HIERARCHY/DIVISIONS from this exact path, so renaming/moving it is a
-// bigger, riskier change than this phase's actual scope). The registration form's own Zod
-// schema (registrationSchema/RegistrationFormValues) was removed in P19 along with
-// registration-modal.tsx, its only consumer -- registration now lives in Portal.
+// (kept here rather than moved, per P19: org-chart/page.tsx imports TEAM_HIERARCHY/
+// DIVISIONS from this exact path, so renaming/moving it is a bigger, riskier change than
+// that phase's actual scope). The registration form's own Zod schema (registrationSchema/
+// RegistrationFormValues) was removed in P19 along with registration-modal.tsx, its only
+// consumer -- registration now lives in Portal. profile-modal.tsx (also since removed, in
+// P21) never actually imported from this file -- it used a free-text team input, not this
+// TEAM_HIERARCHY dropdown.
 //
 // Division -> sub-department list. Divisions with an empty array (Founder's Office,
 // Knowledge, Consulting) have no sub-departments and skip the conditional-required rule.

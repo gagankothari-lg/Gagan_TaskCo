@@ -1,14 +1,11 @@
 import {
   Injectable,
-  ConflictException,
   ForbiddenException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { IdUtilsService } from '../common/utils/id.utils';
 import { isAdmin } from '../common/constants';
-import { UpdateProfileDto } from './dto/update-profile.dto';
 
 const ORG_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -41,22 +38,9 @@ export interface OrgNode {
 export class UsersService {
   private orgCache: { at: number; data: OrgNode[] } | null = null;
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly idUtils: IdUtilsService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // ─────────────────────────────────────────────── reads
-  async getMe(empId: string) {
-    const user = await this.prisma.user.findUnique({ where: { empId }, select: USER_SELECT });
-    if (!user) throw new NotFoundException('Employee not found');
-    const pendingProfileRequest = await this.prisma.profileUpdateRequest.findFirst({
-      where: { empId, status: 'Pending' },
-      orderBy: { createdAt: 'desc' },
-    });
-    return { ...user, pendingProfileRequest: pendingProfileRequest ?? null };
-  }
-
   async getAll(callerEmpId: string) {
     const caller = await this.getCaller(callerEmpId);
     // Admin/SA see everyone (incl. inactive); everyone else sees active only.
@@ -108,117 +92,9 @@ export class UsersService {
     return new Set([caller.empId, ...subs]);
   }
 
-  // ─────────────────────────────────────────────── profile updates
-  // Round5 add'l-2: reference (auth.gs:412-420) applies Designation immediately
-  // regardless of what else is submitted alongside it in the same call -- only Team/
-  // Sub-Department/Manager ever require approval, because only those affect how other
-  // users' views of the org structure resolve. The rebuild's own net-new firstName/
-  // lastName/dob fields (no reference equivalent) are personal/cosmetic in the same way
-  // Designation is, not organizational, so they're grouped with it here rather than
-  // left in the "requires approval" bucket by accident of the old single-field check.
-  private static readonly PROFILE_IMMEDIATE_KEYS = new Set(['designation', 'firstName', 'lastName', 'dob']);
-
-  async submitProfileUpdate(empId: string, dto: UpdateProfileDto) {
-    const provided = Object.entries(dto).filter(([, v]) => v !== undefined && v !== null);
-    if (provided.length === 0) throw new BadRequestException('No changes provided');
-
-    const immediate = Object.fromEntries(provided.filter(([k]) => UsersService.PROFILE_IMMEDIATE_KEYS.has(k)));
-    const queued = Object.fromEntries(provided.filter(([k]) => !UsersService.PROFILE_IMMEDIATE_KEYS.has(k)));
-
-    if (Object.keys(immediate).length > 0) {
-      const data: { firstName?: string; lastName?: string; designation?: string; dob?: Date | null } = {};
-      if (typeof immediate.firstName === 'string') data.firstName = immediate.firstName;
-      if (typeof immediate.lastName === 'string') data.lastName = immediate.lastName;
-      if (typeof immediate.designation === 'string') data.designation = immediate.designation;
-      if ('dob' in immediate) data.dob = immediate.dob ? new Date(immediate.dob as string) : null;
-      await this.prisma.user.update({ where: { empId }, data });
-      await this.audit(empId, 'UPDATE_PROFILE', 'User', empId, null, JSON.stringify(immediate));
-    }
-
-    if (Object.keys(queued).length === 0) return { immediate: true };
-
-    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
-    const reqId = await this.idUtils.createWithId('profileUpdateRequest', 'reqId', 'PR', async (id) => {
-      await this.prisma.profileUpdateRequest.create({
-        data: { reqId: id, empId, changes: JSON.stringify(queued), status: 'Pending' },
-      });
-      return id;
-    });
-    return { immediate: false, reqId };
-  }
-
-  async getPendingProfileRequests(callerEmpId: string) {
-    const caller = await this.getCaller(callerEmpId);
-    if (isAdmin(caller.role)) {
-      return this.prisma.profileUpdateRequest.findMany({
-        where: { status: 'Pending' },
-        orderBy: { createdAt: 'desc' },
-      });
-    }
-    const memberIds = await this.getApprovableEmpIds(caller);
-    return this.prisma.profileUpdateRequest.findMany({
-      where: { status: 'Pending', empId: { in: memberIds } },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async approveProfileUpdate(reqId: string, callerEmpId: string) {
-    const req = await this.prisma.profileUpdateRequest.findUnique({ where: { reqId } });
-    if (!req) throw new NotFoundException('Profile request not found');
-    const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role) && !(await this.canReviewProfileRequest(req.empId, caller))) {
-      throw new ForbiddenException('Not authorized to approve this request.');
-    }
-    if (req.status !== 'Pending') throw new BadRequestException('Profile request already processed');
-
-    const changes = this.parseChanges(req.changes);
-    const data: {
-      firstName?: string;
-      lastName?: string;
-      designation?: string;
-      team?: string;
-      subDepartment?: string;
-      dob?: Date | null;
-      managerId?: string;
-    } = {};
-    if (typeof changes.firstName === 'string') data.firstName = changes.firstName;
-    if (typeof changes.lastName === 'string') data.lastName = changes.lastName;
-    if (typeof changes.designation === 'string') data.designation = changes.designation;
-    if (typeof changes.team === 'string') data.team = changes.team;
-    if (typeof changes.subDepartment === 'string') data.subDepartment = changes.subDepartment;
-    if (changes.dob !== undefined) data.dob = changes.dob ? new Date(changes.dob as string) : null;
-    // Round5 add'l-2: reference (auth.gs:493-495) resolves the requested manager's email
-    // to a real employee and silently no-ops (doesn't reject the whole approval) if the
-    // email doesn't match anyone -- mirrored exactly here.
-    if (typeof changes.newManagerEmail === 'string' && changes.newManagerEmail) {
-      const mgr = await this.prisma.user.findUnique({ where: { email: changes.newManagerEmail }, select: { empId: true } });
-      if (mgr) data.managerId = mgr.empId;
-    }
-
-    await this.prisma.user.update({ where: { empId: req.empId }, data });
-    await this.prisma.profileUpdateRequest.update({
-      where: { id: req.id },
-      data: { status: 'Approved', reviewedBy: callerEmpId },
-    });
-    await this.audit(callerEmpId, 'APPROVE_PROFILE', 'ProfileUpdateRequest', req.reqId, null, req.changes);
-    this.clearOrgCache();
-    return { ok: true };
-  }
-
-  async rejectProfileUpdate(reqId: string, callerEmpId: string, notes?: string) {
-    const req = await this.prisma.profileUpdateRequest.findUnique({ where: { reqId } });
-    if (!req) throw new NotFoundException('Profile request not found');
-    const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role) && !(await this.canReviewProfileRequest(req.empId, caller))) {
-      throw new ForbiddenException('Not authorized to reject this request.');
-    }
-    await this.prisma.profileUpdateRequest.update({
-      where: { id: req.id },
-      data: { status: 'Rejected', reviewedBy: callerEmpId, notes },
-    });
-    await this.audit(callerEmpId, 'REJECT_PROFILE', 'ProfileUpdateRequest', req.reqId);
-    return { ok: true };
-  }
+  // Profile-update submission/approval retired from LGDesk in P21 (Phase 5b) -- Portal's
+  // POST /profile-updates and GET/POST /profile-updates/:id/approve|reject are now the
+  // only place this action exists.
 
   // ─────────────────────────────────────────────── role / lifecycle
   async changeRole(targetEmpId: string, newRole: string, callerEmpId: string) {
@@ -299,23 +175,6 @@ export class UsersService {
     return caller;
   }
 
-  // Additive-OR (mirrors LeavesService.getApprovableEmpIds): a manager may
-  // review anyone who is either their direct designated report (managerId
-  // match) OR on their same team — either condition independently qualifies.
-  private async getApprovableEmpIds(caller: { empId: string; team: string | null }): Promise<string[]> {
-    const or: Array<{ managerId: string } | { team: string }> = [{ managerId: caller.empId }];
-    if (caller.team) or.push({ team: caller.team });
-    const users = await this.prisma.user.findMany({ where: { OR: or }, select: { empId: true } });
-    return users.map((u) => u.empId);
-  }
-
-  private async canReviewProfileRequest(targetEmpId: string, caller: { empId: string; team: string | null }): Promise<boolean> {
-    const target = await this.prisma.user.findUnique({ where: { empId: targetEmpId }, select: { managerId: true, team: true } });
-    if (!target) return false;
-    if (target.managerId === caller.empId) return true;
-    return !!caller.team && !!target.team && target.team === caller.team;
-  }
-
   private buildOrgTree(users: Array<{ empId: string; managerId: string | null } & Record<string, unknown>>): OrgNode[] {
     const byId = new Map<string, OrgNode>();
     for (const u of users) byId.set(u.empId, { ...u, reports: [] });
@@ -326,15 +185,6 @@ export class UsersService {
       else roots.push(node);
     }
     return roots;
-  }
-
-  private parseChanges(raw: string): Record<string, unknown> {
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
   }
 
   private clearOrgCache() {

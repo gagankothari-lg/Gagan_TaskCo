@@ -6,7 +6,6 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordRequestDto } from './dto/reset-password-request.dto';
 import { ResetPasswordConfirmDto } from './dto/reset-password-confirm.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 
 interface AuthedUser {
   empId: string;
@@ -51,11 +50,5 @@ export class AuthController {
   @Post('password-reset/confirm')
   confirmReset(@Body() dto: ResetPasswordConfirmDto) {
     return this.auth.confirmPasswordReset(dto.email, dto.otp, dto.newPassword);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Post('change-password')
-  changePassword(@CurrentUser() user: AuthedUser, @Body() dto: ChangePasswordDto) {
-    return this.auth.changePassword(user.empId, dto);
   }
 }

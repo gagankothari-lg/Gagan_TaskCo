@@ -4,10 +4,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ADMIN_ROLES, MANAGER_ROLES } from '../common/constants';
-import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ADMIN_ROLES } from '../common/constants';
 import { ChangeRoleDto } from './dto/change-role.dto';
-import { RejectProfileDto } from './dto/reject-profile.dto';
 
 interface AuthedUser {
   empId: string;
@@ -21,41 +19,9 @@ interface AuthedUser {
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
-  @Get('me')
-  getMe(@CurrentUser() user: AuthedUser) {
-    return this.users.getMe(user.empId);
-  }
-
-  @Patch('me/profile')
-  updateProfile(@CurrentUser() user: AuthedUser, @Body() dto: UpdateProfileDto) {
-    return this.users.submitProfileUpdate(user.empId, dto);
-  }
-
   @Get('org-tree')
   getOrgTree() {
     return this.users.getOrgTree();
-  }
-
-  @Roles(...MANAGER_ROLES)
-  @Get('profile-requests')
-  getProfileRequests(@CurrentUser() user: AuthedUser) {
-    return this.users.getPendingProfileRequests(user.empId);
-  }
-
-  @Roles(...MANAGER_ROLES)
-  @Patch('profile-requests/:reqId/approve')
-  approveProfile(@Param('reqId') reqId: string, @CurrentUser() user: AuthedUser) {
-    return this.users.approveProfileUpdate(reqId, user.empId);
-  }
-
-  @Roles(...MANAGER_ROLES)
-  @Patch('profile-requests/:reqId/reject')
-  rejectProfile(
-    @Param('reqId') reqId: string,
-    @CurrentUser() user: AuthedUser,
-    @Body() dto: RejectProfileDto,
-  ) {
-    return this.users.rejectProfileUpdate(reqId, user.empId, dto.notes);
   }
 
   // RBAC matrix Row 19: Admin/SA plus Team Captain (own-team TM/Intern only) — the

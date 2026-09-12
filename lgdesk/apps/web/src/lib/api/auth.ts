@@ -1,6 +1,5 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
 import { apiFetch } from './client';
 import type { InitialPayload, LoginResponse } from '../types';
 
@@ -35,10 +34,5 @@ export function confirmPasswordReset(dto: ConfirmPasswordResetInput): Promise<vo
   return apiFetch<void>('/auth/password-reset/confirm', { method: 'POST', body: dto });
 }
 
-// ─── Mutations ──────────────────────────────────────
-export function useChangePassword() {
-  return useMutation({
-    mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
-      apiFetch<void>('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
-  });
-}
+// Change-password retired from LGDesk in P21 (Phase 5b) -- Portal's POST /auth/
+// change-password is now the only place this action exists.
