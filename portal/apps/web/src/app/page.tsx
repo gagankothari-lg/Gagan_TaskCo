@@ -5,6 +5,9 @@ export default function Home() {
       <a href="/registration" style={{ fontSize: 13 }}>
         Registration approvals →
       </a>
+      <a href="/profile-updates" style={{ fontSize: 13 }}>
+        Profile-update approvals →
+      </a>
     </main>
   );
 }
