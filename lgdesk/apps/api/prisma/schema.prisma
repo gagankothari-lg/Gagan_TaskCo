@@ -632,7 +632,7 @@ model ProfileUpdateRequest {
   user User @relation(fields: [empId], references: [empId], onDelete: Restrict)
 
   @@map("profile_update_requests")
-  @@schema("public")
+  @@schema("portal")
 }
 
 // ─── AUDIT LOG ─────────────────────────────────────────────────

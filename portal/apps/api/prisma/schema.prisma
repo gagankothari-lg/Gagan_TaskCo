@@ -99,6 +99,31 @@ model RegistrationRequest {
   @@schema("portal")
 }
 
+// ─── PROFILE UPDATE REQUEST (Portal-owned as of P20 Part 0 — moved from LGDesk) ──
+// Field-for-field mirror of LGDesk's current ProfileUpdateRequest, re-read fresh
+// 2026-09-12. The real table has a `user User @relation(..., onDelete: Restrict)` FK to
+// users.empId, kept intact by the physical schema move (Postgres cross-schema FKs work
+// natively) -- deliberately NOT declared as a Prisma relation here, same as
+// RegistrationRequest.managerId: Portal's own User model omits back-relations by design
+// (Phase 3), and Portal doesn't need Prisma-level joins from this table, just the plain
+// empId scalar. LGDesk's own schema.prisma keeps declaring the real relation (read/write,
+// no migrations) against this table's new physical location; Portal is the sole migration
+// owner going forward.
+model ProfileUpdateRequest {
+  id         String   @id @default(cuid())
+  reqId      String   @unique
+  empId      String
+  changes    String
+  status     String   @default("Pending")
+  reviewedBy String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("profile_update_requests")
+  @@schema("portal")
+}
+
 // ─── SOFTWARE TILE ─────────────────────────────────────────────
 // Portal-owned. The tile-grid launcher (Phase 6) reads this to know which pillars to show.
 model SoftwareTile {

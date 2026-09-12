@@ -4,6 +4,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 interface AuthedUser {
   empId: string;
@@ -38,5 +39,11 @@ export class AuthController {
   @Post('logout')
   logout(@CurrentUser() user: AuthedUser) {
     return this.auth.logout(user.empId, user.jti, new Date(user.exp * 1000));
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  changePassword(@CurrentUser() user: AuthedUser, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(user.empId, dto);
   }
 }

@@ -4,9 +4,11 @@ import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { GoogleVerifyService } from './google-verify.service';
 
 const BCRYPT_ROUNDS = 12;
+const REVOKE_ALL_TTL_MS = 8 * 24 * 60 * 60 * 1000; // > max token lifetime (7d), matching LGDesk
 
 type SessionUser = {
   empId: string;
@@ -119,6 +121,38 @@ export class AuthService {
       update: {},
     });
     return { ok: true };
+  }
+
+  // ─────────────────────────────────────────────── CHANGE PASSWORD
+  // Verify-hash-write matches LGDesk's changePassword() exactly (same bcrypt rounds, same
+  // revoke-all:{empId}:* sentinel via the shared revokedToken table -- already proven
+  // bidirectional in Phase 3, so this kills every other session in LGDesk too). Deliberate
+  // departure from LGDesk's current behavior, not a bug: LGDesk's own changePassword()
+  // does NOT mint a fresh token afterward, so its own current request's token is caught by
+  // the revoke-all sentinel too (confirmed by re-reading its code and its frontend, which
+  // shows "Signing you out..." and force-logs-out) -- Portal instead mints a fresh session
+  // token for the request that just completed, using jwt.strategy.ts's own documented
+  // grace window (iat treated as issued one second late, specifically so a token minted in
+  // the same request as a revoke-all write is never self-revoked) so the person isn't
+  // logged out of the flow they just completed while every *other* session still dies.
+  async changePassword(empId: string, dto: ChangePasswordDto): Promise<{ token: string }> {
+    const user = await this.prisma.user.findUnique({ where: { empId } });
+    if (!user) throw new UnauthorizedException('Current password incorrect');
+    const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!ok) throw new UnauthorizedException('Current password incorrect');
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
+    await this.prisma.user.update({ where: { empId }, data: { passwordHash } });
+    await this.prisma.revokedToken.create({
+      data: {
+        jti: `revoke-all:${empId}:${randomUUID()}`,
+        empId,
+        expiresAt: new Date(Date.now() + REVOKE_ALL_TTL_MS),
+      },
+    });
+
+    const { token } = await this.mintSession(user);
+    return { token };
   }
 
   private async mintSession(user: SessionUser): Promise<LoginResponse> {
