@@ -69,7 +69,7 @@ export function isClosedTaskStatus(status: string): boolean {
 export function statusDotColor(status: string, opts?: { overdue?: boolean }): string {
   if (opts?.overdue && status !== 'Done' && status !== 'Cancelled') return 'var(--danger)';
   if (status === 'Done' || status === 'Completed') return 'var(--ok)';
-  if (status.startsWith('WIP')) return '#1565c0';
+  if (status.startsWith('WIP')) return 'var(--p2)';
   if (status === 'Under Review' || status === 'Review') return 'var(--warn)';
   if (status === 'On Hold') return '#f57f17';
   if (status === 'Cancelled') return 'var(--muted)';

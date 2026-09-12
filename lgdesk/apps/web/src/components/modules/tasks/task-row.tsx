@@ -38,18 +38,17 @@ export function statusDotColor(status: string, overdue: boolean): string {
 // FIX B (task-sheet rebuild): there is no priority-bar anywhere in the live reference
 // app — the only function that would ever emit a `.ts-pribar` cell (`_renderTskSheet`,
 // app.js.html:9424) has zero callers. Priority is instead an icon + colored-text label
-// in a normal column (8th of 9, after Status, before Due date) — exact values from
-// `_tskGrpPriorityHtml` (app.js.html:5212-5216). These are literal hex values confirmed
-// from the reference's own live rendering, not this app's indigo brand tokens — used
-// as-is since this is a data-status indicator, not a brand element.
+// in a normal column (8th of 9, after Status, before Due date) — icon choice from
+// `_tskGrpPriorityHtml` (app.js.html:5212-5216); colors updated to the UXL Club
+// palette (design.md) — Faded orange deep / Solar deep / Ink soft / Pistachio deep.
 const TASK_PRIORITY_DISPLAY: Record<string, { icon: string; color: string }> = {
-  Critical: { icon: '⬆', color: '#dc2626' },
-  High: { icon: '↑', color: '#dc2626' },
-  Medium: { icon: '→', color: '#d97706' },
-  Low: { icon: '↓', color: '#16a34a' },
+  Critical: { icon: '⬆', color: '#A35B24' },
+  High: { icon: '↑', color: '#9C6C10' },
+  Medium: { icon: '→', color: '#5C6773' },
+  Low: { icon: '↓', color: '#3E7A34' },
 };
 export function taskPriorityDisplay(priority: string): { icon: string; color: string } {
-  return TASK_PRIORITY_DISPLAY[priority] ?? { icon: '–', color: '#94a3b8' };
+  return TASK_PRIORITY_DISPLAY[priority] ?? { icon: '–', color: '#96A0A8' };
 }
 
 // Responsive column-hide classes shared with task-list-view.tsx's <th> header/filter

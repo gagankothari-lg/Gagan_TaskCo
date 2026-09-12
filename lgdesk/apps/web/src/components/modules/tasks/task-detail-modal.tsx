@@ -129,7 +129,7 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                 </button>
               )}
               {!isLoading && task && canDelete && (
-                <button type="button" onClick={remove} aria-label="Delete task" className="rounded-[6px] p-1.5 text-muted hover:bg-[#fce8e8] hover:text-danger">
+                <button type="button" onClick={remove} aria-label="Delete task" className="rounded-[6px] p-1.5 text-muted hover:bg-danger/10 hover:text-danger">
                   <Icon name="delete" size={16} />
                 </button>
               )}
@@ -354,7 +354,7 @@ export function TaskDetailModal({ taskId, onClose }: TaskDetailModalProps) {
                 <p className="text-sm text-muted2">{attCount > 0 ? `${attCount} attachment${attCount === 1 ? '' : 's'}.` : 'No attachments yet.'}</p>
               </div>
 
-              {error && <div className="rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
+              {error && <div className="rounded-[8px] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
             </div>
           )}
         </DialogContent>

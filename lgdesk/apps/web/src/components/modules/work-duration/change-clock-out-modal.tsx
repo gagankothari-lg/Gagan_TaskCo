@@ -26,14 +26,14 @@ export function AnalogClock({ hour, minute, size = 120 }: { hour: number; minute
   const m = hand(minAngle, r * 0.8);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={c} cy={c} r={r} fill="#f0f2f5" stroke="#e0e0e0" strokeWidth="2" />
+      <circle cx={c} cy={c} r={r} fill="#ECF1F1" stroke="#DFE6E8" strokeWidth="2" />
       {Array.from({ length: 12 }, (_, i) => {
         const a = (i * 30 - 90) * (Math.PI / 180);
-        return <circle key={i} cx={c + Math.cos(a) * (r - 6)} cy={c + Math.sin(a) * (r - 6)} r={1.5} fill="#757575" />;
+        return <circle key={i} cx={c + Math.cos(a) * (r - 6)} cy={c + Math.sin(a) * (r - 6)} r={1.5} fill="#5C6773" />;
       })}
-      <line x1={c} y1={c} x2={h.x2} y2={h.y2} stroke="#212121" strokeWidth="3" strokeLinecap="round" />
-      <line x1={c} y1={c} x2={m.x2} y2={m.y2} stroke="#1a237e" strokeWidth="2" strokeLinecap="round" />
-      <circle cx={c} cy={c} r={3} fill="#1a237e" />
+      <line x1={c} y1={c} x2={h.x2} y2={h.y2} stroke="#5C6773" strokeWidth="3" strokeLinecap="round" />
+      <line x1={c} y1={c} x2={m.x2} y2={m.y2} stroke="#2D3E51" strokeWidth="2" strokeLinecap="round" />
+      <circle cx={c} cy={c} r={3} fill="#2D3E51" />
     </svg>
   );
 }

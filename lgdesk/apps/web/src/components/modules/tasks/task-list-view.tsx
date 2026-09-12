@@ -494,7 +494,7 @@ function FunctionGroup({ name, list, mountCount, sort, onSort, onOpen, onEdit }:
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 9, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Function</span>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{name}</span>
-            <span style={{ marginLeft: 'auto', background: '#e8eaf6', color: '#1a237e', fontSize: 11, padding: '2px 8px', borderRadius: 3 }}>{list.length}</span>
+            <span style={{ marginLeft: 'auto', background: 'var(--p3)', color: 'var(--p)', fontSize: 11, padding: '2px 8px', borderRadius: 3 }}>{list.length}</span>
           </div>
         </td>
       </tr>

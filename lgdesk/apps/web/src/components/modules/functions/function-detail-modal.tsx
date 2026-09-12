@@ -265,7 +265,7 @@ export function FunctionDetailModal({ functionId, onClose }: { functionId: strin
                       )}
                     />
                   </fieldset>
-                  {error && <div className="rounded-[8px] border border-danger/40 bg-[#fce8e8] px-3 py-2 text-sm text-danger">{error}</div>}
+                  {error && <div className="rounded-[8px] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
                   {!canEdit && <p className="text-xs text-muted2">You don&apos;t have permission to edit this function.</p>}
                   <div className="flex items-center gap-2">
                     {canEdit && (

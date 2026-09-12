@@ -36,9 +36,9 @@ function addDays(d: Date, n: number): Date {
   return x;
 }
 const PRIORITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
-const priBorder = (p: string) => (p === 'Critical' ? '#c62828' : p === 'High' ? '#e65100' : p === 'Medium' ? '#1a237e' : '#9e9e9e');
+const priBorder = (p: string) => (p === 'Critical' ? '#A35B24' : p === 'High' ? '#9C6C10' : p === 'Medium' ? '#5C6773' : '#3E7A34');
 const priBadgeStyle = (p: string) =>
-  p === 'Critical' ? { bg: '#fce8e8', c: '#c62828' } : p === 'High' ? { bg: '#fff3e0', c: '#e65100' } : p === 'Medium' ? { bg: '#e8eaf6', c: '#1a237e' } : { bg: '#f5f5f5', c: '#757575' };
+  p === 'Critical' ? { bg: 'rgba(163, 91, 36, 0.12)', c: '#A35B24' } : p === 'High' ? { bg: 'rgba(156, 108, 16, 0.12)', c: '#9C6C10' } : p === 'Medium' ? { bg: 'rgba(92, 103, 115, 0.12)', c: '#5C6773' } : { bg: 'rgba(62, 122, 52, 0.12)', c: '#3E7A34' };
 
 // Reference `.stat-card` (globals.css) already provides surface bg, shadow and the
 // indigo `border-top:3px solid var(--p)` accent — just use it directly instead of
@@ -175,12 +175,12 @@ export default function DashboardPage() {
     [overdue, todayList, thisWeek, nextWeek, later].forEach((l) => l.sort(byDueThenPriority));
 
     return [
-      { key: 'overdue', label: 'Overdue', color: '#c62828', bg: '#fce8e8', list: overdue, empty: 'No overdue tasks — all clear', defaultCollapsed: false },
-      { key: 'today', label: 'Today', color: '#2e7d32', bg: '#e8f5e9', list: todayList, empty: 'All clear for today', defaultCollapsed: false },
+      { key: 'overdue', label: 'Overdue', color: '#A35B24', bg: 'rgba(163, 91, 36, 0.12)', list: overdue, empty: 'No overdue tasks — all clear', defaultCollapsed: false },
+      { key: 'today', label: 'Today', color: '#3E7A34', bg: 'rgba(62, 122, 52, 0.12)', list: todayList, empty: 'All clear for today', defaultCollapsed: false },
       { key: 'thisWeek', label: 'This week', color: '#455a64', bg: '#eceff1', list: thisWeek, empty: 'No tasks in this period', defaultCollapsed: false },
       { key: 'nextWeek', label: 'Next week', color: '#455a64', bg: '#eceff1', list: nextWeek, empty: 'No tasks in this period', defaultCollapsed: false },
       { key: 'later', label: 'Later', color: '#616161', bg: '#f5f5f5', list: later, empty: 'No tasks in this period', defaultCollapsed: true },
-      { key: 'noDue', label: 'No due date', color: '#9e9e9e', bg: '#fafafa', list: noDue, empty: 'No tasks without a due date', defaultCollapsed: true },
+      { key: 'noDue', label: 'No due date', color: '#96A0A8', bg: '#fafafa', list: noDue, empty: 'No tasks without a due date', defaultCollapsed: true },
     ];
   }, [tasks, currentUser]);
 

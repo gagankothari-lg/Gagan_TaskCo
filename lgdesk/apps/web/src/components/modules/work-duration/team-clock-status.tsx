@@ -9,10 +9,10 @@ import { initials as initialsOf } from '../../../lib/utils';
 
 function statusBadge(status: string): { label: string; bg: string; color: string } | null {
   switch (status) {
-    case 'ACTIVE': return { label: 'Clocked In', bg: '#e8f5e9', color: '#2e7d32' };
-    case 'ON_BREAK': return { label: 'On Break', bg: '#fff3e0', color: '#e65100' };
+    case 'ACTIVE': return { label: 'Clocked In', bg: 'rgba(62, 122, 52, 0.12)', color: '#3E7A34' };
+    case 'ON_BREAK': return { label: 'On Break', bg: 'rgba(156, 108, 16, 0.12)', color: '#9C6C10' };
     case 'COMPLETED':
-    case 'AUTO_CLOSED': return { label: 'Done', bg: '#f5f5f5', color: '#757575' };
+    case 'AUTO_CLOSED': return { label: 'Done', bg: 'rgba(92, 103, 115, 0.12)', color: '#5C6773' };
     default: return null;
   }
 }

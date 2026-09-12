@@ -40,7 +40,7 @@ const thBase: CSSProperties = {
   whiteSpace: 'nowrap',
   background: 'transparent',
 };
-const thAmber: CSSProperties = { ...thBase, color: '#d97706' };
+const thAmber: CSSProperties = { ...thBase, color: 'var(--warn)' };
 
 // Compact square nav button (reference .tl-nav-btn) — distinct from the generic
 // btn/btn-ghost/btn-sm buttons used for Today/Refresh/Weekly Summary.

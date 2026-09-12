@@ -130,7 +130,7 @@ export default function LoginPage() {
   }
 
   const errBox = error && (
-    <div style={{ background: '#fce8e8', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginTop: 4 }}>{error}</div>
+    <div style={{ background: 'var(--alert-danger-bg)', color: 'var(--danger)', borderRadius: 8, padding: '9px 12px', fontSize: 13, marginTop: 4 }}>{error}</div>
   );
   const statusLine = status && !error && (
     <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', marginBottom: 4 }}>{status}</div>
@@ -138,7 +138,7 @@ export default function LoginPage() {
   // Surfaces a definitive boot outcome ("Session expired…") once — a transient boot
   // failure leaves bootMessage null so the plain form shows silently (Part 11 FR-4).
   const bootBanner = mode === 'login' && bootMessage && (
-    <div style={{ background: '#fff8e1', color: '#f57f17', borderRadius: 8, padding: '9px 12px', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{bootMessage}</div>
+    <div style={{ background: 'var(--alert-warn-bg)', color: 'var(--warn)', borderRadius: 8, padding: '9px 12px', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{bootMessage}</div>
   );
 
   return (
