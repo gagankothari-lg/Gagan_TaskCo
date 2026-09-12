@@ -11,7 +11,7 @@ import { Icon } from '../../ui/icon';
 import { Avatar, AvatarFallback } from '../../ui/avatar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../ui/table';
 import { ChangeRoleModal } from './change-role-modal';
-import { PendingRegistrationsSection, PendingProfileUpdatesSection } from './pending-approvals';
+import { PendingProfileUpdatesSection } from './pending-approvals';
 import { usePageHeader } from '../../layout/page-header-context';
 import type { User, DueDateRequest } from '../../../lib/types';
 
@@ -154,9 +154,9 @@ export function MembersView({ title, subtitle, scope }: MembersViewProps) {
   return (
     <div>
 
-      {/* Reference (view-team-mgmt / view-org-page) order: pending registrations,
-          then pending profile updates, then pending DDRs — all above the table. */}
-      <PendingRegistrationsSection employees={employees} />
+      {/* Reference (view-team-mgmt / view-org-page) order: pending profile updates,
+          then pending DDRs — all above the table. Pending registrations moved to Portal
+          (P19); this page no longer shows that queue. */}
       <PendingProfileUpdatesSection employees={employees} />
       <DdrSection employees={employees} />
 

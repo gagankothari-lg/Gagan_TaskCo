@@ -13,7 +13,7 @@ import { ImportModal } from '../../components/modules/import/import-modal';
 import { ProfileModal } from '../../components/modules/users/profile-modal';
 import { ClockWidget } from '../../components/modules/work-duration/clock-widget';
 import { WeekGlanceWidget } from '../../components/modules/work-log/week-glance-widget';
-import { useRegistrations, useProfileRequests } from '../../lib/api/teamMembers';
+import { useProfileRequests } from '../../lib/api/teamMembers';
 import { useSetPresence, HEARTBEAT_MS, IDLE_MS } from '../../lib/api/presence';
 import { PageHeaderProvider, usePageHeaderSlot } from '../../components/layout/page-header-context';
 
@@ -69,17 +69,15 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading, logout, refresh, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
   const managerLoaded = !!user && isManager(user.role);
-  // Round5 add'l-1: Registrations/Profile Updates no longer have their own nav items —
-  // both are embedded-only now (members-view.tsx), matching the reference (Part 10's
-  // full nav table has no standalone entries for either). Their pending counts fold into
-  // Team Members'/Organisation's own badge instead of disappearing, matching the
-  // reference's actual composition: Team Management's badge combines all 3 pending
-  // queues (Registrations, Profile Updates, Due-Date Requests) into one number.
-  const { data: registrations } = useRegistrations(managerLoaded);
+  // Round5 add'l-1: Profile Updates has no own nav item — embedded-only (members-view.tsx),
+  // matching the reference (Part 10's full nav table has no standalone entry for it). Its
+  // pending count folds into Team Members'/Organisation's own badge instead of
+  // disappearing. Registrations used to fold into this same badge too (Round5 add'l-1);
+  // P19 moved registration to Portal, so this badge now combines only Profile Updates and
+  // Due-Date Requests.
   const { data: profileRequests } = useProfileRequests(managerLoaded);
-  const pendingRegCount = useMemo(() => (registrations ?? []).filter((r) => r.status === 'Pending').length, [registrations]);
   const pendingProfileCount = useMemo(() => (profileRequests ?? []).filter((r) => r.status === 'Pending').length, [profileRequests]);
-  const pendingTeamMgmtCount = pendingDdrCount + pendingRegCount + pendingProfileCount;
+  const pendingTeamMgmtCount = pendingDdrCount + pendingProfileCount;
 
   const [mobNavOpen, setMobNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);

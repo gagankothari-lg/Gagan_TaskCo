@@ -7,7 +7,6 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ADMIN_ROLES, MANAGER_ROLES } from '../common/constants';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangeRoleDto } from './dto/change-role.dto';
-import { RejectRegistrationDto } from './dto/reject-registration.dto';
 import { RejectProfileDto } from './dto/reject-profile.dto';
 
 interface AuthedUser {
@@ -35,32 +34,6 @@ export class UsersController {
   @Get('org-tree')
   getOrgTree() {
     return this.users.getOrgTree();
-  }
-
-  @Roles(...MANAGER_ROLES)
-  @Get('registrations')
-  getRegistrations(@CurrentUser() user: AuthedUser) {
-    return this.users.getRegistrationRequests(user.empId);
-  }
-
-  // Route-level gate is MANAGER_ROLES (not ADMIN_ROLES) so TC/TF can approve
-  // within their own scope — UsersService.approveRegistration enforces the
-  // additive-OR per-request check (designated manager OR same-team), mirroring
-  // the leave-approval pattern (LeavesService.getApprovableEmpIds).
-  @Roles(...MANAGER_ROLES)
-  @Patch('registrations/:reqId/approve')
-  approveRegistration(@Param('reqId') reqId: string, @CurrentUser() user: AuthedUser) {
-    return this.users.approveRegistration(reqId, user.empId);
-  }
-
-  @Roles(...MANAGER_ROLES)
-  @Patch('registrations/:reqId/reject')
-  rejectRegistration(
-    @Param('reqId') reqId: string,
-    @CurrentUser() user: AuthedUser,
-    @Body() dto: RejectRegistrationDto,
-  ) {
-    return this.users.rejectRegistration(reqId, user.empId, dto.notes);
   }
 
   @Roles(...MANAGER_ROLES)

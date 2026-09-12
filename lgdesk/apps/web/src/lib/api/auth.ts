@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { apiFetch } from './client';
 import type { InitialPayload, LoginResponse } from '../types';
 
@@ -33,52 +33,6 @@ export interface ConfirmPasswordResetInput {
 
 export function confirmPasswordReset(dto: ConfirmPasswordResetInput): Promise<void> {
   return apiFetch<void>('/auth/password-reset/confirm', { method: 'POST', body: dto });
-}
-
-export interface RegisterRequestInput {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  role: string;
-  team?: string;
-  subDepartment?: string;
-  designation?: string;
-  // Round4 S4: only honored server-side for Super Admin/Admin/Team Captain applicants
-  // (MANUAL_MANAGER_ROLES) -- see register-request.dto.ts / users.service.ts.
-  managerEmail?: string;
-  // Round4 F11: was previously collected by the form and discarded before submission.
-  dob?: string;
-}
-
-export function registerRequest(dto: RegisterRequestInput): Promise<void> {
-  return apiFetch<void>('/auth/register/request', { method: 'POST', body: dto });
-}
-
-export interface TeamCaptain {
-  email: string;
-  name: string;
-}
-
-/**
- * Resolves the manager who will review a registration request for a given Team Division
- * (+ optional Sub-Department) — mirrors reference/auth.gs's getTeamCaptainByTeam (public,
- * no auth required, since this is called before the applicant has an account): sub-dept
- * Team Captain -> team-wide Team Captain -> any active Super Admin -> any active Admin ->
- * null (nobody found at all).
- */
-export function getTeamCaptain(team: string, subDept?: string): Promise<TeamCaptain | null> {
-  return apiFetch<TeamCaptain | null>('/auth/team-captain', { params: { team, subDept } });
-}
-
-/** Auto-fill lookup for the Registration form's Manager's Email field (TM/TF/Intern roles only). */
-export function useTeamCaptain(team: string, subDept: string, enabled: boolean) {
-  return useQuery({
-    queryKey: ['team-captain', team, subDept],
-    queryFn: () => getTeamCaptain(team, subDept),
-    enabled: enabled && !!team,
-    staleTime: 30_000,
-  });
 }
 
 // ─── Mutations ──────────────────────────────────────

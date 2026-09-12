@@ -610,35 +610,11 @@ model ProgressUpdate {
 }
 
 // ─── REGISTRATION REQUEST ──────────────────────────────────────
-model RegistrationRequest {
-  id            String    @id @default(cuid())
-  regId         String    @unique
-  firstName     String
-  lastName      String
-  // NOT @unique: a Rejected request must not permanently block re-registration.
-  // Duplicate PENDING requests are prevented at the app level (see
-  // UsersService.submitRegistration, which findFirst-checks status: 'Pending').
-  email         String
-  passwordHash  String
-  designation   String?
-  team          String?
-  subDepartment String?
-  managerId     String?
-  role          String    @default("Team Member")
-  status        String    @default("Pending")
-  reviewedBy    String?
-  notes         String?
-  // Round4 F11: the registration form already collects DOB (registration-modal.tsx) but it
-  // was discarded client-side before submission -- there was nowhere to put it. Typed
-  // DateTime? to exactly match User.dob so approval-time promotion (approveRegistration)
-  // needs no format conversion between the two.
-  dob           DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@map("registration_requests")
-  @@schema("portal")
-}
+// RegistrationRequest retired from this schema in P19 (Phase 4b) -- Portal now owns this
+// table's migrations AND its code (submission + approval), not just the physical schema
+// move from P18 (Phase 4a). The "portal" Postgres schema/multiSchema config above stays,
+// even with no model of this file's own declared there now, since re-adding it later for
+// any other reason would need it again and reverting is pure churn for no safety benefit.
 
 // ─── PROFILE UPDATE REQUEST ────────────────────────────────────
 model ProfileUpdateRequest {

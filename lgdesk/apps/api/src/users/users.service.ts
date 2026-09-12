@@ -5,17 +5,11 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdUtilsService } from '../common/utils/id.utils';
-import { EmailService } from '../email/email.service';
-import { CalendarService } from '../calendar/calendar.service';
-import { isAdmin, MANUAL_MANAGER_ROLES } from '../common/constants';
-import { RegisterRequestDto } from '../auth/dto/register-request.dto';
+import { isAdmin } from '../common/constants';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
-const BCRYPT_ROUNDS = 12;
 const ORG_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Selects that NEVER include passwordHash (business rule #1).
@@ -36,25 +30,6 @@ const USER_SELECT = {
   updatedAt: true,
 } as const;
 
-const REG_REQUEST_SELECT = {
-  id: true,
-  regId: true,
-  firstName: true,
-  lastName: true,
-  email: true,
-  designation: true,
-  team: true,
-  subDepartment: true,
-  managerId: true,
-  role: true,
-  status: true,
-  reviewedBy: true,
-  notes: true,
-  dob: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
-
 export interface OrgNode {
   empId: string;
   managerId: string | null;
@@ -69,9 +44,6 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idUtils: IdUtilsService,
-    private readonly email: EmailService,
-    private readonly config: ConfigService,
-    private readonly calendar: CalendarService,
   ) {}
 
   // ─────────────────────────────────────────────── reads
@@ -134,196 +106,6 @@ export class UsersService {
   async managerScopeIds(caller: { empId: string }): Promise<Set<string>> {
     const subs = await this.getSubordinateIds(caller.empId);
     return new Set([caller.empId, ...subs]);
-  }
-
-  // ─────────────────────────────────────────────── registration
-  // Canonical home for registration (delegated to from POST /auth/register/request).
-  async submitRegistration(dto: RegisterRequestDto) {
-    const existingUser = await this.prisma.user.findFirst({
-      where: { email: { equals: dto.email, mode: 'insensitive' } },
-    });
-    if (existingUser) throw new ConflictException('Email already registered');
-
-    // Only a still-PENDING request blocks a new submission. A prior Approved
-    // request means the user already exists (caught above); a prior Rejected
-    // request must NOT permanently lock the applicant out of re-registering.
-    const existingReq = await this.prisma.registrationRequest.findFirst({
-      where: { email: { equals: dto.email, mode: 'insensitive' }, status: 'Pending' },
-    });
-    if (existingReq) throw new ConflictException('A registration request for this email already exists');
-
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-    // Round4 S4: SA/Admin/TC applicants type who they report to; every other role keeps
-    // the existing auto-lookup untouched. A submitted managerEmail must resolve to an
-    // existing active employee (it becomes the sole reviewer-authorization target via
-    // canReviewRegistration's managerId check, so a typo silently making a request
-    // unreviewable-by-anyone is worse than rejecting it up front) -- err toward
-    // validating it rather than trusting it blindly. Falls back to the auto-lookup if
-    // the field is left blank (Super Admin's is optional in the UI).
-    const role = dto.role ?? 'Team Member';
-    let captain: Awaited<ReturnType<typeof this.getTeamCaptainByTeam>> = null;
-    if ((MANUAL_MANAGER_ROLES as readonly string[]).includes(role) && dto.managerEmail) {
-      const manualManager = await this.prisma.user.findFirst({
-        where: { email: { equals: dto.managerEmail, mode: 'insensitive' }, isActive: true },
-        select: USER_SELECT,
-      });
-      if (!manualManager) {
-        throw new BadRequestException('The reports-to email you entered does not match an active employee.');
-      }
-      captain = manualManager;
-    } else {
-      captain = await this.getTeamCaptainByTeam(dto.team, dto.subDepartment);
-    }
-    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
-    const regId = await this.idUtils.createWithId('registrationRequest', 'regId', 'REG', async (id) => {
-      await this.prisma.registrationRequest.create({
-        data: {
-          regId: id,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          email: dto.email,
-          passwordHash,
-          designation: dto.designation,
-          team: dto.team,
-          subDepartment: dto.subDepartment,
-          managerId: captain?.empId ?? null,
-          role: dto.role ?? 'Team Member',
-          status: 'Pending',
-          // Round4 F11: was previously discarded client-side before submission.
-          dob: dto.dob ? new Date(dto.dob) : null,
-        },
-      });
-      return id;
-    });
-
-    if (captain) {
-      const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk-frontend.vercel.app';
-      this.email.sendRegistrationSubmitted({
-        managerEmail: captain.email,
-        managerName: `${captain.firstName} ${captain.lastName}`,
-        applicantName: `${dto.firstName} ${dto.lastName}`,
-        applicantEmail: dto.email,
-        applicantRole: dto.role ?? 'Team Member',
-        applicantTeam: dto.team ?? '',
-        reviewUrl: `${frontendUrl}/team-members`,
-      }).catch(() => undefined);
-    }
-
-    return { reqId: regId };
-  }
-
-  async getRegistrationRequests(callerEmpId: string) {
-    const caller = await this.getCaller(callerEmpId);
-    if (isAdmin(caller.role)) {
-      return this.prisma.registrationRequest.findMany({
-        select: REG_REQUEST_SELECT,
-        orderBy: { createdAt: 'desc' },
-      });
-    }
-    // Additive-OR (same pattern as LeavesService.getApprovableEmpIds): a TC/TF
-    // sees requests where they're the designated manager OR the request's team
-    // matches their own — either condition independently grants visibility.
-    return this.prisma.registrationRequest.findMany({
-      where: { OR: this.approvableRequestFilter(caller) },
-      select: REG_REQUEST_SELECT,
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async approveRegistration(reqId: string, callerEmpId: string) {
-    const req = await this.prisma.registrationRequest.findUnique({ where: { regId: reqId } });
-    if (!req) throw new NotFoundException('Registration request not found');
-    const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role) && !this.canReviewRegistration(req, caller)) {
-      throw new ForbiddenException('Not authorized to approve this request.');
-    }
-    if (req.status !== 'Pending') throw new BadRequestException('Registration request already processed');
-
-    const existing = await this.prisma.user.findFirst({
-      where: { email: { equals: req.email, mode: 'insensitive' } },
-    });
-    if (existing) throw new ConflictException('Email already registered');
-
-    // PFIX-ROUND4-FOLLOWUP-1: collision-safe, matching work-log.service.ts's established
-    // pattern -- a bare generateId() here throws an unhandled PrismaClientKnownRequestError
-    // on any real empId collision (reproduced live during PVERIFY-ROUND4-LIVE-BATCH: a
-    // manually-seeded fixture user desynced the IdCounter from actual User rows, and the
-    // next approval 500'd with "Unique constraint failed on the fields: (empId)"). The same
-    // desync is reachable in real production too, not just a test seed -- apps/api/prisma/
-    // seed.ts creates the Super Admin with a hardcoded empId, bypassing generateId entirely.
-    const empId = await this.idUtils.createWithId('user', 'empId', 'EMP', async (id) => {
-      await this.prisma.user.create({
-        data: {
-          empId: id,
-          firstName: req.firstName,
-          lastName: req.lastName,
-          email: req.email,
-          passwordHash: req.passwordHash,
-          role: req.role,
-          designation: req.designation,
-          managerId: req.managerId,
-          team: req.team,
-          subDepartment: req.subDepartment,
-          // Round4 F11: same DateTime? shape as User.dob -- no format conversion needed.
-          dob: req.dob,
-          isActive: true,
-        },
-      });
-      return id;
-    });
-    await this.prisma.registrationRequest.update({
-      where: { id: req.id },
-      data: { status: 'Approved', reviewedBy: callerEmpId },
-    });
-    await this.audit(callerEmpId, 'APPROVE_REGISTRATION', 'RegistrationRequest', req.regId, null, empId);
-    this.clearOrgCache();
-
-    // Round6 #13: the natural creation hook for a new employee's personal "TM: {name}"
-    // calendar (calendar.gs's setupUserCalendars does this in bulk for existing
-    // employees once; a new employee's equivalent one-time moment is approval, when
-    // their User row first exists). Fire-and-forget, matching this file's own
-    // sendRegistrationApproved just below -- a Calendar failure must never block or
-    // fail the approval itself (rule #21: DB is source of truth).
-    this.calendar.getOrCreateUserCalendar(empId, req.email, `${req.firstName} ${req.lastName}`.trim()).catch(() => undefined);
-
-    const frontendUrl = this.config.get('FRONTEND_URL') || 'https://lgdesk-frontend.vercel.app';
-    this.email.sendRegistrationApproved({
-      applicantEmail: req.email,
-      applicantFirstName: req.firstName,
-      empId,
-      role: req.role,
-      team: req.team ?? '',
-      loginUrl: frontendUrl,
-    }).catch(() => undefined);
-
-    return { empId };
-  }
-
-  async rejectRegistration(reqId: string, callerEmpId: string, notes?: string) {
-    const req = await this.prisma.registrationRequest.findUnique({ where: { regId: reqId } });
-    if (!req) throw new NotFoundException('Registration request not found');
-    const caller = await this.getCaller(callerEmpId);
-    if (!isAdmin(caller.role) && !this.canReviewRegistration(req, caller)) {
-      throw new ForbiddenException('Not authorized to reject this request.');
-    }
-    await this.prisma.registrationRequest.update({
-      where: { id: req.id },
-      data: { status: 'Rejected', reviewedBy: callerEmpId, notes },
-    });
-    await this.audit(callerEmpId, 'REJECT_REGISTRATION', 'RegistrationRequest', req.regId);
-
-    const approver = await this.prisma.user.findUnique({
-      where: { empId: callerEmpId },
-      select: { email: true },
-    });
-    this.email.sendRegistrationRejected({
-      applicantEmail: req.email,
-      applicantFirstName: req.firstName,
-      reason: notes,
-      contactEmail: approver?.email ?? 'admin@leveragedgrowth.co',
-    }).catch(() => undefined);
-
-    return { ok: true };
   }
 
   // ─────────────────────────────────────────────── profile updates
@@ -502,29 +284,6 @@ export class UsersService {
     return { ok: true };
   }
 
-  // Team-captain resolution: sub-dept TC → team TC → Super Admin → Admin → null.
-  async getTeamCaptainByTeam(team?: string | null, subDepartment?: string | null) {
-    if (team) {
-      if (subDepartment) {
-        const subTc = await this.prisma.user.findFirst({
-          where: { role: 'Team Captain', team, subDepartment, isActive: true },
-          select: USER_SELECT,
-        });
-        if (subTc) return subTc;
-      }
-      const teamTc = await this.prisma.user.findFirst({
-        where: { role: 'Team Captain', team, isActive: true },
-        select: USER_SELECT,
-      });
-      if (teamTc) return teamTc;
-    }
-    const sa = await this.prisma.user.findFirst({ where: { role: 'Super Admin', isActive: true }, select: USER_SELECT });
-    if (sa) return sa;
-    const admin = await this.prisma.user.findFirst({ where: { role: 'Admin', isActive: true }, select: USER_SELECT });
-    if (admin) return admin;
-    return null;
-  }
-
   // Out of scope in P03 — a default-manager fallback store is deferred; return ok.
   async setDefaultManager(_email: string, _name: string, _callerEmpId: string) {
     return { ok: true };
@@ -543,28 +302,11 @@ export class UsersService {
   // Additive-OR (mirrors LeavesService.getApprovableEmpIds): a manager may
   // review anyone who is either their direct designated report (managerId
   // match) OR on their same team — either condition independently qualifies.
-  // Shared by profile-update requests here; registration requests reuse the
-  // same shape via approvableRequestFilter since the request itself already
-  // carries managerId/team (no join needed).
   private async getApprovableEmpIds(caller: { empId: string; team: string | null }): Promise<string[]> {
     const or: Array<{ managerId: string } | { team: string }> = [{ managerId: caller.empId }];
     if (caller.team) or.push({ team: caller.team });
     const users = await this.prisma.user.findMany({ where: { OR: or }, select: { empId: true } });
     return users.map((u) => u.empId);
-  }
-
-  private approvableRequestFilter(caller: { empId: string; team: string | null }): Array<{ managerId: string } | { team: string }> {
-    const or: Array<{ managerId: string } | { team: string }> = [{ managerId: caller.empId }];
-    if (caller.team) or.push({ team: caller.team });
-    return or;
-  }
-
-  private canReviewRegistration(
-    req: { managerId: string | null; team: string | null },
-    caller: { empId: string; team: string | null },
-  ): boolean {
-    if (req.managerId === caller.empId) return true;
-    return !!caller.team && !!req.team && req.team === caller.team;
   }
 
   private async canReviewProfileRequest(targetEmpId: string, caller: { empId: string; team: string | null }): Promise<boolean> {

@@ -1,46 +1,26 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useAuth } from '../../../hooks/use-auth';
 import {
-  useRegistrations,
   useProfileRequests,
-  useApproveRegistration,
-  useRejectRegistration,
   useApproveProfileUpdate,
   useRejectProfileUpdate,
 } from '../../../lib/api/teamMembers';
 import { apiErrorMessage } from '../../../lib/api/client';
-import { fmtDate, rolePillClass } from '../../../lib/utils';
+import { fmtDate } from '../../../lib/utils';
 import { toast } from '../../../lib/toast';
 import { Icon } from '../../ui/icon';
 import { Spinner } from '../../ui/spinner';
-import type { RegistrationRequest, ProfileUpdateRequest, User } from '../../../lib/types';
+import type { ProfileUpdateRequest, User } from '../../../lib/types';
 
-// Reference (view-team-mgmt / view-org-page) stacks #team-pending-registrations,
-// #team-pending-profile-updates then #team-pending-ddr above the members table.
-// These two sections reuse the reference's amber `.reg-card` convention (globals.css)
-// — the same card look the reference uses for registration-style approval queues.
+// Reference (view-team-mgmt / view-org-page) stacks #team-pending-profile-updates then
+// #team-pending-ddr above the members table. This section reuses the reference's amber
+// `.reg-card` convention (globals.css) — the same card look the reference uses for
+// registration-style approval queues.
 //
-// Round5 add'l-1: this is now the ONLY surface for these two queues — the standalone
-// /registrations and /profile-requests pages (and their nav items) were removed, since
-// the reference has no equivalent for them at all (Part 10's full nav table has no such
-// entries — they're embedded queues only). Before removing those pages, both renderers
-// were compared and merged here rather than picking one wholesale:
-//   - Reject-reason collection existed only on the standalone pages (an optional
-//     textarea before confirming) — added here via RejectReasonModal, shared by both
-//     sections, so it's not lost.
-//   - The standalone Registrations page showed "Resolved manager: {r.managerId}" — a
-//     raw EMP-ID, not a resolved name (F49). The embedded version showed no manager
-//     info at all. Neither was actually correct; this resolves the name properly via
-//     `nameFor`, the same helper members-view.tsx already uses for DDR/manager display.
-//   - Profile-update name resolution was already correct and identical on both sides
-//     (employees.find by empId) — no change needed there.
-
-function nameFor(empId: string, employees: User[]): string {
-  const u = employees.find((e) => e.empId === empId);
-  return u ? `${u.firstName} ${u.lastName}`.trim() : empId;
-}
+// P19: the sibling PendingRegistrationsSection that used to live in this file was removed
+// -- registration (submission + approval) moved to Portal, LGDesk's own registration
+// surface retired. This file now only covers profile-update requests.
 
 const PROFILE_FIELD_LABELS: Record<string, string> = {
   firstName: 'First name',
@@ -111,112 +91,6 @@ function RejectReasonModal({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── Pending registrations ─────────────────────────────────────────
-function RegistrationCard({
-  reg,
-  employees,
-  onRejectClick,
-}: {
-  reg: RegistrationRequest;
-  employees: User[];
-  onRejectClick: (reg: RegistrationRequest) => void;
-}) {
-  const { refresh } = useAuth();
-  const approve = useApproveRegistration();
-  const name = `${reg.firstName} ${reg.lastName}`.trim();
-  const managerName = reg.managerId ? nameFor(reg.managerId, employees) : null;
-
-  async function onApprove() {
-    if (!confirm(`Approve ${name}'s registration and create their employee account?`)) return;
-    try {
-      const { empId } = await approve.mutateAsync(reg.regId);
-      // MembersView sources its roster from AuthContext.payload (one-shot boot state,
-      // outside TanStack Query) — refresh() re-fetches it so the new employee shows up
-      // in the table below without a manual page reload.
-      await refresh();
-      toast(`Approved — Employee ID ${empId}`, 'success');
-    } catch (err) {
-      toast(apiErrorMessage(err, 'Unable to approve'), 'error');
-    }
-  }
-
-  return (
-    <div className="reg-card">
-      <div className="reg-card-hd">
-        <div>
-          <div className="reg-card-name">{name}</div>
-          <div className="reg-card-email">{reg.email}</div>
-        </div>
-        <span className={rolePillClass(reg.role)}>{reg.role}</span>
-      </div>
-      <div className="reg-card-meta">
-        {reg.team ?? '—'}
-        {reg.designation ? ` · ${reg.designation}` : ''} · Requested {fmtDate(reg.createdAt)}
-        {managerName ? ` · Manager: ${managerName}` : ''}
-      </div>
-      <div className="reg-card-actions">
-        <button type="button" className="btn btn-accent btn-sm" disabled={approve.isPending} onClick={onApprove}>
-          <Icon name="check" size={15} /> Approve
-        </button>
-        <button type="button" className="btn btn-danger btn-sm" onClick={() => onRejectClick(reg)}>
-          <Icon name="close" size={15} /> Reject
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export function PendingRegistrationsSection({ employees }: { employees: User[] }) {
-  const { data, isError } = useRegistrations();
-  const reject = useRejectRegistration();
-  const pending = useMemo(() => (data ?? []).filter((r) => r.status === 'Pending'), [data]);
-  const [rejecting, setRejecting] = useState<{ regId: string; name: string } | null>(null);
-  const [notes, setNotes] = useState('');
-
-  async function onConfirmReject() {
-    if (!rejecting) return;
-    try {
-      await reject.mutateAsync({ reqId: rejecting.regId, notes: notes || undefined });
-      setRejecting(null);
-      setNotes('');
-      toast('Registration rejected', 'success');
-    } catch (err) {
-      toast(apiErrorMessage(err, 'Unable to reject'), 'error');
-    }
-  }
-
-  if (isError || pending.length === 0) return null;
-
-  return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ color: 'var(--p)', fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
-        Pending Registration Requests ({pending.length})
-      </div>
-      {pending.map((r) => (
-        <RegistrationCard
-          key={r.regId}
-          reg={r}
-          employees={employees}
-          onRejectClick={(reg) => {
-            setNotes('');
-            setRejecting({ regId: reg.regId, name: `${reg.firstName} ${reg.lastName}`.trim() });
-          }}
-        />
-      ))}
-      {rejecting && (
-        <RejectReasonModal
-          title={`Reject ${rejecting.name}?`}
-          notes={notes}
-          setNotes={setNotes}
-          busy={reject.isPending}
-          onCancel={() => { setRejecting(null); setNotes(''); }}
-          onConfirm={onConfirmReject}
-        />
-      )}
     </div>
   );
 }

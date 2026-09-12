@@ -5,7 +5,6 @@ import { apiFetch } from './client';
 import type {
   User,
   OrgNode,
-  RegistrationRequest,
   ProfileUpdateRequest,
   ProfileUpdateInput,
 } from '../types';
@@ -41,16 +40,6 @@ export function useOrgTree() {
   });
 }
 
-export function useRegistrations(enabled = true) {
-  return useQuery({
-    queryKey: ['registrations'],
-    queryFn: () => apiFetch<RegistrationRequest[]>('/users/registrations'),
-    enabled,
-    // P12 hotfix: approval queue — a manager watching for new registration requests.
-    refetchInterval: 60_000,
-  });
-}
-
 export function useProfileRequests(enabled = true) {
   return useQuery({
     queryKey: ['profile-requests'],
@@ -62,27 +51,6 @@ export function useProfileRequests(enabled = true) {
 }
 
 // ─── Mutations ──────────────────────────────────────
-export function useApproveRegistration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (reqId: string) => apiFetch<{ empId: string }>(`/users/registrations/${reqId}/approve`, { method: 'PATCH' }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['registrations'] });
-      qc.invalidateQueries({ queryKey: ['users'] });
-      qc.invalidateQueries({ queryKey: ['org-tree'] });
-    },
-  });
-}
-
-export function useRejectRegistration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ reqId, notes }: { reqId: string; notes?: string }) =>
-      apiFetch<void>(`/users/registrations/${reqId}/reject`, { method: 'PATCH', body: { notes } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['registrations'] }),
-  });
-}
-
 export function useSubmitProfileUpdate() {
   const qc = useQueryClient();
   return useMutation({

@@ -15,7 +15,6 @@ import { Input } from '../../../components/ui/input';
 import { PasswordInput } from '../../../components/ui/password-input';
 import { Spinner } from '../../../components/ui/spinner';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../components/ui/form';
-import { RegistrationModal } from '../../../components/modules/users/registration-modal';
 import { rolePillClass, initials, avatarColor } from '../../../lib/utils';
 import {
   loginSchema,
@@ -35,7 +34,6 @@ export default function LoginPage() {
   const { login, user, isLoading, sessionRestored, bootMessage } = useAuth();
 
   const [mode, setMode] = useState<Mode>('login');
-  const [regOpen, setRegOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -218,10 +216,6 @@ export default function LoginPage() {
                     style={{ fontSize: 13, color: 'var(--p)', cursor: 'pointer' }}
                   >Forgot password?</a>
                 </div>
-                <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--muted)' }}>
-                  New here?{' '}
-                  <a onClick={() => setRegOpen(true)} style={{ color: 'var(--p)', cursor: 'pointer', fontWeight: 600 }}>Register →</a>
-                </div>
               </form>
             </Form>
           )}
@@ -341,8 +335,6 @@ export default function LoginPage() {
           )}
         </div>
       </Card>
-
-      <RegistrationModal open={regOpen} onClose={() => setRegOpen(false)} />
     </main>
   );
 }

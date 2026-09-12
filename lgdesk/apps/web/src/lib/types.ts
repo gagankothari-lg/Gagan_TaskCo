@@ -131,26 +131,8 @@ export interface LoginResponse {
 }
 
 // ─── Users module (P03/P04) ────────────────────────
-export interface RegistrationRequest {
-  id: string;
-  regId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  designation?: string | null;
-  team?: string | null;
-  subDepartment?: string | null;
-  managerId?: string | null;
-  role: string;
-  status: string;
-  reviewedBy?: string | null;
-  notes?: string | null;
-  // Round4 F11: was previously collected by the form and discarded before submission.
-  dob?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
+// RegistrationRequest moved out in P19 -- registration (submission + approval) is now
+// Portal's own concern, with its own type definitions there.
 export interface ProfileUpdateRequest {
   id: string;
   reqId: string;
