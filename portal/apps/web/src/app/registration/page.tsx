@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiFetch, ApiError, getToken, setToken, clearToken } from '../../lib/api';
+import { useRouter } from 'next/navigation';
+import { apiFetch, ApiError } from '../../lib/api';
+import { useMe } from '../../lib/useMe';
+import { isManager } from '../../lib/auth';
+import { PortalShell } from '../../components/PortalShell';
 
 interface RegistrationRequest {
   regId: string;
@@ -19,73 +23,28 @@ interface RegistrationRequest {
   createdAt: string;
 }
 
-// Functional, not polished (Phase 4b) -- the real login page is Phase 6. Logs in inline
-// on this same page so a manager/admin can actually reach and use the approval queue today.
+// P27: real UI (was plain text, Phase 4b), and gated -- a non-manager is redirected
+// straight to /dashboard rather than seeing this page at all. The API itself already
+// enforces this (MANAGER_ROLES route guard, Phase 4b) -- this is the frontend catching
+// up so the experience matches, not a new authorization boundary.
 export default function RegistrationApprovalPage() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [checked, setChecked] = useState(false);
+  const { me, loading } = useMe();
+  const router = useRouter();
 
   useEffect(() => {
-    setLoggedIn(!!getToken());
-    setChecked(true);
-  }, []);
+    if (!loading && me && !isManager(me.role)) router.replace('/dashboard');
+  }, [loading, me, router]);
 
-  if (!checked) return null;
-  return loggedIn ? <ApprovalQueue onLogout={() => setLoggedIn(false)} /> : <LoginForm onLoggedIn={() => setLoggedIn(true)} />;
-}
-
-function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      const { token } = await apiFetch<{ token: string }>('/auth/login', { method: 'POST', body: { email, password } });
-      setToken(token);
-      onLoggedIn();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to sign in');
-    } finally {
-      setBusy(false);
-    }
-  }
+  if (loading || !me || !isManager(me.role)) return null;
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-      <form onSubmit={onSubmit} style={{ width: 320, padding: 24, border: '1px solid #ddd', borderRadius: 8 }}>
-        <h1 style={{ fontSize: 18, marginBottom: 16 }}>Portal — Sign in</h1>
-        <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Manager/Admin sign-in to review registration requests.</p>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={{ width: '100%', padding: 8, marginBottom: 8, boxSizing: 'border-box' }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          style={{ width: '100%', padding: 8, marginBottom: 12, boxSizing: 'border-box' }}
-        />
-        {error && <p style={{ color: '#c62828', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-        <button type="submit" disabled={busy} style={{ width: '100%', padding: 9, background: '#1a237e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-          {busy ? 'Signing in…' : 'Sign In'}
-        </button>
-      </form>
-    </main>
+    <PortalShell me={me} title="Registration Approvals">
+      <ApprovalQueue />
+    </PortalShell>
   );
 }
 
-function ApprovalQueue({ onLogout }: { onLogout: () => void }) {
+function ApprovalQueue() {
   const [requests, setRequests] = useState<RegistrationRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -95,29 +54,20 @@ function ApprovalQueue({ onLogout }: { onLogout: () => void }) {
   async function load() {
     setError(null);
     try {
-      const data = await apiFetch<RegistrationRequest[]>('/registration');
-      setRequests(data);
+      setRequests(await apiFetch<RegistrationRequest[]>('/registration'));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        clearToken();
-        onLogout();
-        return;
-      }
       setError(err instanceof ApiError ? err.message : 'Unable to load requests');
     }
   }
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onApprove(r: RegistrationRequest) {
-    if (!confirm(`Approve ${r.firstName} ${r.lastName}'s registration and create their employee account?`)) return;
     setBusyId(r.regId);
     try {
-      const { empId } = await apiFetch<{ empId: string }>(`/registration/${r.regId}/approve`, { method: 'POST' });
-      alert(`Approved — Employee ID ${empId}`);
+      await apiFetch<{ empId: string }>(`/registration/${r.regId}/approve`, { method: 'POST' });
       await load();
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'Unable to approve');
@@ -144,91 +94,55 @@ function ApprovalQueue({ onLogout }: { onLogout: () => void }) {
   const pending = (requests ?? []).filter((r) => r.status === 'Pending');
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20 }}>Pending Registration Requests</h1>
-        <button
-          onClick={() => {
-            clearToken();
-            onLogout();
-          }}
-          style={{ fontSize: 13, background: 'none', border: '1px solid #ddd', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
-        >
-          Log out
-        </button>
+    <>
+      {error && <p className="text-danger text-sm mb-4">{error}</p>}
+      {!error && requests === null && <p className="text-muted text-sm">Loading…</p>}
+      {!error && requests !== null && pending.length === 0 && <div className="empty-state">No pending registration requests.</div>}
+
+      <div className="grid gap-3">
+        {pending.map((r) => (
+          <div key={r.regId} className="card p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="font-semibold text-text">{r.firstName} {r.lastName}</div>
+                <div className="text-sm text-muted">{r.email}</div>
+              </div>
+              <span className={`pill pill-${r.role.replace(/ /g, '-')}`}>{r.role}</span>
+            </div>
+            <div className="text-sm text-muted mt-2">
+              {r.team ?? '—'}
+              {r.subDepartment ? ` (${r.subDepartment})` : ''}
+              {r.designation ? ` · ${r.designation}` : ''}
+              {r.googleSub ? ' · Google-linked' : ''}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <button className="btn btn-accent" disabled={busyId === r.regId} onClick={() => onApprove(r)}>Approve</button>
+              <button className="btn btn-danger" disabled={busyId === r.regId} onClick={() => { setNotes(''); setRejecting(r); }}>Reject</button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {error && <p style={{ color: '#c62828' }}>{error}</p>}
-      {!error && requests === null && <p>Loading…</p>}
-      {!error && requests !== null && pending.length === 0 && <p style={{ color: '#666' }}>No pending requests.</p>}
-
-      {pending.map((r) => (
-        <div key={r.regId} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16, marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontWeight: 600 }}>
-                {r.firstName} {r.lastName}
-              </div>
-              <div style={{ fontSize: 13, color: '#666' }}>{r.email}</div>
-            </div>
-            <span style={{ fontSize: 12, background: '#e8eaf6', color: '#1a237e', borderRadius: 12, padding: '2px 10px', height: 'fit-content' }}>{r.role}</span>
-          </div>
-          <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>
-            {r.team ?? '—'}
-            {r.subDepartment ? ` (${r.subDepartment})` : ''}
-            {r.designation ? ` · ${r.designation}` : ''}
-            {r.googleSub ? ' · Google-linked' : ''}
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button
-              onClick={() => onApprove(r)}
-              disabled={busyId === r.regId}
-              style={{ padding: '6px 14px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => {
-                setNotes('');
-                setRejecting(r);
-              }}
-              disabled={busyId === r.regId}
-              style={{ padding: '6px 14px', background: '#c62828', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-            >
-              Reject
-            </button>
-          </div>
-        </div>
-      ))}
-
       {rejecting && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 20, width: 360 }}>
-            <h3 style={{ marginBottom: 8 }}>
-              Reject {rejecting.firstName} {rejecting.lastName}?
-            </h3>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Reason (optional)"
-              style={{ width: '100%', boxSizing: 'border-box', padding: 8, marginBottom: 12 }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setRejecting(null)} style={{ padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: 'none', cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button
-                onClick={onConfirmReject}
-                disabled={busyId === rejecting.regId}
-                style={{ padding: '6px 14px', background: '#c62828', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-              >
-                Reject
-              </button>
+        <div className="modal-bg">
+          <div className="modal">
+            <div className="modal-hd">Reject {rejecting.firstName} {rejecting.lastName}?</div>
+            <div className="modal-bd">
+              <textarea
+                className="fc"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Reason (optional)"
+              />
+            </div>
+            <div className="modal-ft">
+              <button className="btn btn-ghost" onClick={() => setRejecting(null)}>Cancel</button>
+              <button className="btn btn-danger" disabled={busyId === rejecting.regId} onClick={onConfirmReject}>Reject</button>
             </div>
           </div>
         </div>
       )}
-    </main>
+    </>
   );
 }

@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiFetch, ApiError, getToken, setToken, clearToken } from '../../lib/api';
+import { useRouter } from 'next/navigation';
+import { apiFetch, ApiError } from '../../lib/api';
+import { useMe } from '../../lib/useMe';
+import { isManager } from '../../lib/auth';
+import { PortalShell } from '../../components/PortalShell';
 
 interface ProfileUpdateRequest {
   reqId: string;
@@ -18,87 +22,38 @@ const FIELD_LABELS: Record<string, string> = {
   team: 'Team',
   subDepartment: 'Sub-department',
   dob: 'Date of birth',
-  newManagerEmail: 'New manager (email)',
+  newManagerEmail: 'New manager',
 };
 
-function describeChanges(raw: string): string {
+function parseChanges(raw: string): [string, string][] {
   try {
     const obj = JSON.parse(raw) as Record<string, unknown>;
-    return Object.entries(obj)
-      .map(([k, v]) => `${FIELD_LABELS[k] ?? k}: ${String(v)}`)
-      .join(' · ');
+    return Object.entries(obj).map(([k, v]) => [FIELD_LABELS[k] ?? k, String(v)]);
   } catch {
-    return '—';
+    return [];
   }
 }
 
-// Functional, not polished (Phase 5b) -- matches the tone of the registration approval
-// screen (Phase 4b). Logs in inline on this same page.
+// P27: real UI (was plain text, Phase 5b), gated the same way as the registration
+// approval screen -- see that page's header comment for the gating rationale.
 export default function ProfileUpdatesApprovalPage() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [checked, setChecked] = useState(false);
+  const { me, loading } = useMe();
+  const router = useRouter();
 
   useEffect(() => {
-    setLoggedIn(!!getToken());
-    setChecked(true);
-  }, []);
+    if (!loading && me && !isManager(me.role)) router.replace('/dashboard');
+  }, [loading, me, router]);
 
-  if (!checked) return null;
-  return loggedIn ? <ApprovalQueue onLogout={() => setLoggedIn(false)} /> : <LoginForm onLoggedIn={() => setLoggedIn(true)} />;
-}
-
-function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      const { token } = await apiFetch<{ token: string }>('/auth/login', { method: 'POST', body: { email, password } });
-      setToken(token);
-      onLoggedIn();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to sign in');
-    } finally {
-      setBusy(false);
-    }
-  }
+  if (loading || !me || !isManager(me.role)) return null;
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-      <form onSubmit={onSubmit} style={{ width: 320, padding: 24, border: '1px solid #ddd', borderRadius: 8 }}>
-        <h1 style={{ fontSize: 18, marginBottom: 16 }}>Portal — Sign in</h1>
-        <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Manager/Admin sign-in to review profile-update requests.</p>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={{ width: '100%', padding: 8, marginBottom: 8, boxSizing: 'border-box' }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          style={{ width: '100%', padding: 8, marginBottom: 12, boxSizing: 'border-box' }}
-        />
-        {error && <p style={{ color: '#c62828', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-        <button type="submit" disabled={busy} style={{ width: '100%', padding: 9, background: '#1a237e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-          {busy ? 'Signing in…' : 'Sign In'}
-        </button>
-      </form>
-    </main>
+    <PortalShell me={me} title="Profile Update Approvals">
+      <ApprovalQueue />
+    </PortalShell>
   );
 }
 
-function ApprovalQueue({ onLogout }: { onLogout: () => void }) {
+function ApprovalQueue() {
   const [requests, setRequests] = useState<ProfileUpdateRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -108,25 +63,17 @@ function ApprovalQueue({ onLogout }: { onLogout: () => void }) {
   async function load() {
     setError(null);
     try {
-      const data = await apiFetch<ProfileUpdateRequest[]>('/profile-updates');
-      setRequests(data);
+      setRequests(await apiFetch<ProfileUpdateRequest[]>('/profile-updates'));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        clearToken();
-        onLogout();
-        return;
-      }
       setError(err instanceof ApiError ? err.message : 'Unable to load requests');
     }
   }
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onApprove(r: ProfileUpdateRequest) {
-    if (!confirm(`Approve this profile change for ${r.empId}?`)) return;
     setBusyId(r.reqId);
     try {
       await apiFetch(`/profile-updates/${r.reqId}/approve`, { method: 'POST' });
@@ -156,76 +103,51 @@ function ApprovalQueue({ onLogout }: { onLogout: () => void }) {
   const pending = (requests ?? []).filter((r) => r.status === 'Pending');
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20 }}>Pending Profile Update Requests</h1>
-        <button
-          onClick={() => {
-            clearToken();
-            onLogout();
-          }}
-          style={{ fontSize: 13, background: 'none', border: '1px solid #ddd', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
-        >
-          Log out
-        </button>
+    <>
+      {error && <p className="text-danger text-sm mb-4">{error}</p>}
+      {!error && requests === null && <p className="text-muted text-sm">Loading…</p>}
+      {!error && requests !== null && pending.length === 0 && <div className="empty-state">No pending profile-update requests.</div>}
+
+      <div className="grid gap-3">
+        {pending.map((r) => (
+          <div key={r.reqId} className="card p-4">
+            <div className="font-semibold text-text">{r.empId}</div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              {parseChanges(r.changes).map(([label, value]) => (
+                <div key={label} className="flex gap-1">
+                  <dt className="text-muted">{label}:</dt>
+                  <dd className="text-text font-medium">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="flex gap-2 mt-3">
+              <button className="btn btn-accent" disabled={busyId === r.reqId} onClick={() => onApprove(r)}>Approve</button>
+              <button className="btn btn-danger" disabled={busyId === r.reqId} onClick={() => { setNotes(''); setRejecting(r); }}>Reject</button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {error && <p style={{ color: '#c62828' }}>{error}</p>}
-      {!error && requests === null && <p>Loading…</p>}
-      {!error && requests !== null && pending.length === 0 && <p style={{ color: '#666' }}>No pending requests.</p>}
-
-      {pending.map((r) => (
-        <div key={r.reqId} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16, marginBottom: 12 }}>
-          <div style={{ fontWeight: 600 }}>{r.empId}</div>
-          <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>{describeChanges(r.changes)}</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button
-              onClick={() => onApprove(r)}
-              disabled={busyId === r.reqId}
-              style={{ padding: '6px 14px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => {
-                setNotes('');
-                setRejecting(r);
-              }}
-              disabled={busyId === r.reqId}
-              style={{ padding: '6px 14px', background: '#c62828', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-            >
-              Reject
-            </button>
-          </div>
-        </div>
-      ))}
-
       {rejecting && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 20, width: 360 }}>
-            <h3 style={{ marginBottom: 8 }}>Reject change for {rejecting.empId}?</h3>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Reason (optional)"
-              style={{ width: '100%', boxSizing: 'border-box', padding: 8, marginBottom: 12 }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setRejecting(null)} style={{ padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: 'none', cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button
-                onClick={onConfirmReject}
-                disabled={busyId === rejecting.reqId}
-                style={{ padding: '6px 14px', background: '#c62828', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-              >
-                Reject
-              </button>
+        <div className="modal-bg">
+          <div className="modal">
+            <div className="modal-hd">Reject change for {rejecting.empId}?</div>
+            <div className="modal-bd">
+              <textarea
+                className="fc"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Reason (optional)"
+              />
+            </div>
+            <div className="modal-ft">
+              <button className="btn btn-ghost" onClick={() => setRejecting(null)}>Cancel</button>
+              <button className="btn btn-danger" disabled={busyId === rejecting.reqId} onClick={onConfirmReject}>Reject</button>
             </div>
           </div>
         </div>
       )}
-    </main>
+    </>
   );
 }
