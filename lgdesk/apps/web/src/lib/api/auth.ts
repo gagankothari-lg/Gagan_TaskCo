@@ -1,15 +1,13 @@
 'use client';
 
 import { apiFetch } from './client';
-import type { InitialPayload, LoginResponse } from '../types';
+import type { InitialPayload } from '../types';
 
 // ─── Fetchers ───────────────────────────────────────
-// Consumed directly by AuthContext (login/session bootstrap live outside
-// react-query — they drive context state, not a cached query).
-
-export function login(email: string, password: string): Promise<LoginResponse> {
-  return apiFetch<LoginResponse>('/auth/login', { method: 'POST', body: { email, password } });
-}
+// Consumed directly by AuthContext (session bootstrap lives outside react-query — it
+// drives context state, not a cached query). Login itself is Portal's job now (Phase
+// 7b) -- a session only ever starts here via /sso-callback picking up a token Portal
+// minted.
 
 export function logout(): Promise<void> {
   return apiFetch<void>('/auth/logout', { method: 'POST' });

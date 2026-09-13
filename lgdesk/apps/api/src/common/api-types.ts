@@ -89,22 +89,6 @@ export interface EmployeeDto {
   displayName?: string;
 }
 
-export interface LoginUser {
-  empId: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  role: string;
-  team?: string;
-  hasMisAccess: boolean;
-}
-
-export interface LoginResponse {
-  token: string;
-  user: LoginUser;
-}
-
 export interface InitialPayloadUser {
   empId: string;
   email: string;

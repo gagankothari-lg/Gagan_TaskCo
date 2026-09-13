@@ -3,14 +3,12 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import {
   InitialPayload,
-  LoginResponse,
   Task,
   Project,
   WorkFunction,
@@ -19,7 +17,6 @@ import {
 } from '../common/api-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { isAdmin, isManager } from '../common/constants';
-import { LoginDto } from './dto/login.dto';
 import { EmailService } from '../email/email.service';
 
 const BCRYPT_ROUNDS = 12;
@@ -43,53 +40,13 @@ type UserRow = {
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
   ) {}
 
-  // ─────────────────────────────────────────────── LOGIN
-  async login(dto: LoginDto): Promise<LoginResponse> {
-    const user = await this.prisma.user.findFirst({
-      where: { email: { equals: dto.email, mode: 'insensitive' } },
-    });
-    // Generic message for both unknown email and bad password (no enumeration).
-    if (!user) {
-      // Constant-time: spend ~the same work as a real compare so the no-user
-      // path can't be distinguished by response timing.
-      await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const passwordOk = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!passwordOk) throw new UnauthorizedException('Invalid credentials');
-    if (!user.isActive) throw new UnauthorizedException('Account inactive');
-
-    const jti = randomUUID();
-    const token = await this.jwt.signAsync({
-      sub: user.empId,
-      email: user.email,
-      role: user.role,
-      team: user.team,
-      jti,
-    });
-
-    const hasMisAccess = await this.checkMisAccess(user.empId);
-    await this.audit(user.empId, 'LOGIN');
-
-    return {
-      token,
-      user: {
-        empId: user.empId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        role: user.role,
-        team: user.team ?? undefined,
-        hasMisAccess,
-      },
-    };
-  }
+  // Login retired from LGDesk in Phase 7b -- Portal's POST /auth/login is the only place
+  // this action exists now. A session only ever starts via /sso-callback picking up a
+  // token Portal minted (same JWT_SECRET, validated locally by JwtStrategy below).
 
   // ─────────────────────────────────────────────── GET /auth/me
   async getInitialPayload(empId: string): Promise<InitialPayload> {

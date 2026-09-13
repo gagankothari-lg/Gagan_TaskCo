@@ -1,31 +1,18 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { EmailModule } from '../email/email.module';
 
+// Phase 7b: JwtModule/JwtService retired from here -- they only ever backed this
+// module's own login() (Portal's job now). JwtStrategy (passport-jwt) reads JWT_SECRET
+// directly from process.env for token *validation*, independent of JwtService, so
+// PassportModule alone is still all auth guards need.
 @Module({
-  imports: [
-    EmailModule,
-    PassportModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const secret = config.get<string>('JWT_SECRET');
-        if (!secret) throw new Error('JWT_SECRET is not set — refusing to start with an insecure default.');
-        return {
-          secret,
-          signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN') || '7d' },
-        };
-      },
-    }),
-  ],
+  imports: [EmailModule, PassportModule],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService],
 })
 export class AuthModule {}

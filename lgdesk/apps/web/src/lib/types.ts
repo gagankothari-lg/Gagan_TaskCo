@@ -114,22 +114,6 @@ export interface InitialPayload {
   hasMisAccess: boolean;
 }
 
-export interface LoginUser {
-  empId: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  role: string;
-  team?: string;
-  hasMisAccess: boolean;
-}
-
-export interface LoginResponse {
-  token: string;
-  user: LoginUser;
-}
-
 // ─── Users module (P03/P04) ────────────────────────
 // RegistrationRequest moved out in P19, ProfileUpdateRequest/ProfileUpdateInput moved out
 // in P21 -- both are Portal's own concern now, with their own type definitions there.

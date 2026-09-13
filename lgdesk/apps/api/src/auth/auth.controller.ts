@@ -3,7 +3,6 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { LoginDto } from './dto/login.dto';
 import { ResetPasswordRequestDto } from './dto/reset-password-request.dto';
 import { ResetPasswordConfirmDto } from './dto/reset-password-confirm.dto';
 
@@ -20,12 +19,8 @@ interface AuthedUser {
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  // I-03: brute-force protection — max 5 login attempts/minute per IP.
-  @Throttle({ short: { limit: 5, ttl: 60000 }, medium: { limit: 5, ttl: 60000 } })
-  @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto);
-  }
+  // Login retired from LGDesk in Phase 7b -- Portal's POST /auth/login is the only place
+  // this action exists now.
 
   @UseGuards(JwtAuthGuard)
   @Get('me')

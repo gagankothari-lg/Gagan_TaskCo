@@ -3,9 +3,9 @@
 import { createContext, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { login as loginRequest, logout as logoutRequest, fetchMe } from '../lib/api/auth';
+import { logout as logoutRequest, fetchMe } from '../lib/api/auth';
 import { ApiError } from '../lib/api/client';
-import { getToken, setToken as storeToken, removeToken } from '../lib/auth';
+import { getToken, removeToken } from '../lib/auth';
 import { redirectToPortalLogin } from '../lib/portal';
 import type {
   InitialPayload,
@@ -29,17 +29,6 @@ interface AuthContextValue {
   attCounts: Record<string, number>;
   /** True only while the initial boot fetch (session restore) is in flight. */
   isLoading: boolean;
-  /**
-   * True once the boot fetch resolves a valid session WITHOUT the user having
-   * called `login()` this page-load — i.e. a silent session restore (Part 11
-   * FR-4: "auto-login"). The login screen uses this to jump straight to
-   * /dashboard instead of showing the "Enter Dashboard ->" confirmation card,
-   * which stays reserved for a just-completed manual login.
-   */
-  sessionRestored: boolean;
-  /** "Restoring session..." / "Session expired. Please sign in again." / null. */
-  bootMessage: string | null;
-  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -58,8 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null);
   const [payload, setPayload] = useState<InitialPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [sessionRestored, setSessionRestored] = useState(false);
-  const [bootMessage, setBootMessage] = useState<string | null>(null);
 
   const fetchPayload = useCallback(async () => {
     const data = await fetchMe();
@@ -67,7 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data;
   }, []);
 
-  // Bootstrap from a stored token on mount (Part 11 "auto-login / session restore").
+  // Bootstrap from a stored token on mount -- the only way a session ever starts now is
+  // Portal handing one off via /sso-callback (Phase 7b: LGDesk has no login of its own).
   useEffect(() => {
     const stored = getToken();
     // A literal "null"/"undefined" string (e.g. hand-edited in devtools) must be
@@ -79,35 +67,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     setTokenState(stored);
-    setBootMessage('Restoring session…');
     fetchPayload()
-      .then(() => setSessionRestored(true))
       .catch((err) => {
         // Distinguish a DEFINITIVE auth failure (401 — expired/invalid token; apiFetch
         // has already stripped it from localStorage) from a TRANSIENT one (network
         // error / 5xx). Only the former clears local state — a transient failure keeps
-        // the token so the next reload can retry the restore silently (FR-4).
+        // the token so the next reload can retry the restore silently. Either way,
+        // layout-client.tsx's protect-effect sends an unauthenticated user to Portal
+        // once isLoading settles.
         const status = err instanceof ApiError ? err.status : 0;
         if (status === 401) {
           setTokenState(null);
           setPayload(null);
-          setBootMessage('Session expired. Please sign in again.');
-        } else {
-          setBootMessage(null);
         }
       })
       .finally(() => setIsLoading(false));
   }, [fetchPayload]);
-
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const { token: newToken } = await loginRequest(email, password);
-      storeToken(newToken);
-      setTokenState(newToken);
-      await fetchPayload();
-    },
-    [fetchPayload],
-  );
 
   const logout = useCallback(async () => {
     try {
@@ -118,7 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     removeToken();
     setTokenState(null);
     setPayload(null);
-    setSessionRestored(false);
     redirectToPortalLogin();
   }, []);
 
@@ -134,9 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     pendingDdrCount: payload?.pendingDdrCount ?? 0,
     attCounts: payload?.attCounts ?? {},
     isLoading,
-    sessionRestored,
-    bootMessage,
-    login,
     logout,
     refresh: async () => {
       await fetchPayload();

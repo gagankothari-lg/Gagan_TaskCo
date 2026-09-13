@@ -21,7 +21,7 @@ export class ApiError extends Error {
 // are EXPECTED (bad credentials / bad OTP) and must NOT trigger a session-expiry
 // redirect — the calling page renders the error; (2) they must NOT carry a stale/
 // leftover Authorization token from a previous session (PFIX-LOGIN-NETWORK-ERROR).
-const PUBLIC_AUTH_PATHS = ['/auth/login', '/auth/password-reset', '/auth/register'];
+const PUBLIC_AUTH_PATHS = ['/auth/password-reset', '/auth/register'];
 
 export type QueryParams = Record<string, string | number | boolean | undefined | null>;
 
