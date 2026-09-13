@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── DESIGN TOKENS ───────────────────────────────────────
+   P27: same values as lgdesk/apps/web/src/app/globals.css's :root block --
+   one design language across both apps. Light-only (LGDesk's dark-mode tokens and every
+   page-specific one-off token -- meeting cards, org-chart root card, work-log rows, etc. --
+   are LGDesk-page-specific and have no Portal equivalent, so they're not copied here). */
+:root {
+  --p:       #2D3E51;   /* header bg, active nav, primary buttons, stat-card border */
+  --p2:      #2F6E68;   /* focus rings, progress bars */
+  --p3:      #ECF1F1;   /* active nav bg, hover bg, chips */
+  --accent:  #2F6E68;
+  --danger:  #A35B24;
+  --warn:    #9C6C10;
+  --ok:      #3E7A34;
+  --bg:      #ECF1F1;
+  --surface: #ffffff;
+  --border:  #DFE6E8;
+  --text:    #2D3E51;
+  --muted:   #5C6773;
+  --muted2:  #96A0A8;
+
+  --sidebar-width: 230px;
+  --hh:      68px;
+  --r:       8px;
+  --sh:      0 2px 8px rgba(0,0,0,.1);
+
+  --alert-danger-bg: rgba(163, 91, 36, 0.15);
+  --alert-warn-bg:   rgba(156, 108, 16, 0.15);
+  --alert-ok-bg:     rgba(62, 122, 52, 0.15);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── BUTTONS ─────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: var(--r);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  transition: filter 0.15s;
+}
+.btn:hover { filter: brightness(0.92); }
+.btn-primary { background: var(--p); color: #fff; }
+.btn-accent  { background: var(--accent); color: #fff; }
+.btn-outline { background: transparent; color: var(--p); border: 1.5px solid var(--p); }
+.btn-danger  { background: var(--danger); color: #fff; }
+.btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-full    { width: 100%; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-spinner { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+/* ── PILLS & BADGES ──────────────────────────────────── */
+.pill { display: inline-block; padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.pill-Approved  { background: #e8f5e9; color: var(--ok); }
+.pill-Pending   { background: #fff3e0; color: var(--warn); }
+.pill-Rejected  { background: #fce8e8; color: var(--danger); }
+
+.pill-Super-Admin      { background: #fce4ec; color: #880e4f; }
+.pill-Admin            { background: var(--p3); color: var(--p); }
+.pill-Team-Captain     { background: #ede7f6; color: #4527a0; }
+.pill-Team-Facilitator { background: #ede7f6; color: #4527a0; }
+.pill-Team-Member      { background: #e0f2f1; color: #00695c; }
+.pill-Intern           { background: #fce8e8; color: var(--danger); }
+
+/* ── CARDS ───────────────────────────────────────────── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--p); padding: 20px; border-radius: var(--r); }
+
+/* ── FORM FIELDS ─────────────────────────────────────── */
+.fc {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  font-family: inherit; font-size: 13px; color: var(--text);
+  background: var(--surface); outline: none;
+  transition: border-color 0.15s;
+}
+.fc:focus { border-color: var(--p2); box-shadow: 0 0 0 2px rgba(47,110,104,0.14); }
+.fc::placeholder { color: var(--muted2); }
+.fg { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.fg label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+
+/* ── MODAL ───────────────────────────────────────────── */
+.modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+.modal {
+  background: var(--surface);
+  border-radius: var(--r);
+  max-width: 480px; width: 100%;
+  animation: slideUp 0.2s ease;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.modal-hd { padding: 18px 20px; border-bottom: 1px solid var(--border); font-size: 16px; font-weight: 600; }
+.modal-bd { padding: 20px; }
+.modal-ft { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── NAV ─────────────────────────────────────────────── */
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; font-size: 13px; color: var(--text);
+  cursor: pointer; border-left: 3px solid transparent;
+  transition: background 0.1s;
+  text-decoration: none;
+}
+.nav-item:hover { background: var(--p3); }
+.nav-item.active { background: var(--p3); border-left-color: var(--p); color: var(--p); font-weight: 600; }
+
+/* ── TABLES ──────────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--border); background: var(--surface); border-radius: var(--r); }
+table { width: 100%; border-collapse: collapse; }
+thead th { background: var(--p); color: #fff; font-size: 12px; font-weight: 600; padding: 10px 12px; text-align: left; white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border); }
+tbody tr:last-child { border-bottom: none; }
+tbody td { padding: 10px 12px; font-size: 13px; color: var(--text); vertical-align: top; }
+
+/* ── EMPTY STATE ─────────────────────────────────────── */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+
+/* ── SCROLLBAR ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 768px) {
+  #sidebar { position: fixed; z-index: 100; height: 100vh; transform: translateX(-100%); transition: transform 0.25s; }
+  #sidebar.open { transform: translateX(0); }
+  #main { margin-left: 0 !important; }
+}

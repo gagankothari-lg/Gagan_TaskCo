@@ -6,11 +6,13 @@ import { apiFetch, ApiError, getToken, setToken } from '../lib/api';
 import { setPendingGoogleIdToken } from '../lib/session';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
-// Phase P26: forgot-password stayed on LGDesk (P25) rather than being rebuilt here --
-// Portal has no reset flow of its own yet, and the account being reset lives in the
-// shared `users` table LGDesk owns. Renders nothing if unset (same convention as
+// P26: forgot-password stayed on LGDesk (P25) rather than being rebuilt here -- Portal
+// has no reset flow of its own yet, and the account being reset lives in the shared
+// `users` table LGDesk owns. Renders nothing if unset (same convention as
 // GoogleSignInButton's GOOGLE_OAUTH_CLIENT_ID gate) rather than link to a relative path
-// that doesn't exist on this app.
+// that doesn't exist on this app. P27: restyled as part of the card (next to the
+// Password label) instead of a stray link under the button, so the handoff into
+// LGDesk's reset flow reads as one product, not an obvious jump to a different site.
 const LGDESK_URL = process.env.NEXT_PUBLIC_LGDESK_URL;
 
 // Portal's real front door (Phase 6) -- replaces the placeholder from Phase 2. Token
@@ -61,49 +63,49 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ width: 320, padding: 24, border: '1px solid #ddd', borderRadius: 8 }}>
-        <h1 style={{ fontSize: 20, marginBottom: 4, color: '#1a237e' }}>Portal</h1>
-        <p style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>Sign in to access LG Desk and other tools.</p>
+    <main
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: 'linear-gradient(135deg,#2D3E51 0%,#2F6E68 100%)' }}
+    >
+      <div className="card w-full max-w-sm p-8">
+        <div className="text-center mb-6">
+          <h1 className="text-xl font-bold text-p">Portal</h1>
+          <p className="text-sm text-muted mt-1">Sign in to access LG Desk and other tools.</p>
+        </div>
 
         <form onSubmit={onSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, marginBottom: 8, boxSizing: 'border-box' }}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, marginBottom: 12, boxSizing: 'border-box' }}
-          />
-          {error && <p style={{ color: '#c62828', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-          <button type="submit" disabled={busy} style={{ width: '100%', padding: 9, background: '#1a237e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+          <div className="fg">
+            <label>Email</label>
+            <input className="fc" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+          <div className="fg">
+            <div className="flex items-center justify-between">
+              <label>Password</label>
+              {LGDESK_URL && (
+                <a href={`${LGDESK_URL}/forgot-password`} className="text-[11px] font-semibold text-p2 hover:underline normal-case tracking-normal">
+                  Forgot password?
+                </a>
+              )}
+            </div>
+            <input className="fc" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </div>
+          {error && <p className="text-danger text-sm mb-3">{error}</p>}
+          <button type="submit" disabled={busy} className="btn btn-primary btn-full">
+            {busy && <span className="btn-spinner" />}
             {busy ? 'Signing in…' : 'Sign In'}
           </button>
-          {LGDESK_URL && (
-            <p style={{ fontSize: 13, textAlign: 'right', marginTop: 8 }}>
-              <a href={`${LGDESK_URL}/forgot-password`} style={{ color: '#1a237e' }}>Forgot password?</a>
-            </p>
-          )}
         </form>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0' }}>
-          <div style={{ flex: 1, height: 1, background: '#eee' }} />
-          <span style={{ fontSize: 12, color: '#999' }}>or</span>
-          <div style={{ flex: 1, height: 1, background: '#eee' }} />
+        <div className="flex items-center gap-2 my-4">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-xs text-muted2">or</span>
+          <div className="flex-1 h-px bg-border" />
         </div>
 
         <GoogleSignInButton onCredential={onGoogleCredential} />
 
-        <p style={{ fontSize: 13, color: '#666', marginTop: 16, textAlign: 'center' }}>
-          New here? <a href="/register" style={{ color: '#1a237e' }}>Register →</a>
+        <p className="text-sm text-muted mt-4 text-center">
+          New here? <a href="/register" className="text-p font-semibold hover:underline">Register →</a>
         </p>
       </div>
     </main>
