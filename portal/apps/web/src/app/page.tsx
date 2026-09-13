@@ -6,6 +6,13 @@ import { apiFetch, ApiError, getToken, setToken } from '../lib/api';
 import { setPendingGoogleIdToken } from '../lib/session';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
+// Phase P26: forgot-password stayed on LGDesk (P25) rather than being rebuilt here --
+// Portal has no reset flow of its own yet, and the account being reset lives in the
+// shared `users` table LGDesk owns. Renders nothing if unset (same convention as
+// GoogleSignInButton's GOOGLE_OAUTH_CLIENT_ID gate) rather than link to a relative path
+// that doesn't exist on this app.
+const LGDESK_URL = process.env.NEXT_PUBLIC_LGDESK_URL;
+
 // Portal's real front door (Phase 6) -- replaces the placeholder from Phase 2. Token
 // storage mirrors LGDesk's apps/web/src/lib/auth.ts pattern exactly (localStorage, one
 // key), just Portal's own key ('portal_token', set up back in Phase 4b's lib/api.ts).
@@ -80,6 +87,11 @@ export default function LoginPage() {
           <button type="submit" disabled={busy} style={{ width: '100%', padding: 9, background: '#1a237e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
             {busy ? 'Signing in…' : 'Sign In'}
           </button>
+          {LGDESK_URL && (
+            <p style={{ fontSize: 13, textAlign: 'right', marginTop: 8 }}>
+              <a href={`${LGDESK_URL}/forgot-password`} style={{ color: '#1a237e' }}>Forgot password?</a>
+            </p>
+          )}
         </form>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0' }}>
