@@ -99,6 +99,12 @@ export class AuthService {
   async me(empId: string) {
     const user = await this.prisma.user.findUnique({ where: { empId } });
     if (!user || !user.isActive) throw new UnauthorizedException('Account inactive');
+    // P27: dob/subDepartment/manager added so the Profile page has real current values to
+    // show/pre-fill -- same row already selected above, just a wider field set on the
+    // response. No new query, no new endpoint, no new workflow.
+    const manager = user.managerId
+      ? await this.prisma.user.findUnique({ where: { empId: user.managerId }, select: { email: true, firstName: true, lastName: true } })
+      : null;
     return {
       empId: user.empId,
       email: user.email,
@@ -108,6 +114,10 @@ export class AuthService {
       role: user.role,
       team: user.team ?? undefined,
       designation: user.designation ?? undefined,
+      dob: user.dob ? user.dob.toISOString().slice(0, 10) : undefined,
+      subDepartment: user.subDepartment ?? undefined,
+      managerEmail: manager?.email ?? undefined,
+      managerName: manager ? `${manager.firstName} ${manager.lastName}` : undefined,
     };
   }
 
