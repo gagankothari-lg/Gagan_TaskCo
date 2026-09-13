@@ -350,14 +350,39 @@ export class WorkDurationService {
   }
 
   // ═══════════════════════════════════════════════ helpers
+  //
+  // PFIX-WORKDURATION-RACE: a brand-new account's very first dashboard load fires several
+  // work-duration reads (daily-status, status) essentially in parallel. Each independently
+  // reaches this method, and since neither of them has yet created today's row, both see
+  // `existing === null` and both attempt to `create` one for the same (empId, date) -- a
+  // genuine check-then-create race, not a hypothetical one. The loser hits the table's
+  // `@@unique([empId, date])` constraint (P2002). createWithId's own retry loop only
+  // forgives a *sessionId* collision (regenerates a fresh id and retries the create) --
+  // an empId+date collision means someone else already created today's session, so the
+  // correct recovery is to fetch and return THAT row, not retry creating a second one.
+  // Confirmed via schema.prisma: `@@unique([empId, date])` compiles to the `empId_date`
+  // compound key already used in the `findUnique` below.
   private async getOrCreateTodaySession(empId: string): Promise<SessionRow> {
     const date = this.todayUtc();
     const existing = await this.prisma.workDuration.findUnique({ where: { empId_date: { empId, date } } });
     if (existing) return existing;
-    // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
-    return this.idUtils.createWithId('workDuration', 'sessionId', 'WD', (sessionId) =>
-      this.prisma.workDuration.create({ data: { sessionId, empId, date, status: 'IDLE', totalBreakMins: 0 } }),
-    );
+    try {
+      // PFIX-IDCOUNTER-BATCH: collision-safe, matching approveRegistration's fix.
+      return await this.idUtils.createWithId('workDuration', 'sessionId', 'WD', (sessionId) =>
+        this.prisma.workDuration.create({ data: { sessionId, empId, date, status: 'IDLE', totalBreakMins: 0 } }),
+      );
+    } catch (err) {
+      const e = err as { code?: string; meta?: { target?: unknown } };
+      const target = e?.meta?.target;
+      const empIdDateCollided = Array.isArray(target)
+        ? target.includes('empId') && target.includes('date')
+        : String(target ?? '').includes('empId_date');
+      if (e?.code === 'P2002' && empIdDateCollided) {
+        const winner = await this.prisma.workDuration.findUnique({ where: { empId_date: { empId, date } } });
+        if (winner) return winner;
+      }
+      throw err;
+    }
   }
 
   private async getCaller(empId: string) {
