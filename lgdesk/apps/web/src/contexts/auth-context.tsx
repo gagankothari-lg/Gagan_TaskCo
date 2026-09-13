@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { login as loginRequest, logout as logoutRequest, fetchMe } from '../lib/api/auth';
 import { ApiError } from '../lib/api/client';
 import { getToken, setToken as storeToken, removeToken } from '../lib/auth';
+import { redirectToPortalLogin } from '../lib/portal';
 import type {
   InitialPayload,
   InitialPayloadUser,
@@ -118,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokenState(null);
     setPayload(null);
     setSessionRestored(false);
-    if (typeof window !== 'undefined') window.location.href = '/login';
+    redirectToPortalLogin();
   }, []);
 
   const value: AuthContextValue = {

@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useAuth } from '../../hooks/use-auth';
 import { isManager } from '../../lib/auth';
+import { redirectToPortalLogin } from '../../lib/portal';
 import { Icon } from '../../components/ui/icon';
 import { toast } from '../../lib/toast';
 import { AuthRefreshPing } from '../../components/auth-refresh-ping';
@@ -63,7 +64,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 }
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
   const { user, isLoading, logout, refresh, tasks, pendingLeaveCount, pendingDdrCount } = useAuth();
   // Round5 add'l-1: this badge originally combined Registrations + Profile Updates + DDRs.
@@ -142,10 +142,11 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.empId]);
 
-  // Protect: bounce unauthenticated users to /login once bootstrap settles.
+  // Protect: bounce unauthenticated users to Portal (Phase 7b — LGDesk no longer has its
+  // own login) once bootstrap settles.
   useEffect(() => {
-    if (!isLoading && !user) router.replace('/login');
-  }, [isLoading, user, router]);
+    if (!isLoading && !user) redirectToPortalLogin();
+  }, [isLoading, user]);
 
   // Close presence menu on outside click.
   useEffect(() => {

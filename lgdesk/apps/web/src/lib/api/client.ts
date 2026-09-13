@@ -1,4 +1,5 @@
 import { getToken, removeToken } from '../auth';
+import { redirectToPortalLogin } from '../portal';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const BASE_URL = `${API_URL}/api`;
@@ -46,7 +47,7 @@ function buildUrl(path: string, params?: QueryParams): string {
  * - Attaches the JWT bearer token from `lib/auth` (localStorage-backed, same as before).
  * - Unwraps the `{ok:true,data}` / `{ok:false,error}` envelope, throwing a typed `ApiError`.
  * - On a 401 (session expired — not an expected public-auth failure), clears the
- *   stored token and redirects to /login exactly once, centrally.
+ *   stored token and redirects to Portal (Phase 7b — LGDesk no longer has its own login).
  */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { method = 'GET', body, params } = options;
@@ -89,7 +90,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   if (res.status === 401) {
     if (!isPublicAuth && typeof window !== 'undefined') {
       removeToken();
-      if (window.location.pathname !== '/login') window.location.href = '/login';
+      redirectToPortalLogin();
     }
   }
 
