@@ -2,13 +2,15 @@ import type { Config } from 'tailwindcss';
 
 // P27: same brand tokens as LGDesk (lgdesk/apps/web/tailwind.config.ts), backed by the
 // same-named CSS custom properties in globals.css -- one design language, two apps.
-// Portal has no dark mode (nothing asked for one; kept deliberately out of scope).
+// P29: darkMode 'class' matches LGDesk's own next-themes setup (attribute="class").
 const config: Config = {
+  darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
       colors: {
         p: 'var(--p)',
+        'p-fg': 'var(--p-fg)',
         p2: 'var(--p2)',
         p3: 'var(--p3)',
         accent: 'var(--accent)',

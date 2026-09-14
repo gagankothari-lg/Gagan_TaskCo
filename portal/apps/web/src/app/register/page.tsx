@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
 import { takePendingGoogleIdToken, decodeJwtPayloadUnsafe } from '../../lib/session';
 import { TEAM_HIERARCHY, DIVISIONS } from '../../lib/team-hierarchy';
+import { ThemeToggle } from '../../components/ThemeToggle';
 
 const ALL_ROLES = ['Super Admin', 'Admin', 'Team Captain', 'Team Facilitator', 'Team Member', 'Intern'];
 // Same as apps/api/src/common/constants.ts's MANUAL_MANAGER_ROLES -- these roles type in
@@ -100,10 +101,13 @@ export default function RegisterPage() {
         className="min-h-screen flex items-center justify-center p-4"
         style={{ background: 'linear-gradient(135deg,#2D3E51 0%,#2F6E68 100%)' }}
       >
+        <div className="fixed top-4 right-4">
+          <ThemeToggle />
+        </div>
         <div className="card w-full max-w-sm p-8 text-center">
           <h1 className="text-lg font-bold mb-2" style={{ color: 'var(--ok)' }}>Request submitted</h1>
           <p className="text-sm text-muted">Your registration is pending approval from your manager or an admin. You&apos;ll be able to sign in once it&apos;s approved.</p>
-          <a href="/" className="inline-block mt-4 text-p text-sm font-semibold hover:underline">← Back to sign in</a>
+          <a href="/" className="inline-block mt-4 text-p-fg text-sm font-semibold hover:underline">← Back to sign in</a>
         </div>
       </main>
     );
@@ -114,8 +118,11 @@ export default function RegisterPage() {
       className="min-h-screen flex items-center justify-center p-4"
       style={{ background: 'linear-gradient(135deg,#2D3E51 0%,#2F6E68 100%)' }}
     >
+      <div className="fixed top-4 right-4">
+        <ThemeToggle />
+      </div>
       <form onSubmit={onSubmit} className="card w-full max-w-md p-8">
-        <h1 className="text-xl font-bold text-p">Register</h1>
+        <h1 className="text-xl font-bold text-p-fg">Register</h1>
         <p className="text-sm text-muted mb-4">
           {googleIdToken ? 'Continue setting up your account.' : 'Create your account.'}
         </p>
@@ -200,7 +207,7 @@ export default function RegisterPage() {
           {busy ? 'Submitting…' : 'Submit registration'}
         </button>
         <p className="text-sm text-muted mt-3 text-center">
-          <a href="/" className="text-p font-semibold hover:underline">← Back to sign in</a>
+          <a href="/" className="text-p-fg font-semibold hover:underline">← Back to sign in</a>
         </p>
       </form>
     </main>

@@ -30,6 +30,35 @@
   --alert-danger-bg: rgba(163, 91, 36, 0.15);
   --alert-warn-bg:   rgba(156, 108, 16, 0.15);
   --alert-ok-bg:     rgba(62, 122, 52, 0.15);
+
+  /* P29: "--p as foreground" -- text/icons/borders sitting on --surface or --bg (heading
+     text, .btn-outline, link text). Distinct from --p's OTHER job (a fixed background --
+     the sidebar, the login gradient, pill chips on their own fixed light backgrounds),
+     which stays var(--p) unchanged in both themes. Same split LGDesk's own globals.css
+     makes for the identical reason -- --p itself is too close to --surface/--bg's dark
+     variant to read as text there. */
+  --p-fg: var(--p);
+}
+
+/* P29: dark mode, toggled via the `.dark` class next-themes applies to <html>. Same
+   approach as LGDesk's own globals.css -- --p/--p2/--p3/--accent/--danger/--warn/--ok
+   (and the fixed navy-teal login/greeting-band gradient, which is a literal, not a
+   token) stay identical in both themes; only the neutral surface/text/border scale
+   changes. The sidebar's own navy background (--p) is already dark, so it needs no
+   separate dark-mode treatment either. */
+.dark {
+  --bg:      #10131c;
+  --surface: #1b1f2d;
+  --border:  #2d3348;
+  --text:    #e8eaf0;
+  --muted:   #9aa0b8;
+  --muted2:  #6d7390;
+
+  --alert-danger-bg: rgba(163, 91, 36, 0.28);
+  --alert-warn-bg:   rgba(156, 108, 16, 0.28);
+  --alert-ok-bg:     rgba(62, 122, 52, 0.28);
+
+  --p-fg: #6fd1c0;
 }
 
 * { box-sizing: border-box; }
@@ -61,7 +90,7 @@ body {
 .btn:hover { filter: brightness(0.92); }
 .btn-primary { background: var(--p); color: #fff; }
 .btn-accent  { background: var(--accent); color: #fff; }
-.btn-outline { background: transparent; color: var(--p); border: 1.5px solid var(--p); }
+.btn-outline { background: transparent; color: var(--p-fg); border: 1.5px solid var(--p-fg); }
 .btn-danger  { background: var(--danger); color: #fff; }
 .btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
 .btn-full    { width: 100%; }

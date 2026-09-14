@@ -74,7 +74,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 mb-3 text-[15px] font-semibold text-p">
+      <div className="flex items-center gap-1.5 mb-3 text-[15px] font-semibold text-p-fg">
         <LayoutGrid size={15} />
         <span>Your tools</span>
       </div>

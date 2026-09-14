@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError, getToken, setToken } from '../lib/api';
 import { setPendingGoogleIdToken } from '../lib/session';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 // P26: forgot-password stayed on LGDesk (P25) rather than being rebuilt here -- Portal
 // has no reset flow of its own yet, and the account being reset lives in the shared
@@ -67,9 +68,12 @@ export default function LoginPage() {
       className="min-h-screen flex items-center justify-center p-4"
       style={{ background: 'linear-gradient(135deg,#2D3E51 0%,#2F6E68 100%)' }}
     >
+      <div className="fixed top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="card w-full max-w-sm p-8">
         <div className="text-center mb-6">
-          <h1 className="text-xl font-bold text-p">Portal</h1>
+          <h1 className="text-xl font-bold text-p-fg">Portal</h1>
           <p className="text-sm text-muted mt-1">Sign in to access LG Desk and other tools.</p>
         </div>
 
@@ -105,7 +109,7 @@ export default function LoginPage() {
         <GoogleSignInButton onCredential={onGoogleCredential} />
 
         <p className="text-sm text-muted mt-4 text-center">
-          New here? <a href="/register" className="text-p font-semibold hover:underline">Register →</a>
+          New here? <a href="/register" className="text-p-fg font-semibold hover:underline">Register →</a>
         </p>
       </div>
     </main>
